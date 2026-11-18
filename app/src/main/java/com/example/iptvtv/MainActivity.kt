@@ -34,7 +34,21 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
+import androidx.media3.common.util.UnstableApi
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -47,7 +61,8 @@ import java.util.Locale
 import java.util.zip.GZIPInputStream
 
 data class Channel(val id: Int, val name: String, val icon: String, val epgId: String, val cat: String)
-data class Prog(val title: String, val icon: String, val start: Long, val stop: Long)
+data class Prog(val title: String, val sub: String, val cat: String, val icon: String, val start: Long, val stop: Long)
+class Epg(val now: Map<String, Prog>, val next: Map<String, Prog>)
 data class Creds(val host: String, val user: String, val pass: String, val epgUrl: String)
 
 fun load(c: Context): Creds? {
@@ -91,8 +106,8 @@ suspend fun loadChannels(k: Creds): List<Channel> = withContext(Dispatchers.IO) 
 fun parseDate(f: SimpleDateFormat, s: String?): Long =
     try { f.parse(s ?: "")?.time ?: 0L } catch (ex: Exception) { 0L }
 
-// Lit le guide XMLTV (.gz ou non) en flux et garde le programme en cours de chaque chaîne.
-suspend fun loadEpg(k: Creds): Map<String, Prog> = withContext(Dispatchers.IO) {
+// Lit le guide XMLTV (.gz ou non) en flux : garde le programme en cours et le suivant de chaque chaîne.
+suspend fun loadEpg(k: Creds): Epg = withContext(Dispatchers.IO) {
     val url = k.epgUrl.ifBlank { "${k.host}/xmltv.php?username=${k.user}&password=${k.pass}" }
     val raw = URL(url).openStream().buffered()
     raw.mark(2)
@@ -102,13 +117,17 @@ suspend fun loadEpg(k: Creds): Map<String, Prog> = withContext(Dispatchers.IO) {
     val input = if (b1 == 0x1f && b2 == 0x8b) GZIPInputStream(raw) else raw
     val fmt = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US)
     val now = System.currentTimeMillis()
-    val out = HashMap<String, Prog>()
+    val cur = HashMap<String, Prog>()
+    val nxt = HashMap<String, Prog>()
     val p = Xml.newPullParser()
     p.setInput(input, null)
     var ch = ""
     var st = 0L
     var sp = 0L
     var title = ""
+    var sub = ""
+    var desc = ""
+    var cat = ""
     var icon = ""
     var inProg = false
     var ev = p.eventType
@@ -121,20 +140,36 @@ suspend fun loadEpg(k: Creds): Map<String, Prog> = withContext(Dispatchers.IO) {
                 st = parseDate(fmt, p.getAttributeValue(null, "start"))
                 sp = parseDate(fmt, p.getAttributeValue(null, "stop"))
                 title = ""
+                sub = ""
+                desc = ""
+                cat = ""
                 icon = ""
             } else if (n == "title" && inProg) {
                 title = p.nextText()
+            } else if (n == "sub-title" && inProg) {
+                sub = p.nextText()
+            } else if (n == "desc" && inProg) {
+                desc = p.nextText()
+            } else if (n == "category" && inProg) {
+                val t = p.nextText()
+                if (cat.isEmpty()) cat = t
             } else if (n == "icon" && inProg) {
                 icon = p.getAttributeValue(null, "src") ?: ""
             }
         } else if (ev == XmlPullParser.END_TAG && p.name == "programme") {
             inProg = false
-            if (st <= now && now < sp) out[ch] = Prog(title, icon, st, sp)
+            val pr = Prog(title, sub.ifBlank { desc }, cat, icon, st, sp)
+            if (st <= now && now < sp) {
+                cur[ch] = pr
+            } else if (st >= now) {
+                val o = nxt[ch]
+                if (o == null || st < o.start) nxt[ch] = pr
+            }
         }
         ev = p.next()
     }
     input.close()
-    out
+    Epg(cur, nxt)
 }
 
 class MainActivity : ComponentActivity() {
@@ -149,7 +184,7 @@ fun App() {
     val ctx = LocalContext.current
     var creds by remember { mutableStateOf(load(ctx)) }
     var channels by remember { mutableStateOf<List<Channel>>(emptyList()) }
-    var epg by remember { mutableStateOf<Map<String, Prog>>(emptyMap()) }
+    var epg by remember { mutableStateOf(Epg(emptyMap(), emptyMap())) }
     var status by remember { mutableStateOf("") }
     var playing by remember { mutableStateOf<Channel?>(null) }
 
@@ -177,7 +212,7 @@ fun App() {
             val pl = playing
             when {
                 k == null -> Login { save(ctx, it); creds = it }
-                pl != null -> Player(pl, k, epg[pl.epgId]) { playing = null }
+                pl != null -> PlayerScreen(pl, k, channels, epg, { playing = it }) { playing = null }
                 else -> Home(channels, epg, status, { playing = it }, { creds = null })
             }
         }
@@ -203,13 +238,13 @@ fun Login(onOk: (Creds) -> Unit) {
 
 @Composable
 fun Home(
-    ch: List<Channel>, epg: Map<String, Prog>, status: String,
+    ch: List<Channel>, epg: Epg, status: String,
     onPlay: (Channel) -> Unit, onLogout: () -> Unit
 ) {
     var hero by remember { mutableStateOf<Channel?>(null) }
     LaunchedEffect(ch) { if (hero == null) hero = ch.firstOrNull() }
     val groups = remember(ch) { ch.groupBy { it.cat }.entries.toList() }
-    val hp = hero?.let { epg[it.epgId] }
+    val hp = hero?.let { epg.now[it.epgId] }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().height(260.dp)) {
             if (hp != null && hp.icon.isNotBlank()) {
@@ -239,7 +274,7 @@ fun Home(
                     modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(g.value) { c ->
-                        ChannelCard(c, epg[c.epgId], { hero = c }, { onPlay(c) })
+                        ChannelCard(c, epg.now[c.epgId], { hero = c }, { onPlay(c) })
                     }
                 }
             }
@@ -273,25 +308,176 @@ fun ChannelCard(c: Channel, p: Prog?, onFocus: () -> Unit, onClick: () -> Unit) 
     }
 }
 
+@OptIn(UnstableApi::class)
 @Composable
-fun Player(c: Channel, k: Creds, p: Prog?, onBack: () -> Unit) {
+fun PlayerScreen(
+    c: Channel, k: Creds, channels: List<Channel>, epg: Epg,
+    onZap: (Channel) -> Unit, onBack: () -> Unit
+) {
+    val num = channels.indexOf(c) + 1
+    val p = epg.now[c.epgId]
+    val nx = epg.next[c.epgId]
     val ctx = LocalContext.current
     val exo = remember { ExoPlayer.Builder(ctx).build() }
+    var show by remember { mutableStateOf(true) }
+    var tick by remember { mutableStateOf(0) }
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var res by remember { mutableStateOf("") }
+    var codec by remember { mutableStateOf("") }
+    var quality by remember { mutableStateOf("") }
+    val fr = remember { FocusRequester() }
+
     LaunchedEffect(c) {
         exo.setMediaItem(MediaItem.fromUri("${k.host}/live/${k.user}/${k.pass}/${c.id}.m3u8"))
         exo.prepare()
         exo.playWhenReady = true
+        show = true
+        tick++
     }
-    DisposableEffect(Unit) { onDispose { exo.release() } }
+    LaunchedEffect(Unit) { try { fr.requestFocus() } catch (ex: Exception) { } }
+    LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
+    LaunchedEffect(tick) { delay(7000); show = false }
+    DisposableEffect(exo) {
+        val l = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                val f = exo.videoFormat
+                val mime = f?.sampleMimeType ?: ""
+                codec = when {
+                    mime.contains("hevc") -> "HEVC"
+                    mime.contains("avc") -> "H264"
+                    mime.contains("mpeg2") -> "MPEG2"
+                    else -> ""
+                }
+                val fps = if (f != null && f.frameRate > 0f) "  ${f.frameRate.toInt()} fps" else ""
+                res = "${videoSize.width} x ${videoSize.height}$fps"
+                quality = if (videoSize.height >= 1080) "FHD" else if (videoSize.height >= 720) "HD" else "SD"
+            }
+        }
+        exo.addListener(l)
+        onDispose { exo.removeListener(l); exo.release() }
+    }
     BackHandler { onBack() }
-    Box(Modifier.fillMaxSize()) {
+
+    Box(
+        Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
+            if (it.type == KeyEventType.KeyDown) {
+                show = true
+                tick++
+                val i = channels.indexOf(c)
+                val n = channels.size
+                if (n > 0 && (it.key == Key.DirectionUp || it.key == Key.ChannelUp)) {
+                    onZap(channels[(i + 1) % n])
+                    true
+                } else if (n > 0 && (it.key == Key.DirectionDown || it.key == Key.ChannelDown)) {
+                    onZap(channels[(i - 1 + n) % n])
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+    ) {
         AndroidView(
             factory = { PlayerView(it).apply { player = exo; useController = false } },
             modifier = Modifier.fillMaxSize()
         )
-        Column(Modifier.align(Alignment.BottomStart).background(Color(0xAA000000)).padding(16.dp)) {
-            Text(c.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            if (p != null) Text("${p.title}  (${hm(p.start)} - ${hm(p.stop)})", color = Color.White, fontSize = 14.sp)
+        if (show) InfoBar(c, num, p, nx, nowMs, res, codec, quality, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+fun InfoBar(
+    c: Channel, num: Int, p: Prog?, nx: Prog?, nowMs: Long,
+    res: String, codec: String, quality: String, modifier: Modifier
+) {
+    val cyan = Color(0xFF1EB6E8)
+    Column(modifier.fillMaxWidth()) {
+        if (p != null && p.icon.isNotBlank()) {
+            AsyncImage(
+                model = p.icon, contentDescription = null,
+                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp).width(160.dp).height(90.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                contentScale = ContentScale.Crop
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth().background(Color(0xCC12151C)).padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("$num", color = Color.White, fontSize = 20.sp)
+            Spacer(Modifier.width(24.dp))
+            Text(c.name, color = Color.White, fontSize = 20.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(codec, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(16.dp))
+            Text(quality, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(24.dp))
+            Text(hm(nowMs), color = Color.White, fontSize = 22.sp)
+        }
+        Row(
+            Modifier.fillMaxWidth().background(Color(0xF00B0D12)).padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ProgPanel(p, nowMs, true, Modifier.weight(1f))
+            Box(Modifier.padding(horizontal = 16.dp).width(160.dp).height(80.dp), contentAlignment = Alignment.Center) {
+                if (c.icon.isNotBlank()) {
+                    AsyncImage(
+                        model = c.icon, contentDescription = null,
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Text(c.name, color = Color.White, fontSize = 18.sp, maxLines = 2)
+                }
+            }
+            ProgPanel(nx, nowMs, false, Modifier.weight(1f))
+        }
+        Row(
+            Modifier.fillMaxWidth().background(Color(0xFF080A0E)).padding(horizontal = 16.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(c.cat, color = cyan, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(res, color = Color(0xFF2EE05A), fontSize = 14.sp)
+            Text(
+                SimpleDateFormat("EEEE dd.MM.yyyy", Locale.getDefault()).format(Date(nowMs)),
+                color = Color.White, fontSize = 14.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+fun ProgPanel(pr: Prog?, nowMs: Long, current: Boolean, modifier: Modifier) {
+    val cyan = Color(0xFF1EB6E8)
+    val gray = Color(0xFFB0B8C8)
+    Column(modifier) {
+        if (pr == null) {
+            Text("—", color = gray, fontSize = 20.sp)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color.White, fontSize = 18.sp)
+                if (current) {
+                    val total = (pr.stop - pr.start).coerceAtLeast(1L)
+                    val frac = ((nowMs - pr.start).toFloat() / total).coerceIn(0f, 1f)
+                    Box(Modifier.padding(horizontal = 12.dp).weight(1f).height(3.dp).background(Color(0xFF444B58))) {
+                        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color.Red))
+                    }
+                    Text("+${((pr.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color.White, fontSize = 16.sp)
+                } else {
+                    Spacer(Modifier.weight(1f))
+                    Text("${(pr.stop - pr.start) / 60000} min", color = Color.White, fontSize = 16.sp)
+                }
+            }
+            Text(
+                pr.title, color = cyan, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            if (pr.sub.isNotBlank()) {
+                Text(pr.sub, color = Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (pr.cat.isNotBlank()) {
+                Text(pr.cat, color = gray, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
