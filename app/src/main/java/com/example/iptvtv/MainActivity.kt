@@ -1,11 +1,18 @@
 package com.example.iptvtv
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.util.Xml
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,20 +67,20 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.GZIPInputStream
 
-data class Channel(val id: Int, val name: String, val icon: String, val epgId: String, val cat: String, val hidden: Boolean = false)
+data class Channel(val id: Int, val name: String, val icon: String, val epgId: String, val cat: String, val hidden: Boolean = false, val url: String = "")
 data class Prog(val title: String, val sub: String, val cat: String, val icon: String, val start: Long, val stop: Long)
 class Epg(val now: Map<String, Prog>, val next: Map<String, List<Prog>>)
-data class Creds(val host: String, val user: String, val pass: String, val epgUrl: String)
+data class Creds(val host: String, val user: String, val pass: String, val epgUrl: String, val m3u: String = "")
 
 fun load(c: Context): Creds? {
     val p = c.getSharedPreferences("p", 0)
     val h = p.getString("h", null) ?: return null
-    return Creds(h, p.getString("u", "") ?: "", p.getString("w", "") ?: "", p.getString("e", "") ?: "")
+    return Creds(h, p.getString("u", "") ?: "", p.getString("w", "") ?: "", p.getString("e", "") ?: "", p.getString("m", "") ?: "")
 }
 
 fun save(c: Context, k: Creds) {
     c.getSharedPreferences("p", 0).edit()
-        .putString("h", k.host).putString("u", k.user).putString("w", k.pass).putString("e", k.epgUrl).apply()
+        .putString("h", k.host).putString("u", k.user).putString("w", k.pass).putString("e", k.epgUrl).putString("m", k.m3u).apply()
 }
 
 fun norm(h: String): String {
@@ -107,8 +114,7 @@ fun parseDate(f: SimpleDateFormat, s: String?): Long =
     try { f.parse(s ?: "")?.time ?: 0L } catch (ex: Exception) { 0L }
 
 // Lit le guide XMLTV (.gz ou non) en flux : garde le programme en cours et le suivant de chaque chaîne.
-suspend fun loadEpg(k: Creds): Epg = withContext(Dispatchers.IO) {
-    val url = k.epgUrl.ifBlank { "${k.host}/xmltv.php?username=${k.user}&password=${k.pass}" }
+suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     val raw = URL(url).openStream().buffered()
     raw.mark(2)
     val b1 = raw.read()
@@ -200,15 +206,22 @@ fun App() {
     LaunchedEffect(creds) {
         val k = creds ?: return@LaunchedEffect
         status = "Chargement des chaînes…"
+        var epgUrl = ""
         try {
-            channels = loadChannels(k)
-            status = "Chargement du guide…"
+            val r = loadSource(ctx, k)
+            channels = r.first
+            epgUrl = k.epgUrl.ifBlank { r.second }
         } catch (ex: Exception) {
             status = "Erreur chaînes : ${ex.message}"
             return@LaunchedEffect
         }
+        if (epgUrl.isBlank()) {
+            status = ""
+            return@LaunchedEffect
+        }
+        status = "Chargement du guide…"
         try {
-            epg = loadEpg(k)
+            epg = loadEpg(epgUrl)
             status = ""
         } catch (ex: Exception) {
             status = "Erreur guide : ${ex.message}"
@@ -231,18 +244,57 @@ fun App() {
 
 @Composable
 fun Login(onOk: (Creds) -> Unit) {
-    val old = load(LocalContext.current)
+    val ctx = LocalContext.current
+    val old = load(ctx)
+    var useM3u by remember { mutableStateOf(!old?.m3u.isNullOrBlank()) }
     var h by remember { mutableStateOf(old?.host ?: "") }
     var u by remember { mutableStateOf(old?.user ?: "") }
     var w by remember { mutableStateOf(old?.pass ?: "") }
     var e by remember { mutableStateOf(old?.epgUrl ?: "") }
-    Column(Modifier.fillMaxSize().padding(48.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Connexion Xtream", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        OutlinedTextField(h, { h = it }, label = { Text("Serveur (http://host:port)") }, singleLine = true)
-        OutlinedTextField(u, { u = it }, label = { Text("Identifiant") }, singleLine = true)
-        OutlinedTextField(w, { w = it }, label = { Text("Mot de passe") }, singleLine = true)
-        OutlinedTextField(e, { e = it }, label = { Text("URL du guide (optionnel, .xml ou .gz)") }, singleLine = true)
-        Button(onClick = { onOk(Creds(norm(h), u.trim(), w.trim(), e.trim())) }) { Text("Se connecter") }
+    var m by remember { mutableStateOf(old?.m3u ?: "") }
+    var msg by remember { mutableStateOf("") }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (ex: Exception) { }
+            m = uri.toString()
+        }
+    }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(48.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("Connexion", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(onClick = { useM3u = false }) { Text(if (!useM3u) "● Xtream Codes" else "Xtream Codes") }
+            Button(onClick = { useM3u = true }) { Text(if (useM3u) "● Liste M3U / M3U8" else "Liste M3U / M3U8") }
+        }
+        if (useM3u) {
+            OutlinedTextField(m, { m = it }, label = { Text("Lien (URL) ou fichier M3U / M3U8") }, singleLine = true)
+            Button(onClick = {
+                try {
+                    picker.launch(arrayOf("*/*"))
+                } catch (ex: Exception) {
+                    msg = "Pas d'explorateur de fichiers sur cette TV : utilise un lien (URL)."
+                }
+            }) { Text("Choisir un fichier local") }
+        } else {
+            OutlinedTextField(h, { h = it }, label = { Text("Serveur (http://host:port)") }, singleLine = true)
+            OutlinedTextField(u, { u = it }, label = { Text("Identifiant") }, singleLine = true)
+            OutlinedTextField(w, { w = it }, label = { Text("Mot de passe") }, singleLine = true)
+        }
+        OutlinedTextField(e, { e = it }, label = { Text("URL du guide XMLTV (optionnel, .xml ou .gz)") }, singleLine = true)
+        if (msg.isNotBlank()) Text(msg, color = Color(0xFFFFB4A9), fontSize = 14.sp)
+        Button(onClick = {
+            if (useM3u) {
+                val t = m.trim()
+                val src = if (t.startsWith("http") || t.startsWith("content://") || t.startsWith("file://")) t else "http://$t"
+                onOk(Creds("", "", "", e.trim(), src))
+            } else {
+                onOk(Creds(norm(h), u.trim(), w.trim(), e.trim()))
+            }
+        }) { Text("Se connecter") }
     }
 }
 
@@ -332,7 +384,13 @@ fun PlayerScreen(
     val p = epg.now[c.epgId]
     val nx = epg.next[c.epgId]?.firstOrNull()
     val ctx = LocalContext.current
-    val exo = remember { ExoPlayer.Builder(ctx).build() }
+    val exo = remember {
+        ExoPlayer.Builder(ctx)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true))
+            )
+            .build()
+    }
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
     var tick by remember { mutableStateOf(0) }
@@ -343,7 +401,7 @@ fun PlayerScreen(
     val fr = remember { FocusRequester() }
 
     LaunchedEffect(c) {
-        exo.setMediaItem(MediaItem.fromUri("${k.host}/live/${k.user}/${k.pass}/${c.id}.m3u8"))
+        exo.setMediaItem(MediaItem.fromUri(if (c.url.isNotBlank()) c.url else "${k.host}/live/${k.user}/${k.pass}/${c.id}.m3u8"))
         exo.prepare()
         exo.playWhenReady = true
         show = true
