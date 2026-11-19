@@ -1,64 +1,57 @@
 package com.example.iptvtv
 
-import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.util.Xml
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
-import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 import org.xmlpull.v1.XmlPullParser
 import java.net.URL
@@ -67,20 +60,32 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.GZIPInputStream
 
-data class Channel(val id: Int, val name: String, val icon: String, val epgId: String, val cat: String, val hidden: Boolean = false, val url: String = "")
-data class Prog(val title: String, val sub: String, val cat: String, val icon: String, val start: Long, val stop: Long)
-class Epg(val now: Map<String, Prog>, val next: Map<String, List<Prog>>)
-data class Creds(val host: String, val user: String, val pass: String, val epgUrl: String, val m3u: String = "")
+data class Channel(
+    val id: Int, val name: String, val icon: String, val epgId: String, val cat: String,
+    val hidden: Boolean = false, val url: String = ""
+)
 
-fun load(c: Context): Creds? {
-    val p = c.getSharedPreferences("p", 0)
-    val h = p.getString("h", null) ?: return null
-    return Creds(h, p.getString("u", "") ?: "", p.getString("w", "") ?: "", p.getString("e", "") ?: "", p.getString("m", "") ?: "")
+data class Prog(
+    val title: String, val sub: String, val cat: String, val icon: String,
+    val start: Long, val stop: Long, val desc: String = ""
+)
+
+data class GuideCh(val id: String, val name: String, val icon: String)
+
+class Epg(
+    val now: Map<String, Prog>,
+    val next: Map<String, List<Prog>>,
+    val chans: List<GuideCh> = emptyList()
+) {
+    val icons: Map<String, String> by lazy {
+        chans.filter { it.icon.isNotBlank() }.associate { it.id to it.icon }
+    }
 }
 
-fun save(c: Context, k: Creds) {
-    c.getSharedPreferences("p", 0).edit()
-        .putString("h", k.host).putString("u", k.user).putString("w", k.pass).putString("e", k.epgUrl).putString("m", k.m3u).apply()
+// Fusionne deux guides : le premier a la priorité.
+fun mergeEpg(a: Epg, b: Epg): Epg {
+    val ids = a.chans.map { it.id }.toHashSet()
+    return Epg(b.now + a.now, b.next + a.next, a.chans + b.chans.filter { it.id !in ids })
 }
 
 fun norm(h: String): String {
@@ -94,26 +99,33 @@ fun JSONObject.str(k: String): String = if (isNull(k)) "" else optString(k)
 
 fun hm(ms: Long): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
 
-suspend fun loadChannels(k: Creds): List<Channel> = withContext(Dispatchers.IO) {
-    val api = "${k.host}/player_api.php?username=${k.user}&password=${k.pass}"
-    val ca = JSONArray(get("$api&action=get_live_categories"))
-    val cats = HashMap<String, String>()
-    for (i in 0 until ca.length()) {
-        val o = ca.getJSONObject(i)
-        cats[o.str("category_id")] = o.str("category_name")
-    }
-    val s = JSONArray(get("$api&action=get_live_streams"))
-    (0 until s.length()).map {
-        val o = s.getJSONObject(it)
-        Channel(o.getInt("stream_id"), o.str("name"), o.str("stream_icon"), o.str("epg_channel_id"),
-            cats[o.str("category_id")] ?: "Autres")
-    }
-}
-
 fun parseDate(f: SimpleDateFormat, s: String?): Long =
     try { f.parse(s ?: "")?.time ?: 0L } catch (ex: Exception) { 0L }
 
-// Lit le guide XMLTV (.gz ou non) en flux : garde le programme en cours et le suivant de chaque chaîne.
+// Appui court sur OK = onShort, appui long (environ 0,5 s) = onLong.
+fun okLong(ev: KeyEvent, fired: BooleanArray, onShort: () -> Unit, onLong: () -> Unit): Boolean {
+    val k = ev.key
+    if (k != Key.DirectionCenter && k != Key.Enter && k != Key.NumPadEnter) return false
+    val rc = ev.nativeKeyEvent.repeatCount
+    if (ev.type == KeyEventType.KeyDown) {
+        if (rc == 0) {
+            fired[0] = false
+        } else if (rc == 1 && !fired[0]) {
+            fired[0] = true
+            onLong()
+        }
+        return true
+    }
+    if (ev.type == KeyEventType.KeyUp) {
+        if (!fired[0]) onShort()
+        fired[0] = false
+        return true
+    }
+    return false
+}
+
+// Lit un guide XMLTV (.gz ou non) en flux : chaînes du guide (nom, logo) + programme en cours
+// et 5 programmes suivants de chaque chaîne.
 suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     val raw = URL(url).openStream().buffered()
     raw.mark(2)
@@ -125,8 +137,13 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     val now = System.currentTimeMillis()
     val cur = HashMap<String, Prog>()
     val nxt = HashMap<String, ArrayList<Prog>>()
+    val chans = ArrayList<GuideCh>()
     val p = Xml.newPullParser()
     p.setInput(input, null)
+    var inCh = false
+    var chId = ""
+    var chName = ""
+    var chIcon = ""
     var ch = ""
     var st = 0L
     var sp = 0L
@@ -140,7 +157,17 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     while (ev != XmlPullParser.END_DOCUMENT) {
         if (ev == XmlPullParser.START_TAG) {
             val n = p.name
-            if (n == "programme") {
+            if (n == "channel") {
+                inCh = true
+                chId = p.getAttributeValue(null, "id") ?: ""
+                chName = ""
+                chIcon = ""
+            } else if (n == "display-name" && inCh) {
+                val t = p.nextText()
+                if (chName.isEmpty()) chName = t
+            } else if (n == "icon" && inCh) {
+                chIcon = p.getAttributeValue(null, "src") ?: ""
+            } else if (n == "programme") {
                 inProg = true
                 ch = p.getAttributeValue(null, "channel") ?: ""
                 st = parseDate(fmt, p.getAttributeValue(null, "start"))
@@ -162,17 +189,23 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
             } else if (n == "icon" && inProg) {
                 icon = p.getAttributeValue(null, "src") ?: ""
             }
-        } else if (ev == XmlPullParser.END_TAG && p.name == "programme") {
-            inProg = false
-            val pr = Prog(title, sub.ifBlank { desc }, cat, icon, st, sp)
-            if (st <= now && now < sp) {
-                cur[ch] = pr
-            } else if (st >= now) {
-                val l = nxt.getOrPut(ch) { ArrayList() }
-                l.add(pr)
-                if (l.size > 5) {
-                    l.sortBy { it.start }
-                    l.removeAt(l.size - 1)
+        } else if (ev == XmlPullParser.END_TAG) {
+            val n = p.name
+            if (n == "channel" && inCh) {
+                chans.add(GuideCh(chId, chName, chIcon))
+                inCh = false
+            } else if (n == "programme") {
+                inProg = false
+                val pr = Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc)
+                if (st <= now && now < sp) {
+                    cur[ch] = pr
+                } else if (st >= now) {
+                    val l = nxt.getOrPut(ch) { ArrayList() }
+                    l.add(pr)
+                    if (l.size > 5) {
+                        l.sortBy { it.start }
+                        l.removeAt(l.size - 1)
+                    }
                 }
             }
         }
@@ -180,7 +213,7 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     }
     input.close()
     for (l in nxt.values) l.sortBy { it.start }
-    Epg(cur, nxt)
+    Epg(cur, nxt, chans)
 }
 
 class MainActivity : ComponentActivity() {
@@ -193,118 +226,107 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun App() {
     val ctx = LocalContext.current
-    var creds by remember { mutableStateOf(load(ctx)) }
+    var sources by remember { mutableStateOf(loadSources(ctx)) }
+    var cfg by remember { mutableStateOf(loadCfg(ctx)) }
     var channels by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var epg by remember { mutableStateOf(Epg(emptyMap(), emptyMap())) }
     var status by remember { mutableStateOf("") }
     var playing by remember { mutableStateOf<Channel?>(null) }
-    var cfg by remember { mutableStateOf(loadCfg(ctx)) }
-    var inSettings by remember { mutableStateOf(false) }
-    val all = remember(channels, cfg) { applyCfg(channels, cfg) }
+    var screen by remember { mutableStateOf("") }
+    var editSrc by remember { mutableStateOf<Source?>(null) }
+    var editCh by remember { mutableStateOf<Int?>(null) }
+    val all = remember(channels, cfg, epg) { applyCfg(channels, cfg, epg.icons) }
     val shown = remember(all) { all.filter { !it.hidden } }
 
-    LaunchedEffect(creds) {
-        val k = creds ?: return@LaunchedEffect
+    LaunchedEffect(sources, cfg.epgs) {
         status = "Chargement des chaînes…"
-        var epgUrl = ""
-        try {
-            val r = loadSource(ctx, k)
-            channels = r.first
-            epgUrl = k.epgUrl.ifBlank { r.second }
-        } catch (ex: Exception) {
-            status = "Erreur chaînes : ${ex.message}"
-            return@LaunchedEffect
+        val chs = ArrayList<Channel>()
+        val urls = ArrayList<String>(cfg.epgs)
+        val errs = ArrayList<String>()
+        for (s in sources) {
+            try {
+                val r = loadSource(ctx, s)
+                chs.addAll(r.first)
+                urls.add(s.epg.ifBlank { r.second })
+            } catch (ex: Exception) {
+                errs.add("${s.name} : ${ex.message}")
+            }
         }
-        if (epgUrl.isBlank()) {
-            status = ""
-            return@LaunchedEffect
+        val seen = HashSet<Int>()
+        channels = chs.map { c ->
+            var id = c.id
+            while (!seen.add(id)) id++
+            if (id == c.id) c else c.copy(id = id)
         }
-        status = "Chargement du guide…"
-        try {
-            epg = loadEpg(epgUrl)
-            status = ""
-        } catch (ex: Exception) {
-            status = "Erreur guide : ${ex.message}"
+        var g = Epg(emptyMap(), emptyMap())
+        epg = g
+        var n = 0
+        for (u in urls.filter { it.isNotBlank() }.distinct()) {
+            n++
+            status = "Chargement du guide $n…"
+            try {
+                g = mergeEpg(g, loadEpg(u))
+                epg = g
+            } catch (ex: Exception) {
+                errs.add("Guide : ${ex.message}")
+            }
         }
+        status = if (errs.isEmpty()) "" else errs.joinToString(" ; ")
     }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
         Box(Modifier.fillMaxSize().background(Color(0xFF0E1117))) {
-            val k = creds
             val pl = playing
             when {
-                k == null -> Login { save(ctx, it); creds = it }
-                inSettings -> SettingsScreen(all, cfg, { cfg = it; saveCfg(ctx, it) }) { inSettings = false }
-                pl != null -> PlayerScreen(pl, k, shown, epg, { playing = it }) { playing = null }
-                else -> Home(shown, epg, status, { playing = it }, { creds = null }, { inSettings = true })
+                sources.isEmpty() || screen == "form" -> SourceForm(
+                    editSrc, sources.isNotEmpty(),
+                    { s ->
+                        val first = sources.isEmpty()
+                        val l = if (editSrc != null) sources.map { if (it.id == s.id) s else it } else sources + s
+                        saveSources(ctx, l)
+                        sources = l
+                        editSrc = null
+                        screen = if (first) "" else "sources"
+                    },
+                    {
+                        editSrc = null
+                        screen = "sources"
+                    }
+                )
+                screen == "sources" -> SourcesScreen(
+                    sources, cfg, all, epg.chans,
+                    { editSrc = null; screen = "form" },
+                    { editSrc = it; screen = "form" },
+                    { d ->
+                        val l = sources.filter { it.id != d.id }
+                        saveSources(ctx, l)
+                        sources = l
+                    },
+                    { cfg = it; saveCfg(ctx, it) },
+                    { screen = "" }
+                )
+                screen == "settings" -> SettingsScreen(all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { screen = "" }
+                pl != null -> PlayerScreen(pl, shown, epg, { playing = it }) { playing = null }
+                else -> Home(
+                    shown, epg, status, { playing = it },
+                    { screen = "sources" }, { screen = "settings" }, { editCh = it.id }
+                )
+            }
+            val ec = editCh
+            if (ec != null) {
+                ChannelEditor(ec, all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { editCh = null }
             }
         }
-    }
-}
-
-@Composable
-fun Login(onOk: (Creds) -> Unit) {
-    val ctx = LocalContext.current
-    val old = load(ctx)
-    var useM3u by remember { mutableStateOf(!old?.m3u.isNullOrBlank()) }
-    var h by remember { mutableStateOf(old?.host ?: "") }
-    var u by remember { mutableStateOf(old?.user ?: "") }
-    var w by remember { mutableStateOf(old?.pass ?: "") }
-    var e by remember { mutableStateOf(old?.epgUrl ?: "") }
-    var m by remember { mutableStateOf(old?.m3u ?: "") }
-    var msg by remember { mutableStateOf("") }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            try {
-                ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (ex: Exception) { }
-            m = uri.toString()
-        }
-    }
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(48.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text("Connexion", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { useM3u = false }) { Text(if (!useM3u) "● Xtream Codes" else "Xtream Codes") }
-            Button(onClick = { useM3u = true }) { Text(if (useM3u) "● Liste M3U / M3U8" else "Liste M3U / M3U8") }
-        }
-        if (useM3u) {
-            OutlinedTextField(m, { m = it }, label = { Text("Lien (URL) ou fichier M3U / M3U8") }, singleLine = true)
-            Button(onClick = {
-                try {
-                    picker.launch(arrayOf("*/*"))
-                } catch (ex: Exception) {
-                    msg = "Pas d'explorateur de fichiers sur cette TV : utilise un lien (URL)."
-                }
-            }) { Text("Choisir un fichier local") }
-        } else {
-            OutlinedTextField(h, { h = it }, label = { Text("Serveur (http://host:port)") }, singleLine = true)
-            OutlinedTextField(u, { u = it }, label = { Text("Identifiant") }, singleLine = true)
-            OutlinedTextField(w, { w = it }, label = { Text("Mot de passe") }, singleLine = true)
-        }
-        OutlinedTextField(e, { e = it }, label = { Text("URL du guide XMLTV (optionnel, .xml ou .gz)") }, singleLine = true)
-        if (msg.isNotBlank()) Text(msg, color = Color(0xFFFFB4A9), fontSize = 14.sp)
-        Button(onClick = {
-            if (useM3u) {
-                val t = m.trim()
-                val src = if (t.startsWith("http") || t.startsWith("content://") || t.startsWith("file://")) t else "http://$t"
-                onOk(Creds("", "", "", e.trim(), src))
-            } else {
-                onOk(Creds(norm(h), u.trim(), w.trim(), e.trim()))
-            }
-        }) { Text("Se connecter") }
     }
 }
 
 @Composable
 fun Home(
     ch: List<Channel>, epg: Epg, status: String,
-    onPlay: (Channel) -> Unit, onLogout: () -> Unit, onSettings: () -> Unit
+    onPlay: (Channel) -> Unit, onSources: () -> Unit, onSettings: () -> Unit, onEdit: (Channel) -> Unit
 ) {
     var hero by remember { mutableStateOf<Channel?>(null) }
-    LaunchedEffect(ch) { if (hero == null) hero = ch.firstOrNull() }
+    LaunchedEffect(ch) { hero = ch.firstOrNull { it.id == hero?.id } ?: ch.firstOrNull() }
     val groups = remember(ch) { ch.groupBy { it.cat }.entries.toList() }
     val hp = hero?.let { epg.now[it.epgId] }
     Column(Modifier.fillMaxSize()) {
@@ -319,7 +341,8 @@ fun Home(
                 Text(hero?.name ?: "IPTV", color = Color(0xFFB0B8C8), fontSize = 18.sp)
                 Text(
                     hp?.title ?: status.ifBlank { "Sélectionne une chaîne" },
-                    color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold
+                    color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis
                 )
                 if (hp != null) Text("${hm(hp.start)} - ${hm(hp.stop)}", color = Color(0xFFB0B8C8), fontSize = 16.sp)
             }
@@ -330,17 +353,22 @@ fun Home(
                     FocusRow({ onSettings() }, Modifier.width(160.dp)) {
                         Text("Réglages", color = Color.White, fontSize = 15.sp)
                     }
-                    FocusRow({ onLogout() }, Modifier.width(220.dp)) {
-                        Text("Changer de compte", color = Color(0xFF8AB4F8), fontSize = 15.sp)
+                    FocusRow({ onSources() }, Modifier.width(220.dp)) {
+                        Text("Sources et guides", color = Color(0xFF8AB4F8), fontSize = 15.sp)
                     }
                 }
             }
+            if (status.isNotBlank() && hp != null) {
+                item { Text(status, color = Color(0xFFFFB4A9), fontSize = 13.sp) }
+            }
             items(groups) { g ->
-                Text(g.key, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 14.dp, bottom = 8.dp))
+                Text(
+                    g.key, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
+                )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     items(g.value) { c ->
-                        ChannelCard(c, epg.now[c.epgId], { hero = c }, { onPlay(c) })
+                        ChannelCard(c, epg.now[c.epgId], { hero = c }, { onPlay(c) }, { onEdit(c) })
                     }
                 }
             }
@@ -349,13 +377,15 @@ fun Home(
 }
 
 @Composable
-fun ChannelCard(c: Channel, p: Prog?, onFocus: () -> Unit, onClick: () -> Unit) {
+fun ChannelCard(c: Channel, p: Prog?, onFocus: () -> Unit, onClick: () -> Unit, onLong: () -> Unit) {
     var f by remember { mutableStateOf(false) }
+    val fired = remember { BooleanArray(1) }
     val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier.width(200.dp).clip(shape).background(Color(0xFF1B2230))
             .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .onPreviewKeyEvent { okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
         val img = if (p != null && p.icon.isNotBlank()) p.icon else c.icon
@@ -377,7 +407,7 @@ fun ChannelCard(c: Channel, p: Prog?, onFocus: () -> Unit, onClick: () -> Unit) 
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
-    c: Channel, k: Creds, channels: List<Channel>, epg: Epg,
+    c: Channel, channels: List<Channel>, epg: Epg,
     onZap: (Channel) -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
@@ -393,6 +423,8 @@ fun PlayerScreen(
     }
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
+    var tracksOpen by remember { mutableStateOf(false) }
+    var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var tick by remember { mutableStateOf(0) }
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
     var res by remember { mutableStateOf("") }
@@ -400,21 +432,25 @@ fun PlayerScreen(
     var quality by remember { mutableStateOf("") }
     val fr = remember { FocusRequester() }
 
-    LaunchedEffect(c) {
-        exo.setMediaItem(MediaItem.fromUri(if (c.url.isNotBlank()) c.url else "${k.host}/live/${k.user}/${k.pass}/${c.id}.m3u8"))
+    LaunchedEffect(c.id) {
+        resetTracks(exo)
+        exo.setMediaItem(MediaItem.fromUri(c.url))
         exo.prepare()
         exo.playWhenReady = true
         show = true
         tick++
     }
-    LaunchedEffect(panel) {
+    LaunchedEffect(panel, tracksOpen) {
         delay(100)
-        if (!panel) { try { fr.requestFocus() } catch (ex: Exception) { } }
+        if (!panel && !tracksOpen) { try { fr.requestFocus() } catch (ex: Exception) { } }
     }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
     LaunchedEffect(tick) { delay(7000); show = false }
     DisposableEffect(exo) {
         val l = object : Player.Listener {
+            override fun onTracksChanged(t: Tracks) {
+                tracks = t
+            }
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 val f = exo.videoFormat
                 val mime = f?.sampleMimeType ?: ""
@@ -436,10 +472,13 @@ fun PlayerScreen(
 
     Box(
         Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
-            if (panel || it.type != KeyEventType.KeyDown) {
+            if (panel || tracksOpen || it.type != KeyEventType.KeyDown) {
                 false
             } else if (it.key == Key.DirectionCenter || it.key == Key.Enter || it.key == Key.NumPadEnter) {
                 panel = true
+                true
+            } else if (it.key == Key.DirectionLeft || it.key == Key.Menu) {
+                tracksOpen = true
                 true
             } else {
                 show = true
@@ -466,6 +505,7 @@ fun PlayerScreen(
         if (panel) {
             ChannelPanel(channels.filter { it.cat == c.cat }, c, epg, nowMs) { onZap(it); panel = false }
         }
+        if (tracksOpen) TracksDialog(tracks, exo) { tracksOpen = false }
     }
 }
 

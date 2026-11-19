@@ -5,6 +5,7 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
+import org.json.JSONArray
 
 private val ATTR = Regex("([A-Za-z0-9_-]+)=\"([^\"]*)\"")
 
@@ -12,14 +13,12 @@ private fun m3uAttrs(line: String): Map<String, String> =
     ATTR.findAll(line).associate { it.groupValues[1].lowercase() to it.groupValues[2] }
 
 // Lit une liste M3U / M3U8 depuis un lien (http, https) ou un fichier local (content://, file://).
-// Retourne les chaînes et l'URL du guide déclarée dans l'en-tête (url-tvg / x-tvg-url), si présente.
-fun loadM3u(ctx: Context, src: String): Pair<List<Channel>, String> {
+fun loadM3u(ctx: Context, src: String, sid: String): Pair<List<Channel>, String> {
     val stream = if (src.startsWith("content://") || src.startsWith("file://")) {
         ctx.contentResolver.openInputStream(Uri.parse(src)) ?: throw Exception("Fichier illisible")
     } else {
         URL(src).openStream()
     }
-    val seen = HashSet<Int>()
     val out = ArrayList<Channel>()
     var epgUrl = ""
     var hls = false
@@ -49,11 +48,9 @@ fun loadM3u(ctx: Context, src: String): Pair<List<Channel>, String> {
             } else if (pending) {
                 val a = pendingAttrs
                 val name = pendingName.ifBlank { a["tvg-name"] ?: line }
-                var id = line.hashCode()
-                while (!seen.add(id)) id++
                 val cat = (a["group-title"] ?: "").ifBlank { group }.ifBlank { "Sans catégorie" }
                 val epgId = (a["tvg-id"] ?: "").ifBlank { a["tvg-name"] ?: "" }
-                out.add(Channel(id, name, a["tvg-logo"] ?: "", epgId, cat, false, line))
+                out.add(Channel("$sid|$line".hashCode(), name, a["tvg-logo"] ?: "", epgId, cat, false, line))
                 pending = false
             }
         }
@@ -62,17 +59,33 @@ fun loadM3u(ctx: Context, src: String): Pair<List<Channel>, String> {
     if (hls) {
         if (!src.startsWith("http")) throw Exception("Flux HLS local non supporté : utilise un lien (URL)")
         val n = src.substringAfterLast('/').substringBefore('?').ifBlank { "Flux direct" }
-        return Pair(listOf(Channel(src.hashCode(), n, "", "", "Flux direct", false, src)), "")
+        return Pair(listOf(Channel("$sid|$src".hashCode(), n, "", "", "Flux direct", false, src)), "")
     }
     if (out.isEmpty()) throw Exception("Aucune chaîne trouvée dans cette liste")
     return Pair(out, epgUrl)
 }
 
-// Xtream Codes ou M3U selon ce qui est renseigné. Retourne les chaînes et l'URL de guide par défaut.
-suspend fun loadSource(ctx: Context, k: Creds): Pair<List<Channel>, String> = withContext(Dispatchers.IO) {
-    if (k.m3u.isNotBlank()) {
-        loadM3u(ctx, k.m3u)
-    } else {
-        Pair(loadChannels(k), "${k.host}/xmltv.php?username=${k.user}&password=${k.pass}")
+// Xtream Codes : chaînes en direct + URL du guide par défaut.
+fun loadXtream(s: Source): Pair<List<Channel>, String> {
+    val api = "${s.host}/player_api.php?username=${s.user}&password=${s.pass}"
+    val ca = JSONArray(get("$api&action=get_live_categories"))
+    val cats = HashMap<String, String>()
+    for (i in 0 until ca.length()) {
+        val o = ca.getJSONObject(i)
+        cats[o.str("category_id")] = o.str("category_name")
     }
+    val st = JSONArray(get("$api&action=get_live_streams"))
+    val list = (0 until st.length()).map {
+        val o = st.getJSONObject(it)
+        val n = o.getInt("stream_id")
+        Channel(
+            "${s.id}:$n".hashCode(), o.str("name"), o.str("stream_icon"), o.str("epg_channel_id"),
+            cats[o.str("category_id")] ?: "Autres", false, "${s.host}/live/${s.user}/${s.pass}/$n.m3u8"
+        )
+    }
+    return Pair(list, "${s.host}/xmltv.php?username=${s.user}&password=${s.pass}")
+}
+
+suspend fun loadSource(ctx: Context, s: Source): Pair<List<Channel>, String> = withContext(Dispatchers.IO) {
+    if (s.type == "m3u") loadM3u(ctx, s.url, s.id) else loadXtream(s)
 }
