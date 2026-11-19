@@ -51,19 +51,23 @@ import java.util.Locale
 private val GRAY = Color(0xFFB0B8C8)
 private val CYAN = Color(0xFF1EB6E8)
 private val BLUE = Color(0xFF8AB4F8)
+private val TITLE = Color(0xFFFFD166)
 
 @Composable
 fun FocusRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onFocus: () -> Unit = {},
+    onLong: (() -> Unit)? = null,
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
+    val fired = remember { BooleanArray(1) }
     Row(
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
             .background(if (f) Color(0xFF2A3446) else Color.Transparent)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }.padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
         content = content
@@ -90,18 +94,20 @@ fun Section(t: String) {
 // ---------------------------------------------------------------------------
 @Composable
 fun ChannelPanel(
-    list: List<Channel>, current: Channel, epg: Epg, nowMs: Long,
-    onPick: (Channel) -> Unit
+    list: List<Channel>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
+    onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit
 ) {
     var focused by remember { mutableStateOf(current) }
     var upIdx by remember { mutableStateOf(-1) }
     val fr = remember { FocusRequester() }
     val idx = list.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
+    val fid = if (list.any { it.id == focusId }) focusId else (list.firstOrNull()?.id ?: -1)
     val ls = rememberLazyListState(initialFirstVisibleItemIndex = (idx - 3).coerceAtLeast(0))
-    val fp = epg.now[focused.epgId]
-    val ups = epg.next[focused.epgId] ?: emptyList()
+    val fc = list.firstOrNull { it.id == focused.id } ?: focused
+    val fp = epg.now(fc.epgId)
+    val ups = epg.upcoming(fc.epgId, 4)
     val shownP: Prog? = if (upIdx in ups.indices) ups[upIdx] else fp
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refocus) {
         delay(150)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
@@ -141,17 +147,21 @@ fun ChannelPanel(
         }
     ) {
         Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xE6101319))) {
-            Text(
-                current.cat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                maxLines = 1, modifier = Modifier.padding(16.dp)
-            )
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    current.cat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, modifier = Modifier.weight(1f)
+                )
+                Text("OK long : options", color = GRAY, fontSize = 11.sp)
+            }
             LazyColumn(state = ls, modifier = Modifier.weight(1f)) {
                 items(list, key = { it.id }) { c ->
-                    val pr = epg.now[c.epgId]
+                    val pr = epg.now(c.epgId)
                     FocusRow(
                         { onPick(c) },
-                        if (c.id == current.id) Modifier.focusRequester(fr) else Modifier,
-                        { focused = c; upIdx = -1 }
+                        if (c.id == fid) Modifier.focusRequester(fr) else Modifier,
+                        { focused = c; upIdx = -1 },
+                        { onEdit(c) }
                     ) {
                         Box(Modifier.size(64.dp, 40.dp)) {
                             if (c.icon.isNotBlank()) {
@@ -173,7 +183,7 @@ fun ChannelPanel(
         Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xB3000000)).padding(24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    focused.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                    fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, modifier = Modifier.weight(1f)
                 )
                 Text(hm(nowMs), color = GRAY, fontSize = 14.sp)
@@ -181,29 +191,29 @@ fun ChannelPanel(
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (shownP == null) {
-                    Text("Pas d'informations de guide", color = GRAY, fontSize = 18.sp)
+                    Text("Pas d'informations de guide", color = GRAY, fontSize = 16.sp)
                 } else {
                     Row(Modifier.fillMaxSize()) {
                         Column(Modifier.weight(1f)) {
                             Text(
                                 "${hm(shownP.start)} - ${hm(shownP.stop)}" + if (upIdx >= 0) "   (à suivre)" else "",
-                                color = GRAY, fontSize = 16.sp
+                                color = GRAY, fontSize = 14.sp
                             )
                             Text(
-                                shownP.title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                                shownP.title, color = TITLE, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                                 maxLines = 3, overflow = TextOverflow.Ellipsis
                             )
                             if (upIdx < 0) Bar(fracOf(shownP, nowMs), Modifier.padding(vertical = 8.dp).fillMaxWidth())
                             if (shownP.sub.isNotBlank() && shownP.sub != shownP.desc) {
-                                Text(shownP.sub, color = CYAN, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(shownP.sub, color = CYAN, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             Text(
-                                shownP.desc.ifBlank { shownP.sub }, color = Color(0xFFE0E4EC), fontSize = 16.sp,
+                                shownP.desc.ifBlank { shownP.sub }, color = Color(0xFFE0E4EC), fontSize = 14.sp,
                                 maxLines = 14, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(top = 6.dp)
                             )
                             if (shownP.cat.isNotBlank()) {
-                                Text(shownP.cat, color = GRAY, fontSize = 14.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
+                                Text(shownP.cat, color = GRAY, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 6.dp))
                             }
                         }
                         if (shownP.icon.isNotBlank()) {
@@ -218,33 +228,41 @@ fun ChannelPanel(
                 }
             }
             if (ups.isNotEmpty()) {
-                Text("Prochaines émissions", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Text("Maintiens la touche droite pour les parcourir", color = GRAY, fontSize = 12.sp)
-                Spacer(Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ups.take(5).forEachIndexed { i, u ->
-                        val sel = i == upIdx
-                        Column(
-                            Modifier.width(90.dp).clip(RoundedCornerShape(6.dp))
-                                .background(if (sel) Color.White else Color.Transparent).padding(4.dp)
-                        ) {
-                            Box(Modifier.fillMaxWidth().height(46.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1B2230))) {
-                                if (u.icon.isNotBlank()) {
-                                    AsyncImage(
-                                        model = u.icon, contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
-                                    )
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0x99000000)).padding(12.dp)
+                ) {
+                    Text("Prochaines émissions", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Maintiens la touche droite pour les parcourir", color = GRAY, fontSize = 11.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ups.forEachIndexed { i, u ->
+                            val sel = i == upIdx
+                            Column(
+                                Modifier.weight(1f).clip(RoundedCornerShape(6.dp))
+                                    .background(if (sel) Color.White else Color.Transparent).padding(4.dp)
+                            ) {
+                                Box(
+                                    Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF1B2230))
+                                ) {
+                                    if (u.icon.isNotBlank()) {
+                                        AsyncImage(
+                                            model = u.icon, contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                                        )
+                                    }
                                 }
+                                Text(
+                                    hm(u.start), color = if (sel) Color.Black else Color.White,
+                                    fontSize = 14.sp, fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    u.title, color = if (sel) Color(0xFF222222) else GRAY, fontSize = 13.sp,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                                )
                             }
-                            Text(
-                                hm(u.start), color = if (sel) Color.Black else Color.White,
-                                fontSize = 13.sp, fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                u.title, color = if (sel) Color(0xFF222222) else GRAY, fontSize = 12.sp,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
                         }
+                        repeat(4 - ups.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
@@ -609,9 +627,9 @@ fun SourceForm(initial: Source?, canCancel: Boolean, onSave: (Source) -> Unit, o
 
 @Composable
 fun SourcesScreen(
-    sources: List<Source>, cfg: Cfg, all: List<Channel>, guide: List<GuideCh>,
+    sources: List<Source>, cfg: Cfg, all: List<Channel>, guide: List<GuideCh>, report: List<String>,
     onAdd: () -> Unit, onEdit: (Source) -> Unit, onDelete: (Source) -> Unit,
-    onCfg: (Cfg) -> Unit, onBack: () -> Unit
+    onCfg: (Cfg) -> Unit, onReload: () -> Unit, onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     var menu by remember { mutableStateOf<Source?>(null) }
@@ -623,7 +641,22 @@ fun SourcesScreen(
         item {
             Text("Sources et guides", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         }
-        item { Section("Sources de chaînes") }
+        item { Section("État du chargement") }
+        item {
+            FocusRow({ onReload() }) {
+                Text("Recharger sources et guides maintenant", color = BLUE, fontSize = 16.sp)
+            }
+        }
+        if (report.isEmpty()) {
+            item { Text("Chargement en cours…", color = GRAY, fontSize = 13.sp) }
+        }
+        items(report) { line ->
+            Text(
+                line, color = if (line.startsWith("ERREUR")) Color(0xFFFFB4A9) else GRAY,
+                fontSize = 13.sp, modifier = Modifier.padding(vertical = 2.dp)
+            )
+        }
+        item { Section("Sources de chaînes (${sources.size})") }
         items(sources, key = { it.id }) { s ->
             FocusRow({ menu = s }) {
                 Column {
@@ -636,10 +669,10 @@ fun SourcesScreen(
             }
         }
         item { FocusRow({ onAdd() }) { Text("+ Ajouter une source", color = BLUE, fontSize = 16.sp) } }
-        item { Section("Guides XMLTV (EPG)") }
+        item { Section("Guides XMLTV (EPG) (${cfg.epgs.size} ajoutés)") }
         item {
             Text(
-                "Le guide du haut a la priorité. Chaque source peut aussi avoir son guide.",
+                "Le guide du haut a la priorité. Les guides des sources (Xtream, ou indiqués dans la liste M3U) sont aussi chargés.",
                 color = GRAY, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp)
             )
         }
@@ -647,6 +680,21 @@ fun SourcesScreen(
             FocusRow({ delEpg = u }) { Text(u, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
         item { FocusRow({ addEpg = true }) { Text("+ Ajouter un guide XMLTV", color = BLUE, fontSize = 16.sp) } }
+        item {
+            Text(
+                "Guide chargé : ${guide.size} chaînes",
+                color = GRAY, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+        item { Section("Accueil") }
+        item {
+            FocusRow({ onCfg(cfg.copy(bgSound = !cfg.bgSound)) }) {
+                Text(
+                    "Son de l'aperçu en arrière-plan : " + if (cfg.bgSound) "activé" else "coupé",
+                    color = Color.White, fontSize = 16.sp
+                )
+            }
+        }
         item { Section("Logos et ID EPG") }
         item {
             FocusRow({ onCfg(cfg.copy(logoPrio = if (cfg.logoPrio == "xmltv") "playlist" else "xmltv")) }) {
@@ -708,5 +756,43 @@ fun SourcesScreen(
             },
             dismissButton = { TextButton(onClick = { delEpg = null }) { Text("Annuler") } }
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Recherche de chaînes
+// ---------------------------------------------------------------------------
+@Composable
+fun SearchScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    var q by remember { mutableStateOf("") }
+    val res = remember(q, chans) {
+        val t = q.trim().lowercase()
+        if (t.isEmpty()) emptyList() else chans.filter { it.name.lowercase().contains(t) }.take(60)
+    }
+    Column(Modifier.fillMaxSize().padding(32.dp)) {
+        Text("Recherche", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        OutlinedTextField(
+            q, { q = it }, singleLine = true, label = { Text("Nom de la chaîne") },
+            modifier = Modifier.padding(vertical = 10.dp)
+        )
+        LazyColumn(Modifier.weight(1f)) {
+            items(res, key = { it.id }) { c ->
+                FocusRow({ onPlay(c) }) {
+                    Box(Modifier.size(64.dp, 40.dp)) {
+                        if (c.icon.isNotBlank()) {
+                            AsyncImage(
+                                model = c.icon, contentDescription = null,
+                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+                            )
+                        }
+                    }
+                    Column(Modifier.padding(start = 12.dp)) {
+                        Text(c.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text(epg.now(c.epgId)?.title ?: "", color = GRAY, fontSize = 14.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
     }
 }

@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -36,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -60,9 +62,12 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.GZIPInputStream
 
+private val MUTED = Color(0xFFB0B8C8)
+private val ACCENT = Color(0xFF1EB6E8)
+
 data class Channel(
     val id: Int, val name: String, val icon: String, val epgId: String, val cat: String,
-    val hidden: Boolean = false, val url: String = ""
+    val hidden: Boolean = false, val url: String = "", val src: String = ""
 )
 
 data class Prog(
@@ -72,20 +77,29 @@ data class Prog(
 
 data class GuideCh(val id: String, val name: String, val icon: String)
 
-class Epg(
-    val now: Map<String, Prog>,
-    val next: Map<String, List<Prog>>,
-    val chans: List<GuideCh> = emptyList()
-) {
+// Guide : liste de programmes par chaîne ; "en cours" et "à suivre" sont calculés à l'heure actuelle.
+class Epg(val progs: Map<String, List<Prog>>, val chans: List<GuideCh> = emptyList()) {
     val icons: Map<String, String> by lazy {
         chans.filter { it.icon.isNotBlank() }.associate { it.id to it.icon }
     }
+
+    fun now(id: String): Prog? {
+        val t = System.currentTimeMillis()
+        return progs[id]?.firstOrNull { it.start <= t && t < it.stop }
+    }
+
+    fun upcoming(id: String, n: Int): List<Prog> {
+        val t = System.currentTimeMillis()
+        return progs[id]?.filter { it.start > t }?.take(n) ?: emptyList()
+    }
+
+    fun touch(): Epg = Epg(progs, chans)
 }
 
 // Fusionne deux guides : le premier a la priorité.
 fun mergeEpg(a: Epg, b: Epg): Epg {
     val ids = a.chans.map { it.id }.toHashSet()
-    return Epg(b.now + a.now, b.next + a.next, a.chans + b.chans.filter { it.id !in ids })
+    return Epg(b.progs + a.progs, a.chans + b.chans.filter { it.id !in ids })
 }
 
 fun norm(h: String): String {
@@ -124,8 +138,8 @@ fun okLong(ev: KeyEvent, fired: BooleanArray, onShort: () -> Unit, onLong: () ->
     return false
 }
 
-// Lit un guide XMLTV (.gz ou non) en flux : chaînes du guide (nom, logo) + programme en cours
-// et 5 programmes suivants de chaque chaîne.
+// Lit un guide XMLTV (.gz ou non) en flux : chaînes du guide (nom, logo) et, pour chaque chaîne,
+// les 8 prochains programmes (le programme en cours inclus).
 suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     val raw = URL(url).openStream().buffered()
     raw.mark(2)
@@ -135,8 +149,7 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     val input = if (b1 == 0x1f && b2 == 0x8b) GZIPInputStream(raw) else raw
     val fmt = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US)
     val now = System.currentTimeMillis()
-    val cur = HashMap<String, Prog>()
-    val nxt = HashMap<String, ArrayList<Prog>>()
+    val progs = HashMap<String, ArrayList<Prog>>()
     val chans = ArrayList<GuideCh>()
     val p = Xml.newPullParser()
     p.setInput(input, null)
@@ -196,13 +209,10 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
                 inCh = false
             } else if (n == "programme") {
                 inProg = false
-                val pr = Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc)
-                if (st <= now && now < sp) {
-                    cur[ch] = pr
-                } else if (st >= now) {
-                    val l = nxt.getOrPut(ch) { ArrayList() }
-                    l.add(pr)
-                    if (l.size > 5) {
+                if (sp > now) {
+                    val l = progs.getOrPut(ch) { ArrayList() }
+                    l.add(Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc.take(700)))
+                    if (l.size > 8) {
                         l.sortBy { it.start }
                         l.removeAt(l.size - 1)
                     }
@@ -212,8 +222,8 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
         ev = p.next()
     }
     input.close()
-    for (l in nxt.values) l.sortBy { it.start }
-    Epg(cur, nxt, chans)
+    for (l in progs.values) l.sortBy { it.start }
+    Epg(progs, chans)
 }
 
 class MainActivity : ComponentActivity() {
@@ -224,32 +234,89 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun Solid(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0xFF0E1117))) { content() }
+}
+
+@OptIn(UnstableApi::class)
+@Composable
 fun App() {
     val ctx = LocalContext.current
     var sources by remember { mutableStateOf(loadSources(ctx)) }
     var cfg by remember { mutableStateOf(loadCfg(ctx)) }
+    var hist by remember { mutableStateOf(loadHist(ctx)) }
     var channels by remember { mutableStateOf<List<Channel>>(emptyList()) }
-    var epg by remember { mutableStateOf(Epg(emptyMap(), emptyMap())) }
+    var epg by remember { mutableStateOf(Epg(emptyMap())) }
     var status by remember { mutableStateOf("") }
-    var playing by remember { mutableStateOf<Channel?>(null) }
+    var report by remember { mutableStateOf<List<String>>(emptyList()) }
+    var reload by remember { mutableStateOf(0) }
+    var bg by remember { mutableStateOf<Channel?>(null) }
+    var full by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf("") }
     var editSrc by remember { mutableStateOf<Source?>(null) }
     var editCh by remember { mutableStateOf<Int?>(null) }
-    val all = remember(channels, cfg, epg) { applyCfg(channels, cfg, epg.icons) }
-    val shown = remember(all) { all.filter { !it.hidden } }
 
-    LaunchedEffect(sources, cfg.epgs) {
+    val exo = remember {
+        ExoPlayer.Builder(ctx)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true))
+            )
+            .build()
+    }
+    DisposableEffect(exo) { onDispose { exo.release() } }
+
+    val all = remember(channels, cfg, epg.chans) { applyCfg(channels, cfg, epg.icons) }
+    val shown = remember(all) { all.filter { !it.hidden } }
+    val cur = bg?.let { b -> all.firstOrNull { it.id == b.id } ?: b }
+
+    fun play(c: Channel) {
+        bg = c
+        hist = pushHist(hist, c.id)
+        saveHist(ctx, hist)
+    }
+
+    // Au démarrage : la dernière chaîne regardée joue en fond de l'accueil.
+    LaunchedEffect(all) {
+        if (bg == null) {
+            val id = hist.firstOrNull()
+            if (id != null) bg = all.firstOrNull { it.id == id }
+        }
+    }
+    LaunchedEffect(bg?.id, screen) {
+        val c = bg
+        if (c != null && screen == "") {
+            resetTracks(exo)
+            exo.setMediaItem(MediaItem.fromUri(c.url))
+            exo.prepare()
+            exo.playWhenReady = true
+        } else {
+            exo.pause()
+        }
+    }
+    LaunchedEffect(full, cfg.bgSound) { exo.volume = if (!full && !cfg.bgSound) 0f else 1f }
+
+    // Rafraîchit l'affichage "en cours / à suivre" toutes les 30 s.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(30000)
+            epg = epg.touch()
+        }
+    }
+
+    // Chargement des sources et des guides, puis rechargement des guides toutes les 30 minutes.
+    LaunchedEffect(sources, cfg.epgs, reload) {
         status = "Chargement des chaînes…"
         val chs = ArrayList<Channel>()
         val urls = ArrayList<String>(cfg.epgs)
-        val errs = ArrayList<String>()
+        val rep = ArrayList<String>()
         for (s in sources) {
             try {
                 val r = loadSource(ctx, s)
                 chs.addAll(r.first)
                 urls.add(s.epg.ifBlank { r.second })
+                rep.add("OK - ${s.name} : ${r.first.size} chaînes")
             } catch (ex: Exception) {
-                errs.add("${s.name} : ${ex.message}")
+                rep.add("ERREUR - ${s.name} : ${ex.message}")
             }
         }
         val seen = HashSet<Int>()
@@ -258,58 +325,90 @@ fun App() {
             while (!seen.add(id)) id++
             if (id == c.id) c else c.copy(id = id)
         }
-        var g = Epg(emptyMap(), emptyMap())
-        epg = g
-        var n = 0
-        for (u in urls.filter { it.isNotBlank() }.distinct()) {
-            n++
-            status = "Chargement du guide $n…"
-            try {
-                g = mergeEpg(g, loadEpg(u))
-                epg = g
-            } catch (ex: Exception) {
-                errs.add("Guide : ${ex.message}")
+        val guideUrls = urls.filter { it.isNotBlank() }.distinct()
+
+        suspend fun fetchGuides(into: MutableList<String>, show: Boolean): Epg {
+            var g = Epg(emptyMap())
+            var n = 0
+            for (u in guideUrls) {
+                n++
+                if (show) status = "Chargement du guide $n/${guideUrls.size}…"
+                try {
+                    val e = loadEpg(u)
+                    g = mergeEpg(g, e)
+                    into.add("OK - Guide $n : ${e.chans.size} chaînes, ${e.progs.size} avec programmes")
+                } catch (ex: Exception) {
+                    into.add("ERREUR - Guide $n : ${ex.message}")
+                }
             }
+            return g
         }
-        status = if (errs.isEmpty()) "" else errs.joinToString(" ; ")
+
+        epg = Epg(emptyMap())
+        epg = fetchGuides(rep, true)
+        report = rep.toList()
+        status = if (rep.any { it.startsWith("ERREUR") }) "Une source a échoué : voir Sources et guides" else ""
+        while (true) {
+            delay(30 * 60 * 1000L)
+            val g2 = fetchGuides(ArrayList(), false)
+            if (g2.progs.isNotEmpty() || g2.chans.isNotEmpty()) epg = g2
+        }
     }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
-        Box(Modifier.fillMaxSize().background(Color(0xFF0E1117))) {
-            val pl = playing
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            // Lecteur vidéo toujours présent en fond : aperçu à l'accueil, plein écran en lecture.
+            AndroidView(
+                factory = { PlayerView(it).apply { player = exo; useController = false } },
+                modifier = Modifier.fillMaxSize()
+            )
             when {
-                sources.isEmpty() || screen == "form" -> SourceForm(
-                    editSrc, sources.isNotEmpty(),
-                    { s ->
-                        val first = sources.isEmpty()
-                        val l = if (editSrc != null) sources.map { if (it.id == s.id) s else it } else sources + s
-                        saveSources(ctx, l)
-                        sources = l
-                        editSrc = null
-                        screen = if (first) "" else "sources"
-                    },
-                    {
-                        editSrc = null
-                        screen = "sources"
-                    }
-                )
-                screen == "sources" -> SourcesScreen(
-                    sources, cfg, all, epg.chans,
-                    { editSrc = null; screen = "form" },
-                    { editSrc = it; screen = "form" },
-                    { d ->
-                        val l = sources.filter { it.id != d.id }
-                        saveSources(ctx, l)
-                        sources = l
-                    },
-                    { cfg = it; saveCfg(ctx, it) },
-                    { screen = "" }
-                )
-                screen == "settings" -> SettingsScreen(all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { screen = "" }
-                pl != null -> PlayerScreen(pl, shown, epg, { playing = it }) { playing = null }
+                sources.isEmpty() || screen == "form" -> Solid {
+                    SourceForm(
+                        editSrc, sources.isNotEmpty(),
+                        { s ->
+                            val first = sources.isEmpty()
+                            val l = if (editSrc != null) sources.map { if (it.id == s.id) s else it } else sources + s
+                            saveSources(ctx, l)
+                            sources = l
+                            editSrc = null
+                            screen = if (first) "" else "sources"
+                        },
+                        {
+                            editSrc = null
+                            screen = "sources"
+                        }
+                    )
+                }
+                screen == "sources" -> Solid {
+                    SourcesScreen(
+                        sources, cfg, all, epg.chans, report,
+                        { editSrc = null; screen = "form" },
+                        { editSrc = it; screen = "form" },
+                        { d ->
+                            val l = sources.filter { it.id != d.id }
+                            saveSources(ctx, l)
+                            sources = l
+                        },
+                        { cfg = it; saveCfg(ctx, it) },
+                        { reload++ },
+                        { screen = "" }
+                    )
+                }
+                screen == "settings" -> Solid {
+                    SettingsScreen(all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { screen = "" }
+                }
+                screen == "search" -> Solid {
+                    SearchScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
+                }
+                cur != null && full -> PlayerScreen(
+                    cur, exo, shown, epg, all, cfg, { cfg = it; saveCfg(ctx, it) }, { play(it) }
+                ) { full = false }
                 else -> Home(
-                    shown, epg, status, { playing = it },
-                    { screen = "sources" }, { screen = "settings" }, { editCh = it.id }
+                    shown, sources, epg, status, hist, cur,
+                    { play(it); full = true },
+                    { screen = "search" }, { screen = "settings" }, { screen = "sources" },
+                    { editCh = it.id }
                 )
             }
             val ec = editCh
@@ -320,55 +419,120 @@ fun App() {
     }
 }
 
+class HomeRow(val header: Boolean, val title: String, val chans: List<Channel>)
+
+// Une section par source (si plusieurs), puis une rangée par catégorie.
+fun buildRows(ch: List<Channel>, sources: List<Source>): List<HomeRow> {
+    val out = ArrayList<HomeRow>()
+    val multi = sources.size > 1
+    val bySrc = ch.groupBy { it.src }
+    val order = sources.map { it.id } + bySrc.keys.filter { k -> sources.none { it.id == k } }
+    for (sid in order) {
+        val list = bySrc[sid] ?: continue
+        if (multi) out.add(HomeRow(true, sources.firstOrNull { it.id == sid }?.name ?: "Autre", emptyList()))
+        for ((cat, l) in list.groupBy { it.cat }) out.add(HomeRow(false, cat, l))
+    }
+    return out
+}
+
+@Composable
+fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
+    Column(Modifier.width(w)) {
+        FocusRow(onClick) {
+            Text(
+                label, color = if (selected) Color.White else MUTED, fontSize = 16.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) ACCENT else Color.Transparent))
+    }
+}
+
 @Composable
 fun Home(
-    ch: List<Channel>, epg: Epg, status: String,
-    onPlay: (Channel) -> Unit, onSources: () -> Unit, onSettings: () -> Unit, onEdit: (Channel) -> Unit
+    ch: List<Channel>, sources: List<Source>, epg: Epg, status: String, hist: List<Int>, cur: Channel?,
+    onPlay: (Channel) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSources: () -> Unit,
+    onEdit: (Channel) -> Unit
 ) {
-    var hero by remember { mutableStateOf<Channel?>(null) }
-    LaunchedEffect(ch) { hero = ch.firstOrNull { it.id == hero?.id } ?: ch.firstOrNull() }
-    val groups = remember(ch) { ch.groupBy { it.cat }.entries.toList() }
-    val hp = hero?.let { epg.now[it.epgId] }
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth().height(260.dp)) {
-            if (hp != null && hp.icon.isNotBlank()) {
-                AsyncImage(
-                    model = hp.icon, contentDescription = null, modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop, alpha = 0.45f
+    val cp = cur?.let { epg.now(it.epgId) }
+    val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
+    val rows = remember(ch, sources) { buildRows(ch, sources) }
+    Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    0f to Color(0x99000000), 0.4f to Color(0x55000000),
+                    0.62f to Color(0xEB0E1117), 1f to Color(0xFF0E1117)
                 )
-            }
-            Column(Modifier.align(Alignment.BottomStart).padding(32.dp)) {
-                Text(hero?.name ?: "IPTV", color = Color(0xFFB0B8C8), fontSize = 18.sp)
+            )
+        )
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    hp?.title ?: status.ifBlank { "Sélectionne une chaîne" },
-                    color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                    "IPTV", color = ACCENT, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(end = 28.dp)
                 )
-                if (hp != null) Text("${hm(hp.start)} - ${hm(hp.stop)}", color = Color(0xFFB0B8C8), fontSize = 16.sp)
+                TopTab("Ma TV", true, 120.dp) { }
+                TopTab("Recherche", false, 150.dp) { onSearch() }
+                TopTab("Réglages", false, 140.dp) { onSettings() }
+                TopTab("Sources et guides", false, 220.dp) { onSources() }
             }
-        }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp)) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FocusRow({ onSettings() }, Modifier.width(160.dp)) {
-                        Text("Réglages", color = Color.White, fontSize = 15.sp)
-                    }
-                    FocusRow({ onSources() }, Modifier.width(220.dp)) {
-                        Text("Sources et guides", color = Color(0xFF8AB4F8), fontSize = 15.sp)
+            Box(Modifier.weight(0.38f).fillMaxWidth()) {
+                Column(Modifier.align(Alignment.BottomStart).padding(start = 32.dp, bottom = 8.dp)) {
+                    if (cur != null) {
+                        Text(cur.name, color = MUTED, fontSize = 16.sp)
+                        Text(
+                            cp?.title ?: "", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        if (cp != null) Text("${hm(cp.start)} - ${hm(cp.stop)}", color = MUTED, fontSize = 14.sp)
+                    } else {
+                        Text("Choisis une chaîne pour démarrer", color = MUTED, fontSize = 20.sp)
                     }
                 }
             }
-            if (status.isNotBlank() && hp != null) {
-                item { Text(status, color = Color(0xFFFFB4A9), fontSize = 13.sp) }
-            }
-            items(groups) { g ->
-                Text(
-                    g.key, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(top = 14.dp, bottom = 8.dp)
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(g.value) { c ->
-                        ChannelCard(c, epg.now[c.epgId], { hero = c }, { onPlay(c) }, { onEdit(c) })
+            LazyColumn(
+                Modifier.weight(0.62f).fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 4.dp)
+            ) {
+                if (status.isNotBlank()) {
+                    item { Text(status, color = Color(0xFFFFB4A9), fontSize = 13.sp) }
+                }
+                if (recent.isNotEmpty()) {
+                    item {
+                        Text(
+                            "CONTINUER À REGARDER", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 6.dp)
+                        )
+                    }
+                    item {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(recent, key = { it.id }) { c ->
+                                ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
+                            }
+                        }
+                    }
+                }
+                items(rows) { r ->
+                    if (r.header) {
+                        Text(
+                            r.title.uppercase(), color = ACCENT, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 22.dp, bottom = 2.dp)
+                        )
+                        Box(Modifier.fillMaxWidth().height(2.dp).background(ACCENT))
+                    } else {
+                        Text(
+                            r.title.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            items(r.chans, key = { it.id }) { c ->
+                                ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
+                            }
+                        }
                     }
                 }
             }
@@ -376,55 +540,83 @@ fun Home(
     }
 }
 
+// Carte de chaîne : image du programme, logo en bas à gauche, barre de progression, titre et suite.
 @Composable
-fun ChannelCard(c: Channel, p: Prog?, onFocus: () -> Unit, onClick: () -> Unit, onLong: () -> Unit) {
+fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { BooleanArray(1) }
-    val shape = RoundedCornerShape(12.dp)
+    val p = epg.now(c.epgId)
+    val nx = epg.upcoming(c.epgId, 1).firstOrNull()
+    val shape = RoundedCornerShape(10.dp)
     Column(
-        Modifier.width(200.dp).clip(shape).background(Color(0xFF1B2230))
-            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
-            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+        Modifier.width(220.dp)
+            .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
-        val img = if (p != null && p.icon.isNotBlank()) p.icon else c.icon
-        Box(Modifier.fillMaxWidth().height(112.dp).background(Color(0xFF111620))) {
-            if (img.isNotBlank()) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape).background(Color(0xFF1B2230))
+                .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+        ) {
+            if (p != null && p.icon.isNotBlank()) {
                 AsyncImage(
-                    model = img, contentDescription = null, modifier = Modifier.fillMaxSize(),
-                    contentScale = if (p != null && p.icon.isNotBlank()) ContentScale.Crop else ContentScale.Fit
+                    model = p.icon, contentDescription = null,
+                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    c.name, color = MUTED, fontSize = 14.sp, maxLines = 2, textAlign = TextAlign.Center,
+                    modifier = Modifier.align(Alignment.Center).padding(8.dp)
                 )
             }
+            if (c.icon.isNotBlank()) {
+                Box(
+                    Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 10.dp)
+                        .clip(RoundedCornerShape(4.dp)).background(Color(0x99000000))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    AsyncImage(
+                        model = c.icon, contentDescription = null,
+                        modifier = Modifier.size(48.dp, 26.dp), contentScale = ContentScale.Fit
+                    )
+                }
+            }
+            if (p != null) {
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
+                    Box(
+                        Modifier.fillMaxWidth(fracOf(p, System.currentTimeMillis())).fillMaxHeight()
+                            .background(Color(0xFF1E88E5))
+                    )
+                }
+            }
         }
-        Column(Modifier.padding(10.dp)) {
-            Text(c.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Text(p?.title ?: "—", color = Color(0xFFB0B8C8), fontSize = 12.sp, maxLines = 1)
-        }
+        Text(
+            p?.title ?: c.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp)
+        )
+        Text(
+            if (nx != null) "${hm(nx.start)} · ${nx.title}" else if (p != null) c.name else "",
+            color = MUTED, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
-    c: Channel, channels: List<Channel>, epg: Epg,
-    onZap: (Channel) -> Unit, onBack: () -> Unit
+    c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg,
+    onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
-    val p = epg.now[c.epgId]
-    val nx = epg.next[c.epgId]?.firstOrNull()
-    val ctx = LocalContext.current
-    val exo = remember {
-        ExoPlayer.Builder(ctx)
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true))
-            )
-            .build()
-    }
+    val p = epg.now(c.epgId)
+    val nx = epg.upcoming(c.epgId, 1).firstOrNull()
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
     var tracksOpen by remember { mutableStateOf(false) }
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
+    var editId by remember { mutableStateOf<Int?>(null) }
+    var focusId by remember { mutableStateOf(c.id) }
+    var refocus by remember { mutableStateOf(0) }
     var tick by remember { mutableStateOf(0) }
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
     var res by remember { mutableStateOf("") }
@@ -433,16 +625,12 @@ fun PlayerScreen(
     val fr = remember { FocusRequester() }
 
     LaunchedEffect(c.id) {
-        resetTracks(exo)
-        exo.setMediaItem(MediaItem.fromUri(c.url))
-        exo.prepare()
-        exo.playWhenReady = true
         show = true
         tick++
     }
-    LaunchedEffect(panel, tracksOpen) {
+    LaunchedEffect(panel, tracksOpen, editId) {
         delay(100)
-        if (!panel && !tracksOpen) { try { fr.requestFocus() } catch (ex: Exception) { } }
+        if (!panel && !tracksOpen && editId == null) { try { fr.requestFocus() } catch (ex: Exception) { } }
     }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
     LaunchedEffect(tick) { delay(7000); show = false }
@@ -452,6 +640,7 @@ fun PlayerScreen(
                 tracks = t
             }
             override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width <= 0) return
                 val f = exo.videoFormat
                 val mime = f?.sampleMimeType ?: ""
                 codec = when {
@@ -466,16 +655,19 @@ fun PlayerScreen(
             }
         }
         exo.addListener(l)
-        onDispose { exo.removeListener(l); exo.release() }
+        l.onTracksChanged(exo.currentTracks)
+        l.onVideoSizeChanged(exo.videoSize)
+        onDispose { exo.removeListener(l) }
     }
     BackHandler { if (panel) panel = false else onBack() }
 
     Box(
         Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
-            if (panel || tracksOpen || it.type != KeyEventType.KeyDown) {
+            if (panel || tracksOpen || editId != null || it.type != KeyEventType.KeyDown) {
                 false
             } else if (it.key == Key.DirectionCenter || it.key == Key.Enter || it.key == Key.NumPadEnter) {
                 panel = true
+                focusId = c.id
                 true
             } else if (it.key == Key.DirectionLeft || it.key == Key.Menu) {
                 tracksOpen = true
@@ -497,15 +689,22 @@ fun PlayerScreen(
             }
         }
     ) {
-        AndroidView(
-            factory = { PlayerView(it).apply { player = exo; useController = false } },
-            modifier = Modifier.fillMaxSize()
-        )
         if (show && !panel) InfoBar(c, num, p, nx, nowMs, res, codec, quality, Modifier.align(Alignment.BottomCenter))
         if (panel) {
-            ChannelPanel(channels.filter { it.cat == c.cat }, c, epg, nowMs) { onZap(it); panel = false }
+            ChannelPanel(
+                channels.filter { it.cat == c.cat }, c, epg, nowMs, focusId, refocus,
+                { onZap(it); panel = false }, { editId = it.id }
+            )
         }
         if (tracksOpen) TracksDialog(tracks, exo) { tracksOpen = false }
+        val ed = editId
+        if (ed != null) {
+            ChannelEditor(ed, all, cfg, epg.chans, onCfg) {
+                editId = null
+                focusId = ed
+                refocus++
+            }
+        }
     }
 }
 
@@ -514,7 +713,6 @@ fun InfoBar(
     c: Channel, num: Int, p: Prog?, nx: Prog?, nowMs: Long,
     res: String, codec: String, quality: String, modifier: Modifier
 ) {
-    val cyan = Color(0xFF1EB6E8)
     Column(modifier.fillMaxWidth()) {
         if (p != null && p.icon.isNotBlank()) {
             AsyncImage(
@@ -558,7 +756,7 @@ fun InfoBar(
             Modifier.fillMaxWidth().background(Color(0xFF080A0E)).padding(horizontal = 16.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(c.cat, color = cyan, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(c.cat, color = ACCENT, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
             Text(res, color = Color(0xFF2EE05A), fontSize = 14.sp)
             Text(
                 SimpleDateFormat("EEEE dd.MM.yyyy", Locale.getDefault()).format(Date(nowMs)),
@@ -570,11 +768,9 @@ fun InfoBar(
 
 @Composable
 fun ProgPanel(pr: Prog?, nowMs: Long, current: Boolean, modifier: Modifier) {
-    val cyan = Color(0xFF1EB6E8)
-    val gray = Color(0xFFB0B8C8)
     Column(modifier) {
         if (pr == null) {
-            Text("—", color = gray, fontSize = 20.sp)
+            Text("—", color = MUTED, fontSize = 20.sp)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color.White, fontSize = 18.sp)
@@ -591,14 +787,14 @@ fun ProgPanel(pr: Prog?, nowMs: Long, current: Boolean, modifier: Modifier) {
                 }
             }
             Text(
-                pr.title, color = cyan, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                pr.title, color = ACCENT, fontSize = 24.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             if (pr.sub.isNotBlank()) {
                 Text(pr.sub, color = Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (pr.cat.isNotBlank()) {
-                Text(pr.cat, color = gray, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(pr.cat, color = MUTED, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

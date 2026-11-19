@@ -50,7 +50,7 @@ fun loadM3u(ctx: Context, src: String, sid: String): Pair<List<Channel>, String>
                 val name = pendingName.ifBlank { a["tvg-name"] ?: line }
                 val cat = (a["group-title"] ?: "").ifBlank { group }.ifBlank { "Sans catégorie" }
                 val epgId = (a["tvg-id"] ?: "").ifBlank { a["tvg-name"] ?: "" }
-                out.add(Channel("$sid|$line".hashCode(), name, a["tvg-logo"] ?: "", epgId, cat, false, line))
+                out.add(Channel("$sid|$line".hashCode(), name, a["tvg-logo"] ?: "", epgId, cat, false, line, sid))
                 pending = false
             }
         }
@@ -59,7 +59,7 @@ fun loadM3u(ctx: Context, src: String, sid: String): Pair<List<Channel>, String>
     if (hls) {
         if (!src.startsWith("http")) throw Exception("Flux HLS local non supporté : utilise un lien (URL)")
         val n = src.substringAfterLast('/').substringBefore('?').ifBlank { "Flux direct" }
-        return Pair(listOf(Channel("$sid|$src".hashCode(), n, "", "", "Flux direct", false, src)), "")
+        return Pair(listOf(Channel("$sid|$src".hashCode(), n, "", "", "Flux direct", false, src, sid)), "")
     }
     if (out.isEmpty()) throw Exception("Aucune chaîne trouvée dans cette liste")
     return Pair(out, epgUrl)
@@ -80,12 +80,13 @@ fun loadXtream(s: Source): Pair<List<Channel>, String> {
         val n = o.getInt("stream_id")
         Channel(
             "${s.id}:$n".hashCode(), o.str("name"), o.str("stream_icon"), o.str("epg_channel_id"),
-            cats[o.str("category_id")] ?: "Autres", false, "${s.host}/live/${s.user}/${s.pass}/$n.m3u8"
+            cats[o.str("category_id")] ?: "Autres", false, "${s.host}/live/${s.user}/${s.pass}/$n.m3u8", s.id
         )
     }
     return Pair(list, "${s.host}/xmltv.php?username=${s.user}&password=${s.pass}")
 }
 
 suspend fun loadSource(ctx: Context, s: Source): Pair<List<Channel>, String> = withContext(Dispatchers.IO) {
-    if (s.type == "m3u") loadM3u(ctx, s.url, s.id) else loadXtream(s)
+    val r = if (s.type == "m3u") loadM3u(ctx, s.url, s.id) else loadXtream(s)
+    Pair(r.first.map { it.copy(src = s.name) }, r.second)
 }

@@ -22,7 +22,8 @@ data class Cfg(
     val order: List<Int> = emptyList(),
     val cats: List<String> = emptyList(),
     val epgs: List<String> = emptyList(),
-    val logoPrio: String = "playlist"
+    val logoPrio: String = "playlist",
+    val bgSound: Boolean = true
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -83,7 +84,7 @@ fun loadCfg(c: Context): Cfg {
         val cs = (0 until ca.length()).map { ca.getString(it) }
         val ea = j.optJSONArray("epgs")
         val es = if (ea == null) emptyList() else (0 until ea.length()).map { ea.getString(it) }
-        Cfg(m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" })
+        Cfg(m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" }, j.optBoolean("bs", true))
     } catch (ex: Exception) {
         Cfg()
     }
@@ -100,6 +101,7 @@ fun saveCfg(c: Context, g: Cfg) {
     j.put("cats", JSONArray(g.cats))
     j.put("epgs", JSONArray(g.epgs))
     j.put("lp", g.logoPrio)
+    j.put("bs", g.bgSound)
     c.getSharedPreferences("cfg", 0).edit().putString("j", j.toString()).apply()
 }
 
@@ -167,3 +169,20 @@ fun autoMatch(all: List<Channel>, g: Cfg, guide: List<GuideCh>): Pair<Cfg, Int> 
     }
     return Pair(g.copy(ov = ov), n)
 }
+
+// Historique : les 10 dernières chaînes regardées (la plus récente en premier).
+fun loadHist(c: Context): List<Int> {
+    val s = c.getSharedPreferences("hist", 0).getString("j", null) ?: return emptyList()
+    return try {
+        val a = JSONArray(s)
+        (0 until a.length()).map { a.getInt(it) }
+    } catch (ex: Exception) {
+        emptyList()
+    }
+}
+
+fun saveHist(c: Context, l: List<Int>) {
+    c.getSharedPreferences("hist", 0).edit().putString("j", JSONArray(l).toString()).apply()
+}
+
+fun pushHist(h: List<Int>, id: Int): List<Int> = (listOf(id) + h.filter { it != id }).take(10)
