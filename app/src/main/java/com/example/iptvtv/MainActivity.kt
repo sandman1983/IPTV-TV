@@ -60,9 +60,9 @@ import java.util.Date
 import java.util.Locale
 import java.util.zip.GZIPInputStream
 
-data class Channel(val id: Int, val name: String, val icon: String, val epgId: String, val cat: String)
+data class Channel(val id: Int, val name: String, val icon: String, val epgId: String, val cat: String, val hidden: Boolean = false)
 data class Prog(val title: String, val sub: String, val cat: String, val icon: String, val start: Long, val stop: Long)
-class Epg(val now: Map<String, Prog>, val next: Map<String, Prog>)
+class Epg(val now: Map<String, Prog>, val next: Map<String, List<Prog>>)
 data class Creds(val host: String, val user: String, val pass: String, val epgUrl: String)
 
 fun load(c: Context): Creds? {
@@ -118,7 +118,7 @@ suspend fun loadEpg(k: Creds): Epg = withContext(Dispatchers.IO) {
     val fmt = SimpleDateFormat("yyyyMMddHHmmss Z", Locale.US)
     val now = System.currentTimeMillis()
     val cur = HashMap<String, Prog>()
-    val nxt = HashMap<String, Prog>()
+    val nxt = HashMap<String, ArrayList<Prog>>()
     val p = Xml.newPullParser()
     p.setInput(input, null)
     var ch = ""
@@ -162,13 +162,18 @@ suspend fun loadEpg(k: Creds): Epg = withContext(Dispatchers.IO) {
             if (st <= now && now < sp) {
                 cur[ch] = pr
             } else if (st >= now) {
-                val o = nxt[ch]
-                if (o == null || st < o.start) nxt[ch] = pr
+                val l = nxt.getOrPut(ch) { ArrayList() }
+                l.add(pr)
+                if (l.size > 5) {
+                    l.sortBy { it.start }
+                    l.removeAt(l.size - 1)
+                }
             }
         }
         ev = p.next()
     }
     input.close()
+    for (l in nxt.values) l.sortBy { it.start }
     Epg(cur, nxt)
 }
 
@@ -187,6 +192,10 @@ fun App() {
     var epg by remember { mutableStateOf(Epg(emptyMap(), emptyMap())) }
     var status by remember { mutableStateOf("") }
     var playing by remember { mutableStateOf<Channel?>(null) }
+    var cfg by remember { mutableStateOf(loadCfg(ctx)) }
+    var inSettings by remember { mutableStateOf(false) }
+    val all = remember(channels, cfg) { applyCfg(channels, cfg) }
+    val shown = remember(all) { all.filter { !it.hidden } }
 
     LaunchedEffect(creds) {
         val k = creds ?: return@LaunchedEffect
@@ -212,8 +221,9 @@ fun App() {
             val pl = playing
             when {
                 k == null -> Login { save(ctx, it); creds = it }
-                pl != null -> PlayerScreen(pl, k, channels, epg, { playing = it }) { playing = null }
-                else -> Home(channels, epg, status, { playing = it }, { creds = null })
+                inSettings -> SettingsScreen(all, cfg, { cfg = it; saveCfg(ctx, it) }) { inSettings = false }
+                pl != null -> PlayerScreen(pl, k, shown, epg, { playing = it }) { playing = null }
+                else -> Home(shown, epg, status, { playing = it }, { creds = null }, { inSettings = true })
             }
         }
     }
@@ -239,7 +249,7 @@ fun Login(onOk: (Creds) -> Unit) {
 @Composable
 fun Home(
     ch: List<Channel>, epg: Epg, status: String,
-    onPlay: (Channel) -> Unit, onLogout: () -> Unit
+    onPlay: (Channel) -> Unit, onLogout: () -> Unit, onSettings: () -> Unit
 ) {
     var hero by remember { mutableStateOf<Channel?>(null) }
     LaunchedEffect(ch) { if (hero == null) hero = ch.firstOrNull() }
@@ -264,10 +274,14 @@ fun Home(
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 32.dp, vertical = 8.dp)) {
             item {
-                Text(
-                    "Changer de compte", color = Color(0xFF8AB4F8), fontSize = 14.sp,
-                    modifier = Modifier.clickable { onLogout() }.padding(vertical = 6.dp)
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FocusRow({ onSettings() }, Modifier.width(160.dp)) {
+                        Text("Réglages", color = Color.White, fontSize = 15.sp)
+                    }
+                    FocusRow({ onLogout() }, Modifier.width(220.dp)) {
+                        Text("Changer de compte", color = Color(0xFF8AB4F8), fontSize = 15.sp)
+                    }
+                }
             }
             items(groups) { g ->
                 Text(g.key, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
@@ -316,10 +330,11 @@ fun PlayerScreen(
 ) {
     val num = channels.indexOf(c) + 1
     val p = epg.now[c.epgId]
-    val nx = epg.next[c.epgId]
+    val nx = epg.next[c.epgId]?.firstOrNull()
     val ctx = LocalContext.current
     val exo = remember { ExoPlayer.Builder(ctx).build() }
     var show by remember { mutableStateOf(true) }
+    var panel by remember { mutableStateOf(false) }
     var tick by remember { mutableStateOf(0) }
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
     var res by remember { mutableStateOf("") }
@@ -334,7 +349,10 @@ fun PlayerScreen(
         show = true
         tick++
     }
-    LaunchedEffect(Unit) { try { fr.requestFocus() } catch (ex: Exception) { } }
+    LaunchedEffect(panel) {
+        delay(100)
+        if (!panel) { try { fr.requestFocus() } catch (ex: Exception) { } }
+    }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
     LaunchedEffect(tick) { delay(7000); show = false }
     DisposableEffect(exo) {
@@ -356,11 +374,16 @@ fun PlayerScreen(
         exo.addListener(l)
         onDispose { exo.removeListener(l); exo.release() }
     }
-    BackHandler { onBack() }
+    BackHandler { if (panel) panel = false else onBack() }
 
     Box(
         Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
-            if (it.type == KeyEventType.KeyDown) {
+            if (panel || it.type != KeyEventType.KeyDown) {
+                false
+            } else if (it.key == Key.DirectionCenter || it.key == Key.Enter || it.key == Key.NumPadEnter) {
+                panel = true
+                true
+            } else {
                 show = true
                 tick++
                 val i = channels.indexOf(c)
@@ -374,8 +397,6 @@ fun PlayerScreen(
                 } else {
                     false
                 }
-            } else {
-                false
             }
         }
     ) {
@@ -383,7 +404,10 @@ fun PlayerScreen(
             factory = { PlayerView(it).apply { player = exo; useController = false } },
             modifier = Modifier.fillMaxSize()
         )
-        if (show) InfoBar(c, num, p, nx, nowMs, res, codec, quality, Modifier.align(Alignment.BottomCenter))
+        if (show && !panel) InfoBar(c, num, p, nx, nowMs, res, codec, quality, Modifier.align(Alignment.BottomCenter))
+        if (panel) {
+            ChannelPanel(channels.filter { it.cat == c.cat }, c, epg, nowMs) { onZap(it); panel = false }
+        }
     }
 }
 
