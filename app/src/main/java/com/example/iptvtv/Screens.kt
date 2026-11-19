@@ -5,6 +5,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -794,5 +797,175 @@ fun SearchScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBa
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Guide : une colonne par chaîne (logo, programme en cours, programmes suivants)
+// ---------------------------------------------------------------------------
+private val PINK = Color(0xFFE20074)
+
+@Composable
+fun GuideBar(frac: Float, modifier: Modifier = Modifier) {
+    Box(modifier.height(3.dp).background(Color(0x44FFFFFF))) {
+        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(PINK))
+    }
+}
+
+@Composable
+fun GuideNowCard(c: Channel, p: Prog?, onPlay: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(Color(0xFF221E2C))
+            .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused }
+            .clickable { onPlay() }
+    ) {
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color(0xFF14111B))) {
+            if (p != null && p.icon.isNotBlank()) {
+                AsyncImage(
+                    model = p.icon, contentDescription = null,
+                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                )
+            } else {
+                Text(
+                    c.name, color = GRAY, fontSize = 13.sp, maxLines = 2,
+                    modifier = Modifier.align(Alignment.Center).padding(8.dp)
+                )
+            }
+        }
+        Column(Modifier.padding(8.dp)) {
+            if (p != null) {
+                Text("${hm(p.start)} - ${hm(p.stop)}", color = GRAY, fontSize = 11.sp)
+                Text(
+                    p.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                )
+                GuideBar(fracOf(p, System.currentTimeMillis()), Modifier.padding(top = 6.dp).fillMaxWidth())
+            } else {
+                Text("Pas d'informations", color = GRAY, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun GuideRow(u: Prog, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(6.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape)
+            .background(if (f) Color(0xFF3A3348) else Color(0xFF1A1722))
+            .border(if (f) 2.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused }
+            .clickable { onClick() }.padding(8.dp)
+    ) {
+        Text(hm(u.start), color = PINK, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(u.title, color = Color.White, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+fun GuideColumn(c: Channel, epg: Epg, onPlay: () -> Unit, onDetail: (Prog) -> Unit) {
+    val p = epg.now(c.epgId)
+    val ups = epg.upcoming(c.epgId, 5)
+    Column(Modifier.width(190.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.Center) {
+            if (c.icon.isNotBlank()) {
+                AsyncImage(
+                    model = c.icon, contentDescription = null,
+                    modifier = Modifier.fillMaxSize().padding(4.dp), contentScale = ContentScale.Fit
+                )
+            } else {
+                Text(c.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        GuideNowCard(c, p, onPlay)
+        for (u in ups) {
+            Spacer(Modifier.height(5.dp))
+            GuideRow(u) { onDetail(u) }
+        }
+    }
+}
+
+@Composable
+fun GuideScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    var cat by remember { mutableStateOf("") }
+    var pickCat by remember { mutableStateOf(false) }
+    var detail by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
+    val cats = remember(chans) { chans.map { it.cat }.distinct() }
+    val cols = remember(chans, cat, epg.progs) {
+        val l = if (cat.isEmpty()) chans else chans.filter { it.cat == cat }
+        val withData = l.filter { epg.progs.containsKey(it.epgId) }
+        if (withData.isNotEmpty()) withData else l
+    }
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF1D1330), Color(0xFF0B0A12))))) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Aujourd'hui", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(24.dp))
+                FocusRow({ pickCat = true }, Modifier.width(340.dp)) {
+                    Text(
+                        (if (cat.isEmpty()) "Toutes les catégories" else cat) + "  (changer)",
+                        color = PINK, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text("${cols.size} chaînes", color = GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp))
+            }
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(cols, key = { it.id }) { c ->
+                        GuideColumn(c, epg, { onPlay(c) }) { p -> detail = Pair(c, p) }
+                    }
+                }
+            }
+        }
+    }
+
+    val d = detail
+    if (d != null) {
+        val dc = d.first
+        val dp = d.second
+        AlertDialog(
+            onDismissRequest = { detail = null },
+            title = { Text(dp.title) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("${dc.name}  ·  ${hm(dp.start)} - ${hm(dp.stop)}", color = PINK, fontSize = 14.sp)
+                    if (dp.sub.isNotBlank() && dp.sub != dp.desc) {
+                        Text(dp.sub, color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                    Text(
+                        dp.desc.ifBlank { dp.sub }.ifBlank { "Pas de description." }, fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { detail = null; onPlay(dc) }) { Text("Regarder la chaîne") } },
+            dismissButton = { TextButton(onClick = { detail = null }) { Text("Fermer") } }
+        )
+    }
+    if (pickCat) {
+        AlertDialog(
+            onDismissRequest = { pickCat = false },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { pickCat = false }) { Text("Fermer") } },
+            title = { Text("Catégorie") },
+            text = {
+                LazyColumn(Modifier.height(320.dp)) {
+                    item { MenuBtn("Toutes les catégories") { cat = ""; pickCat = false } }
+                    items(cats) { c2 -> MenuBtn(c2) { cat = c2; pickCat = false } }
+                }
+            }
+        )
     }
 }

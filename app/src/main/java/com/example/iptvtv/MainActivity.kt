@@ -401,6 +401,7 @@ fun App() {
                 screen == "search" -> Solid {
                     SearchScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
                 }
+                screen == "guide" -> GuideScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
                 cur != null && full -> PlayerScreen(
                     cur, exo, shown, epg, all, cfg, { cfg = it; saveCfg(ctx, it) }, { play(it) }
                 ) { full = false }
@@ -408,7 +409,8 @@ fun App() {
                     shown, sources, epg, status, hist, cur,
                     { play(it); full = true },
                     { screen = "search" }, { screen = "settings" }, { screen = "sources" },
-                    { editCh = it.id }
+                    { editCh = it.id },
+                    { screen = "guide" }
                 )
             }
             val ec = editCh
@@ -452,7 +454,7 @@ fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
 fun Home(
     ch: List<Channel>, sources: List<Source>, epg: Epg, status: String, hist: List<Int>, cur: Channel?,
     onPlay: (Channel) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSources: () -> Unit,
-    onEdit: (Channel) -> Unit
+    onEdit: (Channel) -> Unit, onGuide: () -> Unit
 ) {
     val cp = cur?.let { epg.now(it.epgId) }
     val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
@@ -476,6 +478,7 @@ fun Home(
                     modifier = Modifier.padding(end = 28.dp)
                 )
                 TopTab("Ma TV", true, 120.dp) { }
+                TopTab("Guide", false, 110.dp) { onGuide() }
                 TopTab("Recherche", false, 150.dp) { onSearch() }
                 TopTab("Réglages", false, 140.dp) { onSettings() }
                 TopTab("Sources et guides", false, 220.dp) { onSources() }
