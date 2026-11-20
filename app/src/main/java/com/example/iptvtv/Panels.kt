@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.example.iptvtv
 
 import android.content.Intent
@@ -6,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -155,12 +158,14 @@ fun PItem(
         Column(Modifier.weight(1f)) {
             Text(
                 title, color = if (f) P_DARK else Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
+                maxLines = 1, softWrap = false, overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
+                modifier = if (f) Modifier.basicMarquee() else Modifier
             )
             if (sub.isNotBlank()) {
                 Text(
                     sub, color = if (f) P_SUB_DARK else P_SUB, fontSize = 14.sp,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                    maxLines = 1, softWrap = false, overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    modifier = if (f) Modifier.basicMarquee() else Modifier
                 )
             }
         }
@@ -722,6 +727,12 @@ fun SettingsHub(
                 PItem(
                     "Weather in the info bar", if (cfg.city.isBlank()) "Off" else cfg.city,
                     { cityIn = cfg.city; page = "city" }, autoFocus = true
+                )
+            }
+            item {
+                PSwitch(
+                    "Channel numbers", "Show numbers in the channel list", cfg.showNums,
+                    { onCfg(cfg.copy(showNums = !cfg.showNums)) }
                 )
             }
         }

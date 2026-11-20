@@ -820,7 +820,7 @@ fun PlayerScreen(
         if (panel) {
             ChannelPanel(
                 channels, sources, c, epg, nowMs, focusId, refocus,
-                { onZap(it); panel = false }, { editId = it.id }
+                cfg.showNums, { onZap(it); panel = false }, { editId = it.id }
             )
         }
         if (tracksOpen) TracksDialog(tracks, exo) { tracksOpen = false }

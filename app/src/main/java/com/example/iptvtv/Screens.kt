@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.example.iptvtv
 
 import android.content.Intent
@@ -8,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.border
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -69,6 +72,7 @@ fun FocusRow(
     modifier: Modifier = Modifier,
     onFocus: () -> Unit = {},
     onLong: (() -> Unit)? = null,
+    pad: androidx.compose.ui.unit.Dp = 10.dp,
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
@@ -78,7 +82,7 @@ fun FocusRow(
             .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
-            .clickable { onClick() }.padding(10.dp),
+            .clickable { onClick() }.padding(pad),
         verticalAlignment = Alignment.CenterVertically
     ) {
         CompositionLocalProvider(LocalRowFocused provides f) { content() }
@@ -106,7 +110,7 @@ fun Section(t: String) {
 @Composable
 fun ChannelPanel(
     all: List<Channel>, sources: List<Source>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
-    onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit
+    showNums: Boolean, onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit
 ) {
     var selSrc by remember { mutableStateOf(current.src) }
     var selCat by remember { mutableStateOf(current.cat) }
@@ -189,7 +193,7 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF0101826)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xB3000000)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
                 Text("Sources", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                 LazyColumn {
                     items(srcIds) { sid ->
@@ -203,7 +207,7 @@ fun ChannelPanel(
                     }
                 }
             }
-            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xF0141F33)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xA6000000)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
                 Text("Categories", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                 LazyColumn {
                     items(srcCats) { cat ->
@@ -221,7 +225,7 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xE6101319))) {
+        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0x99000000))) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     selCat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
@@ -229,33 +233,55 @@ fun ChannelPanel(
                 )
                 Text(if (cols) "OK: select" else "◄ categories  ·  Hold OK: options", color = GRAY, fontSize = 11.sp)
             }
-            LazyColumn(state = ls, modifier = Modifier.weight(1f)) {
-                items(list, key = { it.id }) { c ->
-                    val pr = epg.now(c.epgId)
-                    FocusRow(
-                        { onPick(c) },
-                        if (c.id == fid) Modifier.focusRequester(fr) else Modifier,
-                        { focused = c; upIdx = -1; cols = false },
-                        { onEdit(c) }
-                    ) {
-                        Box(Modifier.size(64.dp, 40.dp)) {
-                            if (c.icon.isNotBlank()) {
-                                AsyncImage(
-                                    model = c.icon, contentDescription = null,
-                                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                val rowH = maxHeight / 10
+                LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
+                    items(list, key = { it.id }) { c ->
+                        val pr = epg.now(c.epgId)
+                        FocusRow(
+                            { onPick(c) },
+                            (if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
+                            { focused = c; upIdx = -1; cols = false },
+                            { onEdit(c) },
+                            4.dp
+                        ) {
+                            if (showNums) {
+                                Text(
+                                    "${all.indexOf(c) + 1}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold, maxLines = 1,
+                                    modifier = Modifier.width(36.dp).padding(start = 4.dp)
                                 )
                             }
-                        }
-                        Column(Modifier.padding(start = 12.dp)) {
-                            Text(c.name, color = fcolor(Color.White), fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                            Text(pr?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (pr != null) Bar(fracOf(pr, nowMs), Modifier.padding(top = 4.dp).width(200.dp))
+                            Box(Modifier.size(52.dp, 32.dp)) {
+                                if (c.icon.isNotBlank()) {
+                                    AsyncImage(
+                                        model = c.icon, contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+                                    )
+                                }
+                            }
+                            val rf = LocalRowFocused.current
+                            Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                                Text(
+                                    c.name, color = fcolor(Color.White), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                    maxLines = 1, softWrap = false,
+                                    overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                    modifier = if (rf) Modifier.basicMarquee() else Modifier
+                                )
+                                Text(
+                                    pr?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 12.sp,
+                                    maxLines = 1, softWrap = false,
+                                    overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                    modifier = if (rf) Modifier.basicMarquee() else Modifier
+                                )
+                                if (pr != null) Bar(fracOf(pr, nowMs), Modifier.padding(top = 2.dp).fillMaxWidth(0.8f))
+                            }
                         }
                     }
                 }
             }
         }
-        Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xB3000000)).padding(24.dp)) {
+        if (!cols) Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xB3000000)).padding(24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
