@@ -75,12 +75,13 @@ fun FocusRow(
     onFocus: () -> Unit = {},
     onLong: (() -> Unit)? = null,
     pad: androidx.compose.ui.unit.Dp = 10.dp,
+    corner: androidx.compose.ui.unit.Dp = 8.dp,
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { BooleanArray(1) }
     Row(
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(corner))
             .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
@@ -232,10 +233,13 @@ fun ChannelPanel(
             }
         }
         Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.fillMaxWidth().padding(vertical = 8.dp).background(Color(0x26FFFFFF)).padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    selCat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, modifier = Modifier.weight(1f)
+                    selCat, color = CYAN, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -248,7 +252,7 @@ fun ChannelPanel(
                             (if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
                             { focused = c; upIdx = -1; cols = false },
                             { onEdit(c) },
-                            2.dp
+                            2.dp, 0.dp
                         ) {
                             if (showNums) {
                                 Text(
@@ -291,18 +295,14 @@ fun ChannelPanel(
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
         if (!cols) Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xE6000000))) {
             Column(Modifier.fillMaxSize().padding(24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 56.dp)) {
-                if (fc.icon.isNotBlank()) {
-                    AsyncImage(
-                        model = fc.icon, contentDescription = null,
-                        modifier = Modifier.size(64.dp, 40.dp), contentScale = ContentScale.Fit
-                    )
-                    Spacer(Modifier.width(14.dp))
-                }
-                Text(
-                    fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, modifier = Modifier.weight(1f)
+            if (fc.icon.isNotBlank()) {
+                AsyncImage(
+                    model = fc.icon, contentDescription = null,
+                    modifier = Modifier.size(110.dp, 64.dp), contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart
                 )
+            } else {
+                Text(fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
