@@ -1032,6 +1032,8 @@ fun PlayerScreen(
                 okLong(it, okFired, { mini = true; miniTick++ }, { panel = true; focusId = c.id })
             } else if (it.type != KeyEventType.KeyDown) {
                 false
+            } else if (it.key == Key.Back || it.key == Key.Escape) {
+                false
             } else if (it.key == Key.DirectionRight) {
                 if (evIdx < ups.size - 1) {
                     dir = 1
