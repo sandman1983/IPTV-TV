@@ -336,6 +336,7 @@ fun App() {
     var resumeTick by remember { mutableStateOf(0) }
     var miniStart by remember { mutableStateOf(true) }
     var fromGuide by remember { mutableStateOf(false) }
+    var quietStart by remember { mutableStateOf(false) }
     var reminder by remember { mutableStateOf<Rec?>(null) }
     val recs = remember(Dvr.tick) { loadRecs(ctx) }
     val cfgNow by rememberUpdatedState(cfg)
@@ -410,7 +411,7 @@ fun App() {
     }
     BackHandler(enabled = screen == "" && !(cur != null && full) && sources.isNotEmpty()) {
         onRootBack {
-            if (cur != null) full = true
+            if (cur != null) { full = true; quietStart = true }
             else Toast.makeText(ctx, "Press Back again to exit", Toast.LENGTH_SHORT).show()
         }
     }
@@ -595,7 +596,7 @@ fun App() {
                             when (act) {
                                 "play" -> {
                                     play(Channel(-Math.abs(r.id.hashCode()) - 1, r.title, "", "", "Recordings", false, r.path, ""))
-                                    full = true
+                                    full = true; quietStart = false
                                     miniStart = false
                                     screen = ""
                                 }
@@ -612,11 +613,11 @@ fun App() {
                     { screen = "" }
                 )
                 screen == "search" -> Solid {
-                    SearchScreen(shown, epg, { play(it); full = true; miniStart = true; fromGuide = false; screen = "" }) { screen = "" }
+                    SearchScreen(shown, epg, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }) { screen = "" }
                 }
                 screen == "guide" -> EpgGrid(
                     shown, epg, cur, cfg.showNums, recs, cfg.remOn,
-                    { play(it); full = true; miniStart = false; fromGuide = true; screen = "" },
+                    { play(it); full = true; quietStart = false; miniStart = false; fromGuide = true; screen = "" },
                     { ch, p, act ->
                         when (act) {
                             "rec" -> Dvr.schedule(ctx, ch, p, "rec")
@@ -631,13 +632,13 @@ fun App() {
                 }
                 cur != null && full -> PlayerScreen(
                     sources,
-                    cur, exo, shown, epg, all, cfg, exitAsk || reminder != null, weather, miniStart, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" }
+                    cur, exo, shown, epg, all, cfg, exitAsk || reminder != null, weather, miniStart, quietStart, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" }
                 ) {
                     if (fromGuide) screen = "guide" else onRootBack { full = false }
                 }
                 else -> Home(
                     shown, sources, epg, status, hist, cur,
-                    { play(it); full = true; miniStart = true; fromGuide = false },
+                    { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false },
                     { screen = "search" }, { settingsPage = ""; screen = "settings" }, { settingsPage = "sources"; screen = "settings" },
                     { editCh = it.id },
                     { screen = "guide" }
@@ -683,7 +684,7 @@ fun App() {
                         reminder = null
                         if (ch != null) {
                             play(ch)
-                            full = true
+                            full = true; quietStart = false
                             miniStart = false
                             screen = ""
                         }
@@ -736,7 +737,7 @@ fun Home(
     val rows = remember(ch, sources) { buildRows(ch, sources) }
     val listState = rememberLazyListState()
     val homeScope = rememberCoroutineScope()
-    val baseIdx = (if (status.isNotBlank()) 1 else 0) + (if (recent.isNotEmpty()) 2 else 0)
+    val baseIdx = (if (status.isNotBlank()) 1 else 0) + (if (recent.isNotEmpty()) 1 else 0)
     var lastRow by remember { mutableStateOf(-1) }
     fun rowFocus(idx: Int) {
         val aligned = listState.firstVisibleItemIndex == idx && listState.firstVisibleItemScrollOffset == 0
@@ -809,13 +810,13 @@ fun Home(
                 }
                 if (recent.isNotEmpty()) {
                     item {
-                        Text(
-                            "CONTINUE WATCHING", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 6.dp)
-                        )
-                    }
-                    item {
-                        CardRow(recent, epg, onPlay, onEdit) { rowFocus(baseIdx - 1) }
+                        Column(Modifier.heightIn(min = rowH)) {
+                            Text(
+                                "CONTINUE WATCHING", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 6.dp)
+                            )
+                            CardRow(recent, epg, onPlay, onEdit) { rowFocus(baseIdx - 1) }
+                        }
                     }
                 }
                 itemsIndexed(rows) { ri, r ->
@@ -944,7 +945,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
-    sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String, startMini: Boolean,
+    sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String, startMini: Boolean, quiet: Boolean,
     onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onGuide: () -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
@@ -954,7 +955,7 @@ fun PlayerScreen(
     var dir by remember { mutableStateOf(1) }
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
-    var mini by remember { mutableStateOf(startMini) }
+    var mini by remember { mutableStateOf(startMini && !quiet) }
     var miniTick by remember { mutableStateOf(0) }
     val firstC = remember { booleanArrayOf(true) }
     val okFired = remember { booleanArrayOf(true) }
@@ -974,7 +975,7 @@ fun PlayerScreen(
         evIdx = -1
         if (firstC[0]) {
             firstC[0] = false
-            show = !startMini
+            show = !startMini && !quiet
         } else {
             mini = false
             show = true
