@@ -660,7 +660,7 @@ fun Home(
     fun rowFocus(idx: Int) {
         if (idx != lastRow) {
             lastRow = idx
-            homeScope.launch { listState.animateScrollToItem(idx) }
+            homeScope.launch { try { listState.animateScrollToItem(idx.coerceAtLeast(0)) } catch (e: IllegalArgumentException) { } }
         }
     }
     Box(Modifier.fillMaxSize()) {
@@ -713,7 +713,7 @@ fun Home(
             val rowH = maxHeight / 2.5f
             LazyColumn(
                 Modifier.fillMaxSize(), state = listState,
-                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 4.dp, bottom = 4.dp)
+                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 4.dp, bottom = maxHeight / 2)
             ) {
                 if (status.isNotBlank()) {
                     item { Text(status, color = Color(0xFFFFB4A9), fontSize = 13.sp) }
@@ -761,12 +761,12 @@ fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (C
     LazyRow(
         state = st,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(start = 20.dp, end = 70.dp, top = 12.dp, bottom = 12.dp)
+        contentPadding = PaddingValues(start = 20.dp, end = 70.dp, top = 14.dp, bottom = 30.dp)
     ) {
-        itemsIndexed(list, key = { _, c -> c.id }) { i, c ->
+        itemsIndexed(list, key = { i, c -> "${c.id}_$i" }) { i, c ->
             ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) }) {
                 onRowFocus()
-                sc.launch { st.animateScrollToItem((i - 1).coerceAtLeast(0)) }
+                sc.launch { try { st.animateScrollToItem((i - 1).coerceAtLeast(0)) } catch (e: IllegalArgumentException) { } }
             }
         }
     }
@@ -807,7 +807,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, o
                 if (c.icon.isNotBlank()) {
                     AsyncImage(
                         model = c.icon, contentDescription = null,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 24.dp)
+                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 12.dp)
                             .size(48.dp, 26.dp),
                         contentScale = ContentScale.Fit
                     )
@@ -815,8 +815,8 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, o
                 if (p != null) {
                     Bar(
                         fracOf(p, System.currentTimeMillis()),
-                        Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                        7.dp
+                        Modifier.align(Alignment.BottomStart).fillMaxWidth(),
+                        6.dp
                     )
                 }
             }
