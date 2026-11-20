@@ -264,11 +264,11 @@ fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
     Column(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xF0151A24)).padding(16.dp)) {
-        Text("Quitter l'application ?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("Exit the app?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr)) { Text("Oui", color = fcolor(Color.White), fontSize = 16.sp) }
-            FocusRow(onNo, Modifier.width(110.dp)) { Text("Non", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr)) { Text("Yes", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onNo, Modifier.width(110.dp)) { Text("No", color = fcolor(Color.White), fontSize = 16.sp) }
         }
     }
 }
@@ -338,7 +338,7 @@ fun App() {
     BackHandler(enabled = screen == "" && !(cur != null && full) && sources.isNotEmpty()) {
         onRootBack {
             if (cur != null) full = true
-            else Toast.makeText(ctx, "Appuie encore sur Retour pour quitter", Toast.LENGTH_SHORT).show()
+            else Toast.makeText(ctx, "Press Back again to exit", Toast.LENGTH_SHORT).show()
         }
     }
     LaunchedEffect(exitAsk) {
@@ -407,7 +407,7 @@ fun App() {
 
     // Chargement des sources et des guides, puis rechargement des guides toutes les 30 minutes.
     LaunchedEffect(sources, cfg.epgs, reload) {
-        status = "Chargement des chaînes…"
+        status = "Loading channels…"
         val chs = ArrayList<Channel>()
         val urls = ArrayList<String>(cfg.epgs)
         val rep = ArrayList<String>()
@@ -416,9 +416,9 @@ fun App() {
                 val r = loadSource(ctx, s)
                 chs.addAll(r.first)
                 urls.add(s.epg.ifBlank { r.second })
-                rep.add("OK - ${s.name} : ${r.first.size} chaînes")
+                rep.add("OK - ${s.name} : ${r.first.size} channels")
             } catch (ex: Exception) {
-                rep.add("ERREUR - ${s.name} : ${ex.message}")
+                rep.add("ERROR - ${s.name} : ${ex.message}")
             }
         }
         val seen = HashSet<Int>()
@@ -434,13 +434,13 @@ fun App() {
             var n = 0
             for (u in guideUrls) {
                 n++
-                if (show) status = "Chargement du guide $n/${guideUrls.size}…"
+                if (show) status = "Loading guide $n/${guideUrls.size}…"
                 try {
                     val e = loadEpg(u)
                     g = mergeEpg(g, e)
-                    into.add("OK - Guide $n : ${e.chans.size} chaînes, ${e.progs.size} avec programmes")
+                    into.add("OK - Guide $n : ${e.chans.size} channels, ${e.progs.size} with programmes")
                 } catch (ex: Exception) {
-                    into.add("ERREUR - Guide $n : ${ex.message}")
+                    into.add("ERROR - Guide $n : ${ex.message}")
                 }
             }
             return g
@@ -450,7 +450,7 @@ fun App() {
         epg = fetchGuides(rep, true)
         lastSync = System.currentTimeMillis()
         report = rep.toList()
-        status = if (rep.any { it.startsWith("ERREUR") }) "Une source a échoué : voir Sources et guides" else ""
+        status = if (rep.any { it.startsWith("ERROR") }) "A source failed: see Settings > Sources" else ""
         while (true) {
             delay(cfg.syncHours.coerceAtLeast(1) * 3600_000L)
             val g2 = fetchGuides(ArrayList(), false)
@@ -483,6 +483,7 @@ fun App() {
                 }
                 screen == "guide" -> GuideScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
                 cur != null && full -> PlayerScreen(
+                    sources,
                     cur, exo, shown, epg, all, cfg, exitAsk, weather, { cfg = it; saveCfg(ctx, it) }, { play(it) }
                 ) { onRootBack { full = false } }
                 else -> Home(
@@ -518,7 +519,7 @@ fun buildRows(ch: List<Channel>, sources: List<Source>): List<HomeRow> {
     val order = sources.map { it.id } + bySrc.keys.filter { k -> sources.none { it.id == k } }
     for (sid in order) {
         val list = bySrc[sid] ?: continue
-        if (multi) out.add(HomeRow(true, sources.firstOrNull { it.id == sid }?.name ?: "Autre", emptyList()))
+        if (multi) out.add(HomeRow(true, sources.firstOrNull { it.id == sid }?.name ?: "Other", emptyList()))
         for ((cat, l) in list.groupBy { it.cat }) out.add(HomeRow(false, cat, l))
     }
     return out
@@ -564,11 +565,11 @@ fun Home(
                     "IPTV", color = ACCENT, fontSize = 24.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 28.dp)
                 )
-                TopTab("Ma TV", true, 120.dp) { }
+                TopTab("My TV", true, 120.dp) { }
                 TopTab("Guide", false, 110.dp) { onGuide() }
-                TopTab("Recherche", false, 150.dp) { onSearch() }
-                TopTab("Réglages", false, 140.dp) { onSettings() }
-                TopTab("Sources et guides", false, 220.dp) { onSources() }
+                TopTab("Search", false, 150.dp) { onSearch() }
+                TopTab("Settings", false, 140.dp) { onSettings() }
+                TopTab("Sources & guides", false, 220.dp) { onSources() }
             }
             Box(Modifier.weight(0.38f).fillMaxWidth()) {
                 Column(Modifier.align(Alignment.BottomStart).padding(start = 32.dp, bottom = 8.dp)) {
@@ -580,7 +581,7 @@ fun Home(
                         )
                         if (cp != null) Text("${hm(cp.start)} - ${hm(cp.stop)}", color = MUTED, fontSize = 14.sp)
                     } else {
-                        Text("Choisis une chaîne pour démarrer", color = MUTED, fontSize = 20.sp)
+                        Text("Pick a channel to start", color = MUTED, fontSize = 20.sp)
                     }
                 }
             }
@@ -594,7 +595,7 @@ fun Home(
                 if (recent.isNotEmpty()) {
                     item {
                         Text(
-                            "CONTINUER À REGARDER", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                            "CONTINUE WATCHING", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 8.dp, bottom = 6.dp)
                         )
                     }
@@ -704,7 +705,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
-    c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String,
+    sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String,
     onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
@@ -818,7 +819,7 @@ fun PlayerScreen(
         }
         if (panel) {
             ChannelPanel(
-                channels.filter { it.cat == c.cat }, c, epg, nowMs, focusId, refocus,
+                channels, sources, c, epg, nowMs, focusId, refocus,
                 { onZap(it); panel = false }, { editId = it.id }
             )
         }
@@ -838,15 +839,15 @@ private val LIME = Color(0xFFB5D334)
 private val SOFT = Color(0xFFEFF5B0)
 
 fun wmoText(code: Int): String = when (code) {
-    0 -> "Dégagé"
-    1, 2 -> "Peu nuageux"
-    3 -> "Couvert"
-    45, 48 -> "Brouillard"
-    in 51..57 -> "Bruine"
-    in 61..67 -> "Pluie"
-    in 71..77 -> "Neige"
-    in 80..82 -> "Averses"
-    in 95..99 -> "Orage"
+    0 -> "Clear"
+    1, 2 -> "Partly cloudy"
+    3 -> "Overcast"
+    45, 48 -> "Fog"
+    in 51..57 -> "Drizzle"
+    in 61..67 -> "Rain"
+    in 71..77 -> "Snow"
+    in 80..82 -> "Showers"
+    in 95..99 -> "Thunderstorm"
     else -> ""
 }
 
@@ -854,7 +855,7 @@ fun wmoText(code: Int): String = when (code) {
 suspend fun fetchWeather(city: String): String = withContext(Dispatchers.IO) {
     try {
         val q = java.net.URLEncoder.encode(city, "UTF-8")
-        val g = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?name=$q&count=1&language=fr"))
+        val g = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?name=$q&count=1&language=en"))
         val r = g.optJSONArray("results") ?: return@withContext ""
         val o = r.getJSONObject(0)
         val lat = o.getDouble("latitude")
@@ -968,7 +969,7 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
             Column(Modifier.width(190.dp)) {
                 Text(hm(nowMs), color = LIME, fontSize = 44.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    SimpleDateFormat("EEEE dd MMMM", Locale.getDefault()).format(Date(nowMs)),
+                    SimpleDateFormat("EEEE dd MMMM", Locale.ENGLISH).format(Date(nowMs)),
                     color = LIME, fontSize = 14.sp
                 )
             }
@@ -994,7 +995,7 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
                 }
                 Column(Modifier.weight(1f).padding(start = 16.dp)) {
                     if (sp == null) {
-                        Text("Pas d'informations de guide", color = MUTED, fontSize = 16.sp)
+                        Text("No guide information", color = MUTED, fontSize = 16.sp)
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (ev == null) {
@@ -1009,7 +1010,7 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
                             } else {
                                 Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color.White, fontSize = 16.sp)
                                 Spacer(Modifier.weight(1f))
-                                Text("dans ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 14.sp)
+                                Text("in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 14.sp)
                             }
                         }
                         Text(
@@ -1038,7 +1039,7 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
             Text(c.cat, color = MUTED, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
             Text(res, color = Color(0xFF2EE05A), fontSize = 13.sp)
             Text(
-                "←  audio / sous-titres     →  à suivre     ↑↓  zapping     OK  liste",
+                "←  audio / subtitles     →  up next     ↑↓  zap     OK  list",
                 color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
             )
         }

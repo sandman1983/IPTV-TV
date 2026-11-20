@@ -272,16 +272,16 @@ fun TracksDialog(tracks: Tracks, exo: ExoPlayer, onClose: () -> Unit) {
             .build()
         onClose()
     }
-    PanelDialog("Audio et sous-titres", onClose, actions = { PButton("Fermer", onClose) }) {
+    PanelDialog("Audio & subtitles", onClose, actions = { PButton("Close", onClose) }) {
         item { PHeader("Audio") }
-        if (audio.isEmpty()) item { PInfo("Une seule piste audio") }
+        if (audio.isEmpty()) item { PInfo("Only one audio track") }
         itemsIndexed(audio) { i, g ->
             PRadio(trackLabel(g.getTrackFormat(0), i + 1), "", g.isSelected, { pick(g) }, autoFocus = i == 0)
         }
-        item { PHeader("Sous-titres") }
+        item { PHeader("Subtitles") }
         item {
             PRadio(
-                "Désactivés", "", !textOn,
+                "Off", "", !textOn,
                 {
                     exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
@@ -323,27 +323,27 @@ fun ChannelEditor(
 
     PanelDialogHost({ back() }) {
         when (page) {
-            "menu" -> PanelShell(e.name, { back() }, false, actions = { PButton("Fermer", { onClose() }) }) {
-                item { PItem("Renommer", e.name, { open("rename", e.name) }, autoFocus = true) }
-                item { PItem("Changer le logo (URL)", if (e.icon.isBlank()) "Aucun" else e.icon, { open("logo", e.icon) }, icon = e.icon) }
-                item { PItem("Changer l'ID EPG", e.epgId.ifBlank { "Aucun" }, { open("epg", e.name) }) }
-                item { PItem("Changer de catégorie", e.cat, { page = "cat" }) }
-                item { PItem("Monter", "", { onCfg(moveCh(cfg, all, e.id, -1)) }) }
-                item { PItem("Descendre", "", { onCfg(moveCh(cfg, all, e.id, 1)) }) }
-                item { PSwitch("Masquer la chaîne", "", e.hidden, { upd { o -> o.copy(hidden = !e.hidden) } }) }
-                item { PItem("Réinitialiser cette chaîne", "", { onCfg(cfg.copy(ov = cfg.ov - e.id)) }) }
+            "menu" -> PanelShell(e.name, { back() }, false, actions = { PButton("Close", { onClose() }) }) {
+                item { PItem("Rename", e.name, { open("rename", e.name) }, autoFocus = true) }
+                item { PItem("Change logo (URL)", if (e.icon.isBlank()) "None" else e.icon, { open("logo", e.icon) }, icon = e.icon) }
+                item { PItem("Change EPG ID", e.epgId.ifBlank { "None" }, { open("epg", e.name) }) }
+                item { PItem("Change category", e.cat, { page = "cat" }) }
+                item { PItem("Move up", "", { onCfg(moveCh(cfg, all, e.id, -1)) }) }
+                item { PItem("Move down", "", { onCfg(moveCh(cfg, all, e.id, 1)) }) }
+                item { PSwitch("Hide channel", "", e.hidden, { upd { o -> o.copy(hidden = !e.hidden) } }) }
+                item { PItem("Reset this channel", "", { onCfg(cfg.copy(ov = cfg.ov - e.id)) }) }
             }
             "rename", "logo", "epgtxt", "newcat" -> {
                 val label = when (page) {
-                    "rename" -> "Nom de la chaîne"
+                    "rename" -> "Channel name"
                     "logo" -> "URL du logo / picon"
                     "epgtxt" -> "ID EPG (identifiant XMLTV)"
-                    else -> "Nouvelle catégorie"
+                    else -> "New category"
                 }
                 PanelShell(
                     label, { back() }, false,
                     actions = {
-                        PButton("Enregistrer", {
+                        PButton("Save", {
                             val v = text.trim()
                             when (page) {
                                 "rename" -> upd { o -> o.copy(name = v) }
@@ -356,7 +356,7 @@ fun ChannelEditor(
                             }
                             page = "menu"
                         })
-                        PButton("Annuler", { page = "menu" })
+                        PButton("Cancel", { page = "menu" })
                     }
                 ) {
                     item { PInput(label, text, { text = it }, autoFocus = true) }
@@ -369,15 +369,15 @@ fun ChannelEditor(
                     else guide.filter { it.name.lowercase().contains(t) || it.id.lowercase().contains(t) }.take(40)
                 }
                 PanelShell(
-                    "Chercher dans le guide", { back() }, false,
+                    "Search the guide", { back() }, false,
                     actions = {
                         PButton("Saisir l'ID", { open("epgtxt", e.epgId) })
-                        PButton("Retour", { page = "menu" })
+                        PButton("Back", { page = "menu" })
                     }
                 ) {
-                    item { PInput("Nom ou ID", text, { text = it }, autoFocus = true) }
+                    item { PInput("Name or ID", text, { text = it }, autoFocus = true) }
                     if (guide.isEmpty()) {
-                        item { PInfo("Aucun guide chargé : ajoute un guide dans Réglages > Guides.") }
+                        item { PInfo("No guide loaded: add one in Settings > Guides.") }
                     }
                     items(res) { g ->
                         PItem(
@@ -388,10 +388,10 @@ fun ChannelEditor(
                     }
                 }
             }
-            "cat" -> PanelShell("Catégorie", { back() }, false, actions = { PButton("Retour", { page = "menu" }) }) {
-                item { PItem("Nouvelle catégorie", "", { open("newcat", "") }, autoFocus = true) }
+            "cat" -> PanelShell("Category", { back() }, false, actions = { PButton("Back", { page = "menu" }) }) {
+                item { PItem("New category", "", { open("newcat", "") }, autoFocus = true) }
                 items(cats) { cat ->
-                    PItem(cat, if (cat == e.cat) "Catégorie actuelle" else "", { upd { o -> o.copy(cat = cat) }; page = "menu" })
+                    PItem(cat, if (cat == e.cat) "Current category" else "", { upd { o -> o.copy(cat = cat) }; page = "menu" })
                 }
             }
             else -> page = "menu"
@@ -449,9 +449,9 @@ fun SettingsHub(
         if (uri != null) {
             try {
                 ctx.contentResolver.openOutputStream(uri)?.use { it.write(exportConfig(sources, cfg).toByteArray()) }
-                msg = "Configuration exportée."
+                msg = "Configuration exported."
             } catch (ex: Exception) {
-                msg = "Export impossible : ${ex.message}"
+                msg = "Export failed : ${ex.message}"
             }
         }
     }
@@ -461,14 +461,14 @@ fun SettingsHub(
                 val t = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
                 val r = importConfig(t)
                 if (r == null) {
-                    msg = "Fichier invalide."
+                    msg = "Invalid file."
                 } else {
                     onSources(r.first)
                     onCfg(r.second)
-                    msg = "Configuration restaurée."
+                    msg = "Configuration restored."
                 }
             } catch (ex: Exception) {
-                msg = "Restauration impossible : ${ex.message}"
+                msg = "Restore failed : ${ex.message}"
             }
         }
     }
@@ -529,48 +529,48 @@ fun SettingsHub(
     val cats = (all.map { it.cat } + cfg.cats).distinct()
 
     when (page) {
-        "" -> PanelShell("Réglages", { back() }) {
-            item { PItem("Sources", "${sources.size} source(s) configurée(s)", { page = "sources" }, autoFocus = true) }
-            item { PItem("Guides (EPG)", "${cfg.epgs.size} guide(s) ajouté(s)", { page = "guides" }) }
-            item { PItem("Chaînes", "Renommer, déplacer, masquer, catégories", { page = "channels" }) }
-            item { PItem("Lecteur", "Aperçu, audio et sous-titres", { page = "player" }) }
-            item { PItem("Affichage", "Météo dans la barre d'infos", { page = "display" }) }
-            item { PItem("À propos", "", { page = "about" }) }
+        "" -> PanelShell("Settings", { back() }) {
+            item { PItem("Sources", "${sources.size} source(s) configured", { page = "sources" }, autoFocus = true) }
+            item { PItem("Guides (EPG)", "${cfg.epgs.size} guide(s) added", { page = "guides" }) }
+            item { PItem("Channels", "Rename, move, hide, categories", { page = "channels" }) }
+            item { PItem("Player", "Preview, audio and subtitles", { page = "player" }) }
+            item { PItem("Display", "Weather in the info bar", { page = "display" }) }
+            item { PItem("About", "", { page = "about" }) }
         }
-        "sources" -> PanelShell("Sources", { back() }, actions = { PButton("Terminé", { back() }) }) {
+        "sources" -> PanelShell("Sources", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
                 PItem(
-                    "Intervalle de synchronisation", hoursLabel(cfg.syncHours) + "  (rechargement des guides)",
+                    "Time between synchronizations", hoursLabel(cfg.syncHours) + "  (guide refresh)",
                     { onCfg(cfg.copy(syncHours = SYNC_OPTIONS[(SYNC_OPTIONS.indexOf(cfg.syncHours) + 1) % SYNC_OPTIONS.size])) },
                     autoFocus = true
                 )
             }
             item {
                 PItem(
-                    "Mettre à jour maintenant",
-                    "Dernière exécution : " + (if (lastSync > 0) SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(lastSync)) else "—"),
-                    { onReload(); msg = "Mise à jour lancée…" }
+                    "Update now",
+                    "Last run: " + (if (lastSync > 0) SimpleDateFormat("dd MMM, HH:mm", Locale.ENGLISH).format(Date(lastSync)) else "—"),
+                    { onReload(); msg = "Update started…" }
                 )
             }
             item {
-                PItem("Ajouter une source", "Playlist M3U / M3U8 ou Xtream Codes", { editingId = null; type = "xtream"; msg = ""; page = "src_type" })
+                PItem("Add new source", "M3U / M3U8 playlist or Xtream Codes", { editingId = null; type = "xtream"; msg = ""; page = "src_type" })
             }
             items(sources, key = { it.id }) { s ->
                 PItem(s.name, if (s.type == "m3u") "M3U · " + s.url else "Xtream · " + s.host, { selSrc = s; page = "src_menu" })
             }
             item {
                 PItem(
-                    "Exporter la configuration", "Fichier avec sources et réglages (contient vos identifiants)",
+                    "Export configuration", "File with sources and settings (contains your credentials)",
                     {
-                        try { exporter.launch("iptv-config.json") } catch (ex: Exception) { msg = "Pas d'explorateur de fichiers sur cette TV." }
+                        try { exporter.launch("iptv-config.json") } catch (ex: Exception) { msg = "No file browser on this TV." }
                     }
                 )
             }
             item {
                 PItem(
-                    "Restaurer la configuration", "Lit un fichier exporté auparavant",
+                    "Restore configuration", "Reads a previously exported file",
                     {
-                        try { importer.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "Pas d'explorateur de fichiers sur cette TV." }
+                        try { importer.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "No file browser on this TV." }
                     }
                 )
             }
@@ -579,106 +579,106 @@ fun SettingsHub(
         "src_menu" -> {
             val s = selSrc
             if (s != null) {
-                PanelShell(s.name, { back() }, actions = { PButton("Retour", { back() }) }) {
-                    item { PItem("Modifier", "", { openForm(s) }, autoFocus = true) }
-                    item { PItem("Supprimer cette source", "", { onSources(sources.filter { it.id != s.id }); page = "sources" }) }
+                PanelShell(s.name, { back() }, actions = { PButton("Back", { back() }) }) {
+                    item { PItem("Edit", "", { openForm(s) }, autoFocus = true) }
+                    item { PItem("Delete this source", "", { onSources(sources.filter { it.id != s.id }); page = "sources" }) }
                 }
             }
         }
         "src_type" -> PanelShell(
-            "Ajouter une source", { back() },
+            "Add new source", { back() },
             actions = {
-                PButton("Suivant", { openForm(null) }, autoFocus = false)
-                if (canExit) PButton("Retour", { back() })
+                PButton("Next", { openForm(null) }, autoFocus = false)
+                if (canExit) PButton("Back", { back() })
             }
         ) {
-            item { PRadio("Playlist (M3U / M3U8)", "Lien ou fichier local", type == "m3u", { type = "m3u" }, autoFocus = true) }
-            item { PRadio("Xtream Codes", "Serveur, identifiant et mot de passe", type == "xtream", { type = "xtream" }) }
+            item { PRadio("Playlist (M3U / M3U8)", "Link or local file", type == "m3u", { type = "m3u" }, autoFocus = true) }
+            item { PRadio("Xtream Codes", "Server, username and password", type == "xtream", { type = "xtream" }) }
         }
         "src_form" -> PanelShell(
             if (type == "m3u") "Playlist M3U / M3U8" else "Xtream Codes", { back() },
             actions = {
-                PButton("Enregistrer", { saveForm() })
-                PButton("Retour", { back() })
+                PButton("Save", { saveForm() })
+                PButton("Back", { back() })
             }
         ) {
-            item { PInput("Nom (optionnel)", fName, { fName = it }, autoFocus = true) }
+            item { PInput("Name (optional)", fName, { fName = it }, autoFocus = true) }
             if (type == "m3u") {
-                item { PInput("Lien (URL) ou fichier M3U / M3U8", fUrl, { fUrl = it }) }
+                item { PInput("Link (URL) or M3U / M3U8 file", fUrl, { fUrl = it }) }
                 item {
                     PItem(
-                        "Choisir un fichier local", "",
+                        "Choose a local file", "",
                         {
-                            try { picker.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "Pas d'explorateur de fichiers sur cette TV : utilise un lien (URL)." }
+                            try { picker.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "No file browser on this TV: use a link (URL)." }
                         }
                     )
                 }
             } else {
-                item { PInput("Serveur (http://host:port)", fHost, { fHost = it }) }
-                item { PInput("Identifiant", fUser, { fUser = it }) }
-                item { PInput("Mot de passe", fPass, { fPass = it }) }
+                item { PInput("Server (http://host:port)", fHost, { fHost = it }) }
+                item { PInput("Username", fUser, { fUser = it }) }
+                item { PInput("Password", fPass, { fPass = it }) }
             }
-            item { PInput("Guide XMLTV de cette source (optionnel)", fEpg, { fEpg = it }) }
+            item { PInput("XMLTV guide for this source (optional)", fEpg, { fEpg = it }) }
             if (msg.isNotBlank()) item { PInfo(msg, true) }
         }
-        "guides" -> PanelShell("Guides (EPG)", { back() }, actions = { PButton("Terminé", { back() }) }) {
-            item { PItem("Ajouter un guide XMLTV", "URL d'un fichier .xml ou .gz", { epgIn = ""; page = "guide_add" }, autoFocus = true) }
-            items(cfg.epgs) { u -> PItem(u, "Le guide du haut a la priorité · OK : gérer", { selEpg = u; page = "guide_menu" }) }
+        "guides" -> PanelShell("Guides (EPG)", { back() }, actions = { PButton("Done", { back() }) }) {
+            item { PItem("Add XMLTV guide", "URL of an .xml or .gz file", { epgIn = ""; page = "guide_add" }, autoFocus = true) }
+            items(cfg.epgs) { u -> PItem(u, "Top guide has priority · OK: manage", { selEpg = u; page = "guide_menu" }) }
             item {
                 PItem(
-                    "Priorité des logos",
-                    if (cfg.logoPrio == "xmltv") "1) guide XMLTV   2) liste" else "1) liste   2) guide XMLTV",
+                    "Logo priority",
+                    if (cfg.logoPrio == "xmltv") "1) XMLTV guide   2) playlist" else "1) playlist   2) XMLTV guide",
                     { onCfg(cfg.copy(logoPrio = if (cfg.logoPrio == "xmltv") "playlist" else "xmltv")) }
                 )
             }
             item {
                 PItem(
-                    "Associer automatiquement les ID EPG", "${guide.size} chaînes dans le guide chargé",
+                    "Auto-match EPG IDs", "${guide.size} channels in the loaded guide",
                     {
                         if (guide.isEmpty()) {
-                            msg = "Aucun guide chargé pour le moment."
+                            msg = "No guide loaded yet."
                         } else {
                             val r = autoMatch(all, cfg, guide)
                             onCfg(r.first)
-                            msg = "${r.second} chaîne(s) associée(s) au guide."
+                            msg = "${r.second} channel(s) matched to the guide."
                         }
                     }
                 )
             }
             if (msg.isNotBlank()) item { PInfo(msg) }
-            item { PHeader("État du chargement") }
-            if (report.isEmpty()) item { PInfo("Chargement en cours…") }
-            items(report) { line -> PInfo(line, line.startsWith("ERREUR")) }
+            item { PHeader("Load status") }
+            if (report.isEmpty()) item { PInfo("Loading…") }
+            items(report) { line -> PInfo(line, line.startsWith("ERROR")) }
         }
-        "guide_menu" -> PanelShell("Guide", { back() }, actions = { PButton("Retour", { back() }) }) {
+        "guide_menu" -> PanelShell("Guide", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PInfo(selEpg) }
             item {
-                PItem("Supprimer ce guide", "", { onCfg(cfg.copy(epgs = cfg.epgs.filter { it != selEpg })); page = "guides" }, autoFocus = true)
+                PItem("Delete this guide", "", { onCfg(cfg.copy(epgs = cfg.epgs.filter { it != selEpg })); page = "guides" }, autoFocus = true)
             }
             item {
-                PItem("Placer en premier (priorité)", "", { onCfg(cfg.copy(epgs = listOf(selEpg) + cfg.epgs.filter { it != selEpg })); page = "guides" })
+                PItem("Move to top (priority)", "", { onCfg(cfg.copy(epgs = listOf(selEpg) + cfg.epgs.filter { it != selEpg })); page = "guides" })
             }
         }
         "guide_add" -> PanelShell(
-            "Ajouter un guide XMLTV", { back() },
+            "Add XMLTV guide", { back() },
             actions = {
-                PButton("Enregistrer", {
+                PButton("Save", {
                     if (epgIn.isNotBlank()) onCfg(cfg.copy(epgs = (cfg.epgs + norm(epgIn)).distinct()))
                     page = "guides"
                 })
-                PButton("Retour", { back() })
+                PButton("Back", { back() })
             }
         ) {
-            item { PInput("URL du guide (.xml ou .gz)", epgIn, { epgIn = it }, autoFocus = true) }
+            item { PInput("Guide URL (.xml or .gz)", epgIn, { epgIn = it }, autoFocus = true) }
         }
-        "channels" -> PanelShell("Chaînes", { back() }, actions = { PButton("Terminé", { back() }) }) {
-            item { PItem("Nouvelle catégorie", "", { catIn = ""; page = "newcat" }, autoFocus = true) }
-            items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} chaîne(s)", { selCat = cat; page = "chlist" }) }
+        "channels" -> PanelShell("Channels", { back() }, actions = { PButton("Done", { back() }) }) {
+            item { PItem("New category", "", { catIn = ""; page = "newcat" }, autoFocus = true) }
+            items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)", { selCat = cat; page = "chlist" }) }
         }
         "newcat" -> PanelShell(
-            "Nouvelle catégorie", { back() },
+            "New category", { back() },
             actions = {
-                PButton("Enregistrer", {
+                PButton("Save", {
                     val v = catIn.trim()
                     if (v.isNotBlank()) {
                         onCfg(cfg.copy(cats = (cfg.cats + v).distinct()))
@@ -686,19 +686,19 @@ fun SettingsHub(
                     }
                     page = "channels"
                 })
-                PButton("Retour", { back() })
+                PButton("Back", { back() })
             }
         ) {
-            item { PInput("Nom de la catégorie", catIn, { catIn = it }, autoFocus = true) }
+            item { PInput("Category name", catIn, { catIn = it }, autoFocus = true) }
         }
         "chlist" -> {
             val list = all.filter { it.cat == selCat }
             val firstId = list.firstOrNull()?.id
-            PanelShell(selCat, { back() }, actions = { PButton("Retour", { back() }) }) {
-                if (list.isEmpty()) item { PInfo("Aucune chaîne dans cette catégorie.") }
+            PanelShell(selCat, { back() }, actions = { PButton("Back", { back() }) }) {
+                if (list.isEmpty()) item { PInfo("No channel in this category.") }
                 items(list, key = { it.id }) { c ->
                     PItem(
-                        c.name + if (c.hidden) "  (masquée)" else "",
+                        c.name + if (c.hidden) "  (hidden)" else "",
                         "EPG : ${c.epgId.ifBlank { "—" }}",
                         { editCh = c.id },
                         autoFocus = c.id == firstId, icon = c.icon
@@ -706,38 +706,38 @@ fun SettingsHub(
                 }
             }
         }
-        "player" -> PanelShell("Lecteur", { back() }, actions = { PButton("Terminé", { back() }) }) {
+        "player" -> PanelShell("Player", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
                 PSwitch(
-                    "Son de l'aperçu en arrière-plan", "Sur l'écran d'accueil", cfg.bgSound,
+                    "Background preview sound", "On the home screen", cfg.bgSound,
                     { onCfg(cfg.copy(bgSound = !cfg.bgSound)) }, autoFocus = true
                 )
             }
             item {
-                PInfo("Pendant la lecture : Haut/Bas = zapping, OK = liste des chaînes, Droite = programmes suivants, Gauche = audio et sous-titres.")
+                PInfo("While watching: Up/Down = zap, OK = channel list, Right = up next, Left = audio and subtitles.")
             }
         }
-        "display" -> PanelShell("Affichage", { back() }, actions = { PButton("Terminé", { back() }) }) {
+        "display" -> PanelShell("Display", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
                 PItem(
-                    "Météo dans la barre d'infos", if (cfg.city.isBlank()) "Désactivée" else cfg.city,
+                    "Weather in the info bar", if (cfg.city.isBlank()) "Off" else cfg.city,
                     { cityIn = cfg.city; page = "city" }, autoFocus = true
                 )
             }
         }
         "city" -> PanelShell(
-            "Météo", { back() },
+            "Weather", { back() },
             actions = {
-                PButton("Enregistrer", { onCfg(cfg.copy(city = cityIn.trim())); page = "display" })
-                PButton("Retour", { back() })
+                PButton("Save", { onCfg(cfg.copy(city = cityIn.trim())); page = "display" })
+                PButton("Back", { back() })
             }
         ) {
-            item { PInput("Ville (vide = désactivée)", cityIn, { cityIn = it }, autoFocus = true) }
+            item { PInput("City (empty = off)", cityIn, { cityIn = it }, autoFocus = true) }
         }
-        else -> PanelShell("À propos", { back() }, actions = { PButton("Retour", { back() }) }) {
+        else -> PanelShell("About", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PInfo("IPTV TV · version 0.1") }
-            item { PInfo("${sources.size} source(s) · ${all.size} chaînes · ${guide.size} chaînes dans le guide") }
-            item { PItem("Retour", "", { back() }, autoFocus = true) }
+            item { PInfo("${sources.size} source(s) · ${all.size} channels · ${guide.size} channels in guide") }
+            item { PItem("Back", "", { back() }, autoFocus = true) }
         }
     }
 

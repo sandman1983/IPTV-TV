@@ -48,7 +48,7 @@ fun loadM3u(ctx: Context, src: String, sid: String): Pair<List<Channel>, String>
             } else if (pending) {
                 val a = pendingAttrs
                 val name = pendingName.ifBlank { a["tvg-name"] ?: line }
-                val cat = (a["group-title"] ?: "").ifBlank { group }.ifBlank { "Sans catégorie" }
+                val cat = (a["group-title"] ?: "").ifBlank { group }.ifBlank { "No category" }
                 val epgId = (a["tvg-id"] ?: "").ifBlank { a["tvg-name"] ?: "" }
                 out.add(Channel("$sid|$line".hashCode(), name, a["tvg-logo"] ?: "", epgId, cat, false, line, sid))
                 pending = false
@@ -57,11 +57,11 @@ fun loadM3u(ctx: Context, src: String, sid: String): Pair<List<Channel>, String>
     }
     // Un .m3u8 qui est un flux HLS unique (et non une liste de chaînes) : une seule chaîne.
     if (hls) {
-        if (!src.startsWith("http")) throw Exception("Flux HLS local non supporté : utilise un lien (URL)")
+        if (!src.startsWith("http")) throw Exception("Local HLS stream not supported: use a link (URL)")
         val n = src.substringAfterLast('/').substringBefore('?').ifBlank { "Flux direct" }
         return Pair(listOf(Channel("$sid|$src".hashCode(), n, "", "", "Flux direct", false, src, sid)), "")
     }
-    if (out.isEmpty()) throw Exception("Aucune chaîne trouvée dans cette liste")
+    if (out.isEmpty()) throw Exception("No channel found in this list")
     return Pair(out, epgUrl)
 }
 

@@ -105,9 +105,17 @@ fun Section(t: String) {
 // ---------------------------------------------------------------------------
 @Composable
 fun ChannelPanel(
-    list: List<Channel>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
+    all: List<Channel>, sources: List<Source>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
     onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit
 ) {
+    var selSrc by remember { mutableStateOf(current.src) }
+    var selCat by remember { mutableStateOf(current.cat) }
+    var cols by remember { mutableStateOf(false) }
+    var goList by remember { mutableStateOf(0) }
+    val catFr = remember { FocusRequester() }
+    val srcIds = remember(all) { all.map { it.src }.distinct() }
+    val srcCats = all.filter { it.src == selSrc }.map { it.cat }.distinct()
+    val list = all.filter { it.src == selSrc && it.cat == selCat }
     var focused by remember { mutableStateOf(current) }
     var upIdx by remember { mutableStateOf(-1) }
     val fr = remember { FocusRequester() }
@@ -122,7 +130,23 @@ fun ChannelPanel(
         delay(150)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
-    BackHandler(enabled = upIdx >= 0) { upIdx = -1 }
+    LaunchedEffect(goList) {
+        if (goList > 0) {
+            delay(150)
+            try { fr.requestFocus() } catch (ex: Exception) { }
+        }
+    }
+    var firstSel by remember { mutableStateOf(true) }
+    LaunchedEffect(selSrc, selCat) {
+        if (firstSel) firstSel = false else ls.scrollToItem(0)
+    }
+    BackHandler(enabled = upIdx >= 0 || cols) {
+        if (upIdx >= 0) upIdx = -1 else {
+            cols = false
+            selSrc = current.src
+            selCat = current.cat
+        }
+    }
     Row(
         Modifier.fillMaxSize().onPreviewKeyEvent { ev ->
             val rc = ev.nativeKeyEvent.repeatCount
@@ -149,21 +173,61 @@ fun ChannelPanel(
                         else -> false
                     }
                 }
-            } else if (ev.key == Key.DirectionRight && rc == 1 && ups.isNotEmpty()) {
+            } else if (ev.key == Key.DirectionRight && rc == 1 && ups.isNotEmpty() && !cols) {
                 upIdx = 0
+                true
+            } else if (ev.key == Key.DirectionLeft && !cols && rc == 0) {
+                cols = true
                 true
             } else {
                 false
             }
         }
     ) {
+        if (cols) {
+            LaunchedEffect(Unit) {
+                delay(120)
+                try { catFr.requestFocus() } catch (ex: Exception) { }
+            }
+            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF0101826)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+                Text("Sources", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
+                LazyColumn {
+                    items(srcIds) { sid ->
+                        val nm = sources.firstOrNull { it.id == sid }?.name ?: "Source"
+                        FocusRow({ selSrc = sid }, Modifier, {
+                            selSrc = sid
+                            if (!all.any { it.src == sid && it.cat == selCat }) selCat = all.first { it.src == sid }.cat
+                        }) {
+                            Text(nm, color = fcolor(if (sid == selSrc) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xF0141F33)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+                Text("Categories", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
+                LazyColumn {
+                    items(srcCats) { cat ->
+                        FocusRow(
+                            {
+                                cols = false
+                                goList++
+                            },
+                            if (cat == selCat) Modifier.focusRequester(catFr) else Modifier,
+                            { selCat = cat }
+                        ) {
+                            Text(cat, color = fcolor(if (cat == selCat) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+        }
         Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xE6101319))) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    current.cat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    selCat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, modifier = Modifier.weight(1f)
                 )
-                Text("OK long : options", color = GRAY, fontSize = 11.sp)
+                Text(if (cols) "OK: select" else "◄ categories  ·  Hold OK: options", color = GRAY, fontSize = 11.sp)
             }
             LazyColumn(state = ls, modifier = Modifier.weight(1f)) {
                 items(list, key = { it.id }) { c ->
@@ -171,7 +235,7 @@ fun ChannelPanel(
                     FocusRow(
                         { onPick(c) },
                         if (c.id == fid) Modifier.focusRequester(fr) else Modifier,
-                        { focused = c; upIdx = -1 },
+                        { focused = c; upIdx = -1; cols = false },
                         { onEdit(c) }
                     ) {
                         Box(Modifier.size(64.dp, 40.dp)) {
@@ -202,12 +266,12 @@ fun ChannelPanel(
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (shownP == null) {
-                    Text("Pas d'informations de guide", color = GRAY, fontSize = 16.sp)
+                    Text("No guide information", color = GRAY, fontSize = 16.sp)
                 } else {
                     Row(Modifier.fillMaxSize()) {
                         Column(Modifier.weight(1f)) {
                             Text(
-                                "${hm(shownP.start)} - ${hm(shownP.stop)}" + if (upIdx >= 0) "   (à suivre)" else "",
+                                "${hm(shownP.start)} - ${hm(shownP.stop)}" + if (upIdx >= 0) "   (up next)" else "",
                                 color = GRAY, fontSize = 14.sp
                             )
                             Text(
@@ -242,8 +306,8 @@ fun ChannelPanel(
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0x99000000)).padding(12.dp)
                 ) {
-                    Text("Prochaines émissions", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text("Maintiens la touche droite pour les parcourir", color = GRAY, fontSize = 11.sp)
+                    Text("Up next", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Hold Right to browse them", color = GRAY, fontSize = 11.sp)
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         ups.forEachIndexed { i, u ->
@@ -312,9 +376,9 @@ fun SearchScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBa
         if (t.isEmpty()) emptyList() else chans.filter { it.name.lowercase().contains(t) }.take(60)
     }
     Column(Modifier.fillMaxSize().padding(32.dp)) {
-        Text("Recherche", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("Search", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         OutlinedTextField(
-            q, { q = it }, singleLine = true, label = { Text("Nom de la chaîne") },
+            q, { q = it }, singleLine = true, label = { Text("Channel name") },
             modifier = Modifier.padding(vertical = 10.dp)
         )
         LazyColumn(Modifier.weight(1f)) {
@@ -382,7 +446,7 @@ fun GuideNowCard(c: Channel, p: Prog?, onPlay: () -> Unit) {
                 )
                 GuideBar(fracOf(p, System.currentTimeMillis()), Modifier.padding(top = 6.dp).fillMaxWidth())
             } else {
-                Text("Pas d'informations", color = GRAY, fontSize = 12.sp)
+                Text("No information", color = GRAY, fontSize = 12.sp)
             }
         }
     }
@@ -446,15 +510,15 @@ fun GuideScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBac
                 Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Aujourd'hui", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text("Today", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(24.dp))
                 FocusRow({ pickCat = true }, Modifier.width(340.dp)) {
                     Text(
-                        (if (cat.isEmpty()) "Toutes les catégories" else cat) + "  (changer)",
+                        (if (cat.isEmpty()) "All categories" else cat) + "  (change)",
                         color = fcolor(PINK), fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
-                Text("${cols.size} chaînes", color = GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp))
+                Text("${cols.size} channels", color = GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp))
             }
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
                 LazyRow(
@@ -476,18 +540,18 @@ fun GuideScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBac
         PanelDialog(
             dp.title, { detail = null },
             actions = {
-                PButton("Regarder la chaîne", { detail = null; onPlay(dc) }, autoFocus = true)
-                PButton("Fermer", { detail = null })
+                PButton("Watch channel", { detail = null; onPlay(dc) }, autoFocus = true)
+                PButton("Close", { detail = null })
             }
         ) {
             item { PInfo("${dc.name}  ·  ${hm(dp.start)} - ${hm(dp.stop)}") }
             if (dp.sub.isNotBlank() && dp.sub != dp.desc) item { PInfo(dp.sub) }
-            item { PInfo(dp.desc.ifBlank { dp.sub }.ifBlank { "Pas de description." }) }
+            item { PInfo(dp.desc.ifBlank { dp.sub }.ifBlank { "No description." }) }
         }
     }
     if (pickCat) {
-        PanelDialog("Catégorie", { pickCat = false }, actions = { PButton("Fermer", { pickCat = false }) }) {
-            item { PItem("Toutes les catégories", "", { cat = ""; pickCat = false }, autoFocus = true) }
+        PanelDialog("Category", { pickCat = false }, actions = { PButton("Close", { pickCat = false }) }) {
+            item { PItem("All categories", "", { cat = ""; pickCat = false }, autoFocus = true) }
             items(cats) { c2 -> PItem(c2, "", { cat = c2; pickCat = false }) }
         }
     }
