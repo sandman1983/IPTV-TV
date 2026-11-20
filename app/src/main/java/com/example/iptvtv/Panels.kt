@@ -126,7 +126,7 @@ fun PItem(
     trailing: (@Composable (Boolean) -> Unit)? = null
 ) {
     var f by remember { mutableStateOf(false) }
-    val fired = remember { BooleanArray(1) }
+    val fired = remember { booleanArrayOf(true) }
     val fr = remember { FocusRequester() }
     if (autoFocus) {
         LaunchedEffect(Unit) {

@@ -481,10 +481,10 @@ fun App() {
                 screen == "search" -> Solid {
                     SearchScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
                 }
-                screen == "guide" -> GuideScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
+                screen == "guide" -> EpgGrid(shown, epg, cur, cfg.showNums, { play(it); full = true; screen = "" }) { screen = "" }
                 cur != null && full -> PlayerScreen(
                     sources,
-                    cur, exo, shown, epg, all, cfg, exitAsk, weather, { cfg = it; saveCfg(ctx, it) }, { play(it) }
+                    cur, exo, shown, epg, all, cfg, exitAsk, weather, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" }
                 ) { onRootBack { full = false } }
                 else -> Home(
                     shown, sources, epg, status, hist, cur,
@@ -642,7 +642,7 @@ fun Home(
 @Composable
 fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val fired = remember { BooleanArray(1) }
+    val fired = remember { booleanArrayOf(true) }
     val scale by animateFloatAsState(if (f) 1.06f else 1f, label = "cardScale")
     val p = epg.now(c.epgId)
     val nx = epg.upcoming(c.epgId, 1).firstOrNull()
@@ -706,7 +706,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
 @Composable
 fun PlayerScreen(
     sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String,
-    onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onBack: () -> Unit
+    onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onGuide: () -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
     val p = epg.now(c.epgId)
@@ -715,6 +715,10 @@ fun PlayerScreen(
     var dir by remember { mutableStateOf(1) }
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
+    var mini by remember { mutableStateOf(true) }
+    var miniTick by remember { mutableStateOf(0) }
+    val firstC = remember { booleanArrayOf(true) }
+    val okFired = remember { booleanArrayOf(true) }
     var tracksOpen by remember { mutableStateOf(false) }
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var editId by remember { mutableStateOf<Int?>(null) }
@@ -729,12 +733,24 @@ fun PlayerScreen(
 
     LaunchedEffect(c.id) {
         evIdx = -1
-        show = true
-        tick++
+        if (firstC[0]) {
+            firstC[0] = false
+            show = false
+        } else {
+            mini = false
+            show = true
+            tick++
+        }
     }
-    LaunchedEffect(panel, tracksOpen, editId, exitAsk) {
+    LaunchedEffect(mini, miniTick) {
+        if (mini) {
+            delay(12000)
+            mini = false
+        }
+    }
+    LaunchedEffect(panel, tracksOpen, editId, exitAsk, mini) {
         delay(100)
-        if (!panel && !tracksOpen && editId == null && !exitAsk) { try { fr.requestFocus() } catch (ex: Exception) { } }
+        if (!panel && !tracksOpen && editId == null && !exitAsk && !mini) { try { fr.requestFocus() } catch (ex: Exception) { } }
     }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
     LaunchedEffect(tick) { delay(if (evIdx >= 0) 12000L else 7000L); show = false; evIdx = -1 }
@@ -763,16 +779,17 @@ fun PlayerScreen(
         l.onVideoSizeChanged(exo.videoSize)
         onDispose { exo.removeListener(l) }
     }
-    BackHandler { if (panel) panel = false else if (evIdx >= 0) evIdx = -1 else onBack() }
+    BackHandler { if (panel) panel = false else if (mini) mini = false else if (evIdx >= 0) evIdx = -1 else onBack() }
 
     Box(
         Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
-            if (panel || tracksOpen || editId != null || it.type != KeyEventType.KeyDown) {
+            val isOk = it.key == Key.DirectionCenter || it.key == Key.Enter || it.key == Key.NumPadEnter
+            if (panel || tracksOpen || editId != null || mini) {
                 false
-            } else if (it.key == Key.DirectionCenter || it.key == Key.Enter || it.key == Key.NumPadEnter) {
-                panel = true
-                focusId = c.id
-                true
+            } else if (isOk) {
+                okLong(it, okFired, { mini = true; miniTick++ }, { panel = true; focusId = c.id })
+            } else if (it.type != KeyEventType.KeyDown) {
+                false
             } else if (it.key == Key.DirectionRight) {
                 if (evIdx < ups.size - 1) {
                     dir = 1
@@ -807,15 +824,21 @@ fun PlayerScreen(
             }
         }
     ) {
-        SlideIn(show && !panel, true, Modifier.align(Alignment.TopCenter)) {
+        SlideIn(show && !panel && !mini, true, Modifier.align(Alignment.TopCenter)) {
             TopInfo(
                 c, num, weather, codec, quality,
                 tracks.groups.count { it.type == C.TRACK_TYPE_AUDIO },
                 tracks.groups.count { it.type == C.TRACK_TYPE_TEXT }
             )
         }
-        SlideIn(show && !panel, false, Modifier.align(Alignment.BottomCenter)) {
+        SlideIn(show && !panel && !mini, false, Modifier.align(Alignment.BottomCenter)) {
             BottomInfo(c, p, ups, evIdx, dir, nowMs, res)
+        }
+        if (mini && !panel) {
+            MiniPlayer(
+                channels, c, epg, nowMs,
+                { onZap(it); mini = false }, { onGuide() }, { miniTick++ }
+            )
         }
         if (panel) {
             ChannelPanel(

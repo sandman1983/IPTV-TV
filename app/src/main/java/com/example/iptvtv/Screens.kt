@@ -79,7 +79,7 @@ fun FocusRow(
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
-    val fired = remember { BooleanArray(1) }
+    val fired = remember { booleanArrayOf(true) }
     Row(
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(corner))
             .background(if (f) Color.White else Color.Transparent)
