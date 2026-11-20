@@ -183,7 +183,7 @@ fun ChannelPanel(
                         else -> false
                     }
                 }
-            } else if (ev.key == Key.DirectionRight && rc == 1 && ups.isNotEmpty() && !cols) {
+            } else if (ev.key == Key.DirectionRight && rc == 0 && ups.isNotEmpty() && !cols) {
                 upIdx = 0
                 true
             } else if (ev.key == Key.DirectionLeft && !cols && rc == 0) {
@@ -237,7 +237,6 @@ fun ChannelPanel(
                     selCat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, modifier = Modifier.weight(1f)
                 )
-                Text(if (cols) "OK: select" else "◄ categories  ·  Hold OK: options", color = GRAY, fontSize = 11.sp)
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val rowH = maxHeight / 10
@@ -289,20 +288,21 @@ fun ChannelPanel(
                 }
             }
         }
-        Box(
-            Modifier.width(2.dp).fillMaxHeight().background(
-                Brush.verticalGradient(
-                    listOf(Color.Transparent, Color(0xFF9CC9FF), Color.White, Color(0xFF9CC9FF), Color.Transparent)
-                )
-            )
-        )
-        if (!cols) Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xF5171717)).padding(24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
+        if (!cols) Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xE6000000))) {
+            Column(Modifier.fillMaxSize().padding(24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 56.dp)) {
+                if (fc.icon.isNotBlank()) {
+                    AsyncImage(
+                        model = fc.icon, contentDescription = null,
+                        modifier = Modifier.size(64.dp, 40.dp), contentScale = ContentScale.Fit
+                    )
+                    Spacer(Modifier.width(14.dp))
+                }
                 Text(
                     fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, modifier = Modifier.weight(1f)
                 )
-                Text(hm(nowMs), color = GRAY, fontSize = 14.sp)
             }
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -356,7 +356,6 @@ fun ChannelPanel(
                         .padding(12.dp)
                 ) {
                     Text("Up next", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(if (browsing) "◄ ►  browse     ◄ on first  = back" else "Hold Right to browse them", color = GRAY, fontSize = 11.sp)
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         ups.forEachIndexed { i, u ->
@@ -392,6 +391,9 @@ fun ChannelPanel(
                     }
                 }
             }
+        }
+            Text(hm(nowMs), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 16.dp))
         }
     }
 }
