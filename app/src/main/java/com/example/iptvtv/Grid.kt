@@ -170,13 +170,13 @@ private val P_DARK_TXT = Color(0xFF14213D)
 private fun GChip(label: String, selected: Boolean, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     Box(
-        Modifier.clip(RoundedCornerShape(14.dp))
-            .background(if (f) Color.White else if (selected) Color(0xFF3A6EA5) else Color(0xFF2A2A2A))
+        Modifier.clip(RoundedCornerShape(16.dp))
+            .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
-        Text(label, color = if (f) P_DARK_TXT else Color.White, fontSize = 13.sp, maxLines = 1)
+        Text(label, color = if (f) P_DARK_TXT else Color.White, fontSize = 14.sp, maxLines = 1)
     }
 }
 
@@ -246,129 +246,145 @@ fun EpgGrid(
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
     Column(Modifier.fillMaxSize().background(Color(0xF2141414))) {
-        // Détails du programme sélectionné
         Row(
-            Modifier.fillMaxWidth().height(118.dp).background(Color(0xF5191919)).padding(horizontal = 24.dp, vertical = 10.dp)
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            val sp = sel
-            val pr = sp?.second
-            if (pr != null && pr.icon.isNotBlank()) {
-                AsyncImage(
-                    model = pr.icon, contentDescription = null,
-                    modifier = Modifier.fillMaxHeight().aspectRatio(16f / 9f).clip(RoundedCornerShape(4.dp)),
-                    contentScale = ContentScale.Crop
-                )
-                Spacer(Modifier.width(18.dp))
-            }
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                Text(
-                    pr?.title ?: (sp?.first?.name ?: ""), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Medium,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-                if (pr != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val today = SimpleDateFormat("yyyyMMdd", Locale.US)
-                        val lbl = if (today.format(Date(pr.start)) == today.format(Date(nowMs))) "Today" else SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date(pr.start))
-                        Text("$lbl, ${hm(pr.start)} - ${hm(pr.stop)}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        if (pr.start <= nowMs && nowMs < pr.stop) {
-                            Bar(fracOf(pr, nowMs), Modifier.padding(start = 12.dp).width(110.dp), 8.dp)
-                        }
-                    }
-                    Text(
-                        pr.desc.ifBlank { pr.sub }, color = Color(0xFFD5DAE3), fontSize = 13.sp, lineHeight = 18.sp,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-            }
-        }
-        // Catégories + échelle horaire
-        Row(Modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Today - " + SimpleDateFormat("EEE, MMM dd", Locale.ENGLISH).format(Date(nowMs)),
+                color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.width(24.dp))
             LazyRow(
-                Modifier.width(LW), horizontalArrangement = Arrangement.spacedBy(6.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)
             ) {
                 item { GChip("All", cat.isEmpty()) { cat = "" } }
                 items(cats) { c2 -> GChip(c2, cat == c2) { cat = c2 } }
             }
-            Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width }.horizontalScroll(hs, enabled = false)) {
-                Row(Modifier.fillMaxHeight()) {
-                    for (i in 0 until TOTAL_MIN / 30) {
-                        Box(Modifier.width((30 * DPM).dp).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
-                            Text(
-                                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(winStart + i * slot)),
-                                color = M_GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp)
-                            )
+        }
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Row(Modifier.fillMaxWidth().height(26.dp)) {
+                    Spacer(Modifier.width(LW))
+                    Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width }.horizontalScroll(hs, enabled = false)) {
+                        Row(Modifier.fillMaxHeight()) {
+                            for (i in 0 until TOTAL_MIN / 30) {
+                                Box(Modifier.width((30 * DPM).dp).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                                    Text(
+                                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(winStart + i * slot)),
+                                        color = M_GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val rowH = maxHeight / 9
+                    LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
+                        items(rows, key = { it.id }) { ch ->
+                            val isCur = ch.id == current?.id
+                            val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
+                            var reqUsed = false
+                            Row(Modifier.fillMaxWidth().height(rowH)) {
+                                Row(
+                                    Modifier.width(LW).fillMaxHeight().padding(start = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (showNums) {
+                                        Text(
+                                            "${numOf[ch.id] ?: ""}", color = M_GRAY, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.width(44.dp), maxLines = 1
+                                        )
+                                    }
+                                    Box(Modifier.size(64.dp, 32.dp)) {
+                                        if (ch.icon.isNotBlank()) {
+                                            AsyncImage(
+                                                model = ch.icon, contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        ch.name, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(start = 10.dp, end = 8.dp).weight(1f)
+                                    )
+                                }
+                                Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(hs)) {
+                                    Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
+                                        if (progs.isEmpty()) {
+                                            GBlock(
+                                                null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, if (isCur) req else null,
+                                                { sel = Pair(ch, null) }, { onPlay(ch) }
+                                            )
+                                        }
+                                        for (p in progs) {
+                                            val s = maxOf(p.start, winStart)
+                                            val e = minOf(p.stop, winEnd)
+                                            val x = ((s - winStart) / 60000f * DPM).dp
+                                            val w = ((e - s) / 60000f * DPM).dp.coerceAtLeast(24.dp)
+                                            val live = p.start <= nowMs && nowMs < p.stop
+                                            val useReq = isCur && live && !reqUsed
+                                            if (useReq) reqUsed = true
+                                            val xPx = with(density) { x.toPx().toInt() }
+                                            val ePx = with(density) { (x + w).toPx().toInt() }
+                                            GBlock(
+                                                p, x, w, nowMs, if (useReq) req else null,
+                                                {
+                                                    sel = Pair(ch, p)
+                                                    val vs = hs.value
+                                                    if (xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
+                                                        scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
+                                                    }
+                                                },
+                                                { onPlay(ch) }
+                                            )
+                                        }
+                                        if (nowX > 0.dp) {
+                                            Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(Color(0xFF8FCBF7)))
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val rowH = maxHeight / 9
-            LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
-                items(rows, key = { it.id }) { ch ->
-                    val isCur = ch.id == current?.id
-                    val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
-                    var reqUsed = false
-                    Row(Modifier.fillMaxWidth().height(rowH)) {
-                        Row(
-                            Modifier.width(LW).fillMaxHeight().padding(start = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (showNums) {
-                                Text(
-                                    "${numOf[ch.id] ?: ""}", color = M_GRAY, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.width(44.dp), maxLines = 1
-                                )
-                            }
-                            Box(Modifier.size(64.dp, 32.dp)) {
-                                if (ch.icon.isNotBlank()) {
-                                    AsyncImage(
-                                        model = ch.icon, contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
-                                    )
-                                }
-                            }
-                            Text(
-                                ch.name, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(start = 10.dp, end = 8.dp).weight(1f)
-                            )
-                        }
-                        Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(hs)) {
-                            Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
-                                if (progs.isEmpty()) {
-                                    GBlock(
-                                        null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, if (isCur) req else null,
-                                        { sel = Pair(ch, null) }, { onPlay(ch) }
-                                    )
-                                }
-                                for (p in progs) {
-                                    val s = maxOf(p.start, winStart)
-                                    val e = minOf(p.stop, winEnd)
-                                    val x = ((s - winStart) / 60000f * DPM).dp
-                                    val w = ((e - s) / 60000f * DPM).dp.coerceAtLeast(24.dp)
-                                    val live = p.start <= nowMs && nowMs < p.stop
-                                    val useReq = isCur && live && !reqUsed
-                                    if (useReq) reqUsed = true
-                                    val xPx = with(density) { x.toPx().toInt() }
-                                    val ePx = with(density) { (x + w).toPx().toInt() }
-                                    GBlock(
-                                        p, x, w, nowMs, if (useReq) req else null,
-                                        {
-                                            sel = Pair(ch, p)
-                                            val vs = hs.value
-                                            if (xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
-                                                scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
-                                            }
-                                        },
-                                        { onPlay(ch) }
-                                    )
-                                }
-                                if (nowX > 0.dp) {
-                                    Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(Color(0xFF8FCBF7)))
-                                }
+            val sp = sel
+            Column(
+                Modifier.width(250.dp).fillMaxHeight().background(Color(0xF5171717)).padding(16.dp)
+            ) {
+                if (sp != null) {
+                    val sch = sp.first
+                    val pr = sp.second
+                    if (pr != null && pr.icon.isNotBlank()) {
+                        AsyncImage(
+                            model = pr.icon, contentDescription = null,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    Text(sch.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1)
+                    Text(
+                        pr?.title ?: "No information", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 3, overflow = TextOverflow.Ellipsis
+                    )
+                    if (pr != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                            Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color(0xFF8FCBF7), fontSize = 13.sp)
+                            if (pr.start <= nowMs && nowMs < pr.stop) {
+                                Bar(fracOf(pr, nowMs), Modifier.padding(start = 10.dp).weight(1f), 8.dp)
                             }
                         }
+                        if (pr.sub.isNotBlank() && pr.sub != pr.desc) {
+                            Text(pr.sub, color = Color(0xFFFFE9A8), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(
+                            pr.desc, color = Color(0xFFD5DAE3), fontSize = 12.sp, lineHeight = 17.sp,
+                            maxLines = 10, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp)
+                        )
                     }
                 }
             }

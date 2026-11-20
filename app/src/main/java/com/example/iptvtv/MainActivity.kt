@@ -367,9 +367,9 @@ fun App() {
             if (id != null) bg = all.firstOrNull { it.id == id }
         }
     }
-    LaunchedEffect(bg?.id, screen, resumeTick) {
+    LaunchedEffect(bg?.id, resumeTick) {
         val c = bg
-        if (c != null && screen == "") {
+        if (c != null) {
             resetTracks(exo)
             exo.setMediaItem(MediaItem.fromUri(c.url))
             exo.prepare()
