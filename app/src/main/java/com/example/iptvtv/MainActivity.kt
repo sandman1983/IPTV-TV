@@ -152,7 +152,7 @@ fun okLong(ev: KeyEvent, fired: BooleanArray, onShort: () -> Unit, onLong: () ->
 }
 
 // Lit un guide XMLTV (.gz ou non) en flux : chaînes du guide (nom, logo) et, pour chaque chaîne,
-// les 8 prochains programmes (le programme en cours inclus).
+// tous les programmes de la fenêtre [maintenant - 3 h ; maintenant + 36 h].
 suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     val raw = URL(url).openStream().buffered()
     raw.mark(2)
@@ -222,13 +222,8 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
                 inCh = false
             } else if (n == "programme") {
                 inProg = false
-                if (sp > now) {
-                    val l = progs.getOrPut(ch) { ArrayList() }
-                    l.add(Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc.take(700)))
-                    if (l.size > 8) {
-                        l.sortBy { it.start }
-                        l.removeAt(l.size - 1)
-                    }
+                if (sp > now - 3 * 3600000L && st < now + 36 * 3600000L) {
+                    progs.getOrPut(ch) { ArrayList() }.add(Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc.take(400)))
                 }
             }
         }

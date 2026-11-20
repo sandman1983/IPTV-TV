@@ -162,23 +162,21 @@ fun MiniPlayer(
 // Guide graphique (grille horaire)
 // ---------------------------------------------------------------------------
 private const val DPM = 4
-private const val TOTAL_MIN = 600
-private val CH_W = 150.dp
-private val ROW_H = 64.dp
-private val G_BG = Color(0xFF0E1218)
-private val G_CELL = Color(0xFF171C25)
+private const val TOTAL_MIN = 2100
+private val LW = 270.dp
+private val P_DARK_TXT = Color(0xFF14213D)
 
 @Composable
 private fun GChip(label: String, selected: Boolean, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     Box(
-        Modifier.clip(RoundedCornerShape(16.dp))
-            .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
+        Modifier.clip(RoundedCornerShape(14.dp))
+            .background(if (f) Color.White else if (selected) Color(0xFF3A6EA5) else Color(0xFF2A2A2A))
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        Text(label, color = if (f) Color(0xFF14213D) else Color.White, fontSize = 14.sp, maxLines = 1)
+        Text(label, color = if (f) P_DARK_TXT else Color.White, fontSize = 13.sp, maxLines = 1)
     }
 }
 
@@ -189,30 +187,24 @@ private fun GBlock(
 ) {
     var f by remember { mutableStateOf(false) }
     val live = p != null && p.start <= nowMs && nowMs < p.stop
+    val past = p != null && p.stop <= nowMs
     Box(
         Modifier.offset(x = x).width(w).fillMaxHeight().padding(1.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(if (f) Color.White else if (live) Color(0xFF283A52) else Color(0xFF1B222C))
+            .clip(RoundedCornerShape(3.dp))
+            .background(if (f) Color.White else if (live) Color(0xFF2F3B48) else Color(0xFF262626))
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onSel() }
             .clickable { onPlay() }
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.CenterStart
     ) {
-        Column(Modifier.align(Alignment.CenterStart)) {
-            Text(
-                p?.title ?: "No information", color = if (f) Color(0xFF14213D) else Color.White,
-                fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
-                overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
-                modifier = if (f) Modifier.basicMarquee() else Modifier
-            )
-            val sub = p?.sub ?: ""
-            if (sub.isNotBlank()) {
-                Text(
-                    sub, color = if (f) Color(0xFF45557A) else M_GRAY, fontSize = 12.sp, lineHeight = 16.sp,
-                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
+        Text(
+            p?.title ?: "No information",
+            color = if (f) P_DARK_TXT else if (past) M_GRAY else Color.White,
+            fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+            overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
+            modifier = if (f) Modifier.basicMarquee() else Modifier
+        )
     }
 }
 
@@ -232,7 +224,7 @@ fun EpgGrid(
         }
     }
     val slot = 30 * 60000L
-    val winStart = remember { (System.currentTimeMillis() / slot) * slot - slot }
+    val winStart = remember { (System.currentTimeMillis() / slot) * slot - 4 * slot }
     val winEnd = winStart + TOTAL_MIN * 60000L
     var cat by remember { mutableStateOf("") }
     val cats = remember(chans) { chans.map { it.cat }.distinct() }
@@ -241,141 +233,142 @@ fun EpgGrid(
     val hs = rememberScrollState()
     var vw by remember { mutableStateOf(0) }
     val startIdx = rows.indexOfFirst { it.id == current?.id }.coerceAtLeast(0)
-    val ls = rememberLazyListState(initialFirstVisibleItemIndex = (startIdx - 2).coerceAtLeast(0))
-    var sel by remember { mutableStateOf<Pair<Channel, Prog?>?>(null) }
+    val ls = rememberLazyListState(initialFirstVisibleItemIndex = (startIdx - 3).coerceAtLeast(0))
+    var sel by remember {
+        mutableStateOf<Pair<Channel, Prog?>?>(if (current != null) Pair(current, epg.now(current.epgId)) else null)
+    }
     val req = remember { FocusRequester() }
     LaunchedEffect(Unit) {
+        hs.scrollTo(with(density) { (3 * 30 * DPM).dp.toPx().toInt() })
         delay(350)
         try { req.requestFocus() } catch (ex: Exception) { }
     }
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
-    Column(Modifier.fillMaxSize().background(G_BG)) {
+    Column(Modifier.fillMaxSize().background(Color(0xF2141414))) {
+        // Détails du programme sélectionné
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+            Modifier.fillMaxWidth().height(118.dp).background(Color(0xF5191919)).padding(horizontal = 24.dp, vertical = 10.dp)
         ) {
-            Text(
-                "Today - " + SimpleDateFormat("EEE, MMM dd", Locale.ENGLISH).format(Date(nowMs)),
-                color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.width(24.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val sp = sel
+            val pr = sp?.second
+            if (pr != null && pr.icon.isNotBlank()) {
+                AsyncImage(
+                    model = pr.icon, contentDescription = null,
+                    modifier = Modifier.fillMaxHeight().aspectRatio(16f / 9f).clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(18.dp))
+            }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Text(
+                    pr?.title ?: (sp?.first?.name ?: ""), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                if (pr != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val today = SimpleDateFormat("yyyyMMdd", Locale.US)
+                        val lbl = if (today.format(Date(pr.start)) == today.format(Date(nowMs))) "Today" else SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date(pr.start))
+                        Text("$lbl, ${hm(pr.start)} - ${hm(pr.stop)}", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        if (pr.start <= nowMs && nowMs < pr.stop) {
+                            Bar(fracOf(pr, nowMs), Modifier.padding(start = 12.dp).width(110.dp), 8.dp)
+                        }
+                    }
+                    Text(
+                        pr.desc.ifBlank { pr.sub }, color = Color(0xFFD5DAE3), fontSize = 13.sp, lineHeight = 18.sp,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+        }
+        // Catégories + échelle horaire
+        Row(Modifier.fillMaxWidth().height(34.dp), verticalAlignment = Alignment.CenterVertically) {
+            LazyRow(
+                Modifier.width(LW), horizontalArrangement = Arrangement.spacedBy(6.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp)
+            ) {
                 item { GChip("All", cat.isEmpty()) { cat = "" } }
                 items(cats) { c2 -> GChip(c2, cat == c2) { cat = c2 } }
             }
-        }
-        Row(Modifier.weight(1f).fillMaxWidth()) {
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                Row(Modifier.fillMaxWidth().height(28.dp)) {
-                    Spacer(Modifier.width(CH_W))
-                    Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width }.horizontalScroll(hs, enabled = false)) {
-                        Row {
-                            for (i in 0 until TOTAL_MIN / 30) {
-                                Box(Modifier.width((30 * DPM).dp).fillMaxHeight()) {
-                                    Text(
-                                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(winStart + i * slot)),
-                                        color = M_GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
-                    items(rows, key = { it.id }) { ch ->
-                        val isCur = ch.id == current?.id
-                        val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
-                        var reqUsed = false
-                        Row(Modifier.fillMaxWidth().height(ROW_H)) {
-                            Row(
-                                Modifier.width(CH_W).fillMaxHeight().padding(vertical = 1.dp).background(G_CELL),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (showNums) {
-                                    Text(
-                                        "${numOf[ch.id] ?: ""}", color = M_GRAY, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(40.dp).padding(start = 8.dp), maxLines = 1
-                                    )
-                                } else {
-                                    Spacer(Modifier.width(8.dp))
-                                }
-                                if (ch.icon.isNotBlank()) {
-                                    AsyncImage(
-                                        model = ch.icon, contentDescription = null,
-                                        modifier = Modifier.size(80.dp, 44.dp), contentScale = ContentScale.Fit
-                                    )
-                                } else {
-                                    Text(ch.name, color = Color.White, fontSize = 13.sp, maxLines = 2, modifier = Modifier.width(96.dp))
-                                }
-                            }
-                            Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(hs)) {
-                                Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
-                                    if (progs.isEmpty()) {
-                                        GBlock(
-                                            null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, if (isCur) req else null,
-                                            { sel = Pair(ch, null) }, { onPlay(ch) }
-                                        )
-                                    }
-                                    for (p in progs) {
-                                        val s = maxOf(p.start, winStart)
-                                        val e = minOf(p.stop, winEnd)
-                                        val x = ((s - winStart) / 60000f * DPM).dp
-                                        val w = (((e - s) / 60000f * DPM) - 0f).dp.coerceAtLeast(24.dp)
-                                        val live = p.start <= nowMs && nowMs < p.stop
-                                        val useReq = isCur && live && !reqUsed
-                                        if (useReq) reqUsed = true
-                                        val xPx = with(density) { x.toPx().toInt() }
-                                        GBlock(
-                                            p, x, w, nowMs, if (useReq) req else null,
-                                            {
-                                                sel = Pair(ch, p)
-                                                val vs = hs.value
-                                                if (xPx < vs || xPx > vs + (vw * 0.7f).toInt()) {
-                                                    scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
-                                                }
-                                            },
-                                            { onPlay(ch) }
-                                        )
-                                    }
-                                    if (nowX > 0.dp) {
-                                        Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(Color(0xFFE53935)))
-                                    }
-                                }
-                            }
+            Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width }.horizontalScroll(hs, enabled = false)) {
+                Row(Modifier.fillMaxHeight()) {
+                    for (i in 0 until TOTAL_MIN / 30) {
+                        Box(Modifier.width((30 * DPM).dp).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                            Text(
+                                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(winStart + i * slot)),
+                                color = M_GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp)
+                            )
                         }
                     }
                 }
             }
-            val sp = sel
-            Column(
-                Modifier.width(250.dp).fillMaxHeight().background(Color(0xFF12171F)).padding(16.dp)
-            ) {
-                if (sp != null) {
-                    val sch = sp.first
-                    val pr = sp.second
-                    if (pr != null && pr.icon.isNotBlank()) {
-                        AsyncImage(
-                            model = pr.icon, contentDescription = null,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    Text(sch.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1)
-                    Text(
-                        pr?.title ?: "No information", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 3, overflow = TextOverflow.Ellipsis
-                    )
-                    if (pr != null) {
-                        Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color(0xFF8FCBF7), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
-                        if (pr.sub.isNotBlank() && pr.sub != pr.desc) {
-                            Text(pr.sub, color = Color(0xFFFFE9A8), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            val rowH = maxHeight / 9
+            LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
+                items(rows, key = { it.id }) { ch ->
+                    val isCur = ch.id == current?.id
+                    val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
+                    var reqUsed = false
+                    Row(Modifier.fillMaxWidth().height(rowH)) {
+                        Row(
+                            Modifier.width(LW).fillMaxHeight().padding(start = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (showNums) {
+                                Text(
+                                    "${numOf[ch.id] ?: ""}", color = M_GRAY, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(44.dp), maxLines = 1
+                                )
+                            }
+                            Box(Modifier.size(64.dp, 32.dp)) {
+                                if (ch.icon.isNotBlank()) {
+                                    AsyncImage(
+                                        model = ch.icon, contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+                                    )
+                                }
+                            }
+                            Text(
+                                ch.name, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 10.dp, end = 8.dp).weight(1f)
+                            )
                         }
-                        Text(
-                            pr.desc, color = Color(0xFFD5DAE3), fontSize = 12.sp, lineHeight = 17.sp,
-                            maxLines = 10, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp)
-                        )
+                        Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(hs)) {
+                            Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
+                                if (progs.isEmpty()) {
+                                    GBlock(
+                                        null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, if (isCur) req else null,
+                                        { sel = Pair(ch, null) }, { onPlay(ch) }
+                                    )
+                                }
+                                for (p in progs) {
+                                    val s = maxOf(p.start, winStart)
+                                    val e = minOf(p.stop, winEnd)
+                                    val x = ((s - winStart) / 60000f * DPM).dp
+                                    val w = ((e - s) / 60000f * DPM).dp.coerceAtLeast(24.dp)
+                                    val live = p.start <= nowMs && nowMs < p.stop
+                                    val useReq = isCur && live && !reqUsed
+                                    if (useReq) reqUsed = true
+                                    val xPx = with(density) { x.toPx().toInt() }
+                                    val ePx = with(density) { (x + w).toPx().toInt() }
+                                    GBlock(
+                                        p, x, w, nowMs, if (useReq) req else null,
+                                        {
+                                            sel = Pair(ch, p)
+                                            val vs = hs.value
+                                            if (xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
+                                                scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
+                                            }
+                                        },
+                                        { onPlay(ch) }
+                                    )
+                                }
+                                if (nowX > 0.dp) {
+                                    Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(Color(0xFF8FCBF7)))
+                                }
+                            }
+                        }
                     }
                 }
             }
