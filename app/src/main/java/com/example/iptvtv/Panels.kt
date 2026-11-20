@@ -1,0 +1,746 @@
+package com.example.iptvtv
+
+import android.content.Intent
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.media3.common.C
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+// ---------------------------------------------------------------------------
+// Style "panneau latéral" : fond bleu dégradé, barre de sélection blanche
+// ---------------------------------------------------------------------------
+private val P_TOP = Color(0xFF14224A)
+private val P_BOTTOM = Color(0xFF2D6199)
+private val P_DARK = Color(0xFF14213D)
+private val P_SUB = Color(0xFFB9C7E0)
+private val P_SUB_DARK = Color(0xFF45557A)
+
+@Composable
+fun PanelShell(
+    title: String,
+    onBack: () -> Unit,
+    backEnabled: Boolean = true,
+    actions: (@Composable ColumnScope.() -> Unit)? = null,
+    content: LazyListScope.() -> Unit
+) {
+    if (backEnabled) BackHandler { onBack() }
+    Row(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(0.34f).fillMaxHeight().background(Color(0x99000000)))
+        Row(
+            Modifier.weight(0.66f).fillMaxHeight()
+                .background(Brush.verticalGradient(listOf(P_TOP, P_BOTTOM)))
+        ) {
+            Column(Modifier.weight(1f).fillMaxHeight().padding(start = 40.dp, end = 24.dp, top = 36.dp)) {
+                if (title.isNotEmpty()) {
+                    Text(
+                        title, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Light,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 18.dp)
+                    )
+                }
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(bottom = 24.dp)
+                ) { content() }
+            }
+            if (actions != null) {
+                Column(
+                    Modifier.width(190.dp).fillMaxHeight().background(Color(0x33000000))
+                        .padding(start = 12.dp, end = 12.dp, top = 100.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) { actions() }
+            }
+        }
+    }
+}
+
+// Fenêtre modale (garde le focus de la télécommande dans le panneau).
+@Composable
+fun PanelDialogHost(onBack: () -> Unit, content: @Composable () -> Unit) {
+    Dialog(onDismissRequest = onBack, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        content()
+    }
+}
+
+@Composable
+fun PanelDialog(
+    title: String,
+    onBack: () -> Unit,
+    actions: (@Composable ColumnScope.() -> Unit)? = null,
+    content: LazyListScope.() -> Unit
+) {
+    PanelDialogHost(onBack) { PanelShell(title, onBack, false, actions, content) }
+}
+
+@Composable
+fun PItem(
+    title: String,
+    sub: String,
+    onClick: () -> Unit,
+    autoFocus: Boolean = false,
+    icon: String = "",
+    onLong: (() -> Unit)? = null,
+    leading: (@Composable (Boolean) -> Unit)? = null,
+    trailing: (@Composable (Boolean) -> Unit)? = null
+) {
+    var f by remember { mutableStateOf(false) }
+    val fired = remember { BooleanArray(1) }
+    val fr = remember { FocusRequester() }
+    if (autoFocus) {
+        LaunchedEffect(Unit) {
+            delay(120)
+            try { fr.requestFocus() } catch (ex: Exception) { }
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(6.dp))
+            .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
+            .background(if (f) Color.White else Color.Transparent)
+            .onFocusChanged { f = it.isFocused }
+            .onPreviewKeyEvent { if (onLong != null) okLong(it, fired, onClick, onLong) else false }
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leading != null) {
+            leading(f)
+            Spacer(Modifier.width(14.dp))
+        }
+        if (icon.isNotBlank()) {
+            AsyncImage(
+                model = icon, contentDescription = null,
+                modifier = Modifier.size(56.dp, 34.dp), contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.width(14.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                title, color = if (f) P_DARK else Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            if (sub.isNotBlank()) {
+                Text(
+                    sub, color = if (f) P_SUB_DARK else P_SUB, fontSize = 14.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(12.dp))
+            trailing(f)
+        }
+    }
+}
+
+@Composable
+fun PSwitch(title: String, sub: String, on: Boolean, onToggle: () -> Unit, autoFocus: Boolean = false) {
+    PItem(
+        title, sub, onToggle, autoFocus = autoFocus,
+        trailing = { _ ->
+            Box(
+                Modifier.size(44.dp, 24.dp).clip(RoundedCornerShape(12.dp))
+                    .background(if (on) Color(0xFF2F7FC1) else Color(0xFF8A94A8))
+            ) {
+                Box(
+                    Modifier.align(if (on) Alignment.CenterEnd else Alignment.CenterStart)
+                        .padding(2.dp).size(20.dp).clip(CircleShape).background(Color.White)
+                )
+            }
+        }
+    )
+}
+
+@Composable
+fun PRadio(title: String, sub: String, selected: Boolean, onClick: () -> Unit, autoFocus: Boolean = false) {
+    PItem(
+        title, sub, onClick, autoFocus = autoFocus,
+        leading = { f ->
+            val c = if (f) P_DARK else Color.White
+            Box(Modifier.size(22.dp).border(2.dp, c, CircleShape).padding(5.dp)) {
+                if (selected) Box(Modifier.fillMaxSize().clip(CircleShape).background(c))
+            }
+        }
+    )
+}
+
+@Composable
+fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
+    var f by remember { mutableStateOf(false) }
+    val fr = remember { FocusRequester() }
+    if (autoFocus) {
+        LaunchedEffect(Unit) {
+            delay(120)
+            try { fr.requestFocus() } catch (ex: Exception) { }
+        }
+    }
+    Box(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
+            .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
+            .background(if (f) Color.White else Color.Transparent)
+            .onFocusChanged { f = it.isFocused }
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Text(label, color = if (f) P_DARK else Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
+@Composable
+fun PHeader(t: String) {
+    Text(
+        t.uppercase(), color = Color(0xFF9CC2F5), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 4.dp)
+    )
+}
+
+@Composable
+fun PInfo(text: String, error: Boolean = false) {
+    Text(
+        text, color = if (error) Color(0xFFFFB4A9) else Color(0xDDFFFFFF), fontSize = 15.sp,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: Boolean = false) {
+    val fr = remember { FocusRequester() }
+    if (autoFocus) {
+        LaunchedEffect(Unit) {
+            delay(150)
+            try { fr.requestFocus() } catch (ex: Exception) { }
+        }
+    }
+    OutlinedTextField(
+        value, onChange, singleLine = true, label = { Text(label) },
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+            .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Pistes audio et sous-titres (lecteur)
+// ---------------------------------------------------------------------------
+@OptIn(UnstableApi::class)
+@Composable
+fun TracksDialog(tracks: Tracks, exo: ExoPlayer, onClose: () -> Unit) {
+    val audio = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+    val text = tracks.groups.filter { it.type == C.TRACK_TYPE_TEXT }
+    val textOn = text.any { it.isSelected }
+    fun pick(g: Tracks.Group) {
+        exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(g.type, false)
+            .setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, 0))
+            .build()
+        onClose()
+    }
+    PanelDialog("Audio et sous-titres", onClose, actions = { PButton("Fermer", onClose) }) {
+        item { PHeader("Audio") }
+        if (audio.isEmpty()) item { PInfo("Une seule piste audio") }
+        itemsIndexed(audio) { i, g ->
+            PRadio(trackLabel(g.getTrackFormat(0), i + 1), "", g.isSelected, { pick(g) }, autoFocus = i == 0)
+        }
+        item { PHeader("Sous-titres") }
+        item {
+            PRadio(
+                "Désactivés", "", !textOn,
+                {
+                    exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .build()
+                    onClose()
+                },
+                autoFocus = audio.isEmpty()
+            )
+        }
+        itemsIndexed(text) { i, g ->
+            PRadio(trackLabel(g.getTrackFormat(0), i + 1), "", g.isSelected, { pick(g) })
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Options d'une chaîne
+// ---------------------------------------------------------------------------
+@Composable
+fun ChannelEditor(
+    id: Int, all: List<Channel>, cfg: Cfg, guide: List<GuideCh>,
+    onCfg: (Cfg) -> Unit, onClose: () -> Unit
+) {
+    val e = all.firstOrNull { it.id == id } ?: return
+    var page by remember { mutableStateOf("menu") }
+    var text by remember { mutableStateOf("") }
+    val cats = (all.map { it.cat } + cfg.cats).distinct()
+
+    fun upd(f: (Ov) -> Ov) {
+        onCfg(cfg.copy(ov = cfg.ov + (id to f(cfg.ov[id] ?: Ov()))))
+    }
+    fun back() {
+        if (page == "menu") onClose() else page = "menu"
+    }
+    fun open(p: String, init: String) {
+        text = init
+        page = p
+    }
+
+    PanelDialogHost({ back() }) {
+        when (page) {
+            "menu" -> PanelShell(e.name, { back() }, false, actions = { PButton("Fermer", { onClose() }) }) {
+                item { PItem("Renommer", e.name, { open("rename", e.name) }, autoFocus = true) }
+                item { PItem("Changer le logo (URL)", if (e.icon.isBlank()) "Aucun" else e.icon, { open("logo", e.icon) }, icon = e.icon) }
+                item { PItem("Changer l'ID EPG", e.epgId.ifBlank { "Aucun" }, { open("epg", e.name) }) }
+                item { PItem("Changer de catégorie", e.cat, { page = "cat" }) }
+                item { PItem("Monter", "", { onCfg(moveCh(cfg, all, e.id, -1)) }) }
+                item { PItem("Descendre", "", { onCfg(moveCh(cfg, all, e.id, 1)) }) }
+                item { PSwitch("Masquer la chaîne", "", e.hidden, { upd { o -> o.copy(hidden = !e.hidden) } }) }
+                item { PItem("Réinitialiser cette chaîne", "", { onCfg(cfg.copy(ov = cfg.ov - e.id)) }) }
+            }
+            "rename", "logo", "epgtxt", "newcat" -> {
+                val label = when (page) {
+                    "rename" -> "Nom de la chaîne"
+                    "logo" -> "URL du logo / picon"
+                    "epgtxt" -> "ID EPG (identifiant XMLTV)"
+                    else -> "Nouvelle catégorie"
+                }
+                PanelShell(
+                    label, { back() }, false,
+                    actions = {
+                        PButton("Enregistrer", {
+                            val v = text.trim()
+                            when (page) {
+                                "rename" -> upd { o -> o.copy(name = v) }
+                                "logo" -> upd { o -> o.copy(logo = v) }
+                                "epgtxt" -> upd { o -> o.copy(epg = v) }
+                                else -> if (v.isNotBlank()) {
+                                    val g = cfg.copy(cats = (cfg.cats + v).distinct())
+                                    onCfg(g.copy(ov = g.ov + (id to (g.ov[id] ?: Ov()).copy(cat = v))))
+                                }
+                            }
+                            page = "menu"
+                        })
+                        PButton("Annuler", { page = "menu" })
+                    }
+                ) {
+                    item { PInput(label, text, { text = it }, autoFocus = true) }
+                }
+            }
+            "epg" -> {
+                val res = remember(text, guide) {
+                    val t = text.trim().lowercase()
+                    if (t.isEmpty()) guide.take(40)
+                    else guide.filter { it.name.lowercase().contains(t) || it.id.lowercase().contains(t) }.take(40)
+                }
+                PanelShell(
+                    "Chercher dans le guide", { back() }, false,
+                    actions = {
+                        PButton("Saisir l'ID", { open("epgtxt", e.epgId) })
+                        PButton("Retour", { page = "menu" })
+                    }
+                ) {
+                    item { PInput("Nom ou ID", text, { text = it }, autoFocus = true) }
+                    if (guide.isEmpty()) {
+                        item { PInfo("Aucun guide chargé : ajoute un guide dans Réglages > Guides.") }
+                    }
+                    items(res) { g ->
+                        PItem(
+                            if (g.name.isBlank()) g.id else g.name, g.id,
+                            { upd { o -> o.copy(epg = g.id) }; page = "menu" },
+                            icon = g.icon
+                        )
+                    }
+                }
+            }
+            "cat" -> PanelShell("Catégorie", { back() }, false, actions = { PButton("Retour", { page = "menu" }) }) {
+                item { PItem("Nouvelle catégorie", "", { open("newcat", "") }, autoFocus = true) }
+                items(cats) { cat ->
+                    PItem(cat, if (cat == e.cat) "Catégorie actuelle" else "", { upd { o -> o.copy(cat = cat) }; page = "menu" })
+                }
+            }
+            else -> page = "menu"
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Réglages : Sources, Guides, Chaînes, Lecteur, Affichage, À propos
+// ---------------------------------------------------------------------------
+private val SYNC_OPTIONS = listOf(1, 3, 6, 12, 24, 48)
+
+private fun hoursLabel(h: Int): String = when (h) {
+    1 -> "1 heure"
+    24 -> "1 jour"
+    48 -> "2 jours"
+    else -> "$h heures"
+}
+
+@Composable
+fun SettingsHub(
+    startPage: String, sources: List<Source>, cfg: Cfg, all: List<Channel>, guide: List<GuideCh>,
+    report: List<String>, lastSync: Long,
+    onSources: (List<Source>) -> Unit, onCfg: (Cfg) -> Unit, onReload: () -> Unit,
+    canExit: Boolean, onExit: () -> Unit
+) {
+    val ctx = LocalContext.current
+    var page by remember { mutableStateOf(startPage) }
+    var msg by remember { mutableStateOf("") }
+    var selSrc by remember { mutableStateOf<Source?>(null) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var type by remember { mutableStateOf("xtream") }
+    var fName by remember { mutableStateOf("") }
+    var fHost by remember { mutableStateOf("") }
+    var fUser by remember { mutableStateOf("") }
+    var fPass by remember { mutableStateOf("") }
+    var fUrl by remember { mutableStateOf("") }
+    var fEpg by remember { mutableStateOf("") }
+    var selCat by remember { mutableStateOf("") }
+    var selEpg by remember { mutableStateOf("") }
+    var epgIn by remember { mutableStateOf("") }
+    var catIn by remember { mutableStateOf("") }
+    var cityIn by remember { mutableStateOf("") }
+    var editCh by remember { mutableStateOf<Int?>(null) }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (ex: Exception) { }
+            fUrl = uri.toString()
+        }
+    }
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.openOutputStream(uri)?.use { it.write(exportConfig(sources, cfg).toByteArray()) }
+                msg = "Configuration exportée."
+            } catch (ex: Exception) {
+                msg = "Export impossible : ${ex.message}"
+            }
+        }
+    }
+    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            try {
+                val t = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+                val r = importConfig(t)
+                if (r == null) {
+                    msg = "Fichier invalide."
+                } else {
+                    onSources(r.first)
+                    onCfg(r.second)
+                    msg = "Configuration restaurée."
+                }
+            } catch (ex: Exception) {
+                msg = "Restauration impossible : ${ex.message}"
+            }
+        }
+    }
+
+    fun back() {
+        msg = ""
+        when (page) {
+            "" -> onExit()
+            "src_menu" -> page = "sources"
+            "src_type" -> if (canExit) page = "sources"
+            "src_form" -> page = if (editingId != null) "src_menu" else "src_type"
+            "guide_menu", "guide_add" -> page = "guides"
+            "chlist", "newcat" -> page = "channels"
+            "city" -> page = "display"
+            else -> page = ""
+        }
+    }
+    fun openForm(s: Source?) {
+        editingId = s?.id
+        if (s != null) type = s.type
+        fName = s?.name ?: ""
+        fHost = s?.host ?: ""
+        fUser = s?.user ?: ""
+        fPass = s?.pass ?: ""
+        fUrl = s?.url ?: ""
+        fEpg = s?.epg ?: ""
+        msg = ""
+        page = "src_form"
+    }
+    fun saveForm() {
+        val id = editingId ?: "s${System.currentTimeMillis()}"
+        val s: Source? = if (type == "m3u") {
+            val t = fUrl.trim()
+            if (t.isEmpty()) {
+                msg = "Renseigne un lien ou choisis un fichier."
+                null
+            } else {
+                val src = if (t.startsWith("http") || t.startsWith("content://") || t.startsWith("file://")) t else "http://$t"
+                Source(id, fName.trim().ifBlank { "Playlist M3U" }, "m3u", url = src, epg = fEpg.trim())
+            }
+        } else {
+            if (fHost.isBlank()) {
+                msg = "Renseigne l'adresse du serveur."
+                null
+            } else {
+                val host = norm(fHost)
+                Source(id, fName.trim().ifBlank { host }, "xtream", host, fUser.trim(), fPass.trim(), epg = fEpg.trim())
+            }
+        }
+        if (s != null) {
+            val first = sources.isEmpty()
+            onSources(if (editingId != null) sources.map { if (it.id == s.id) s else it } else sources + s)
+            msg = ""
+            page = if (first) "" else "sources"
+        }
+    }
+
+    val cats = (all.map { it.cat } + cfg.cats).distinct()
+
+    when (page) {
+        "" -> PanelShell("Réglages", { back() }) {
+            item { PItem("Sources", "${sources.size} source(s) configurée(s)", { page = "sources" }, autoFocus = true) }
+            item { PItem("Guides (EPG)", "${cfg.epgs.size} guide(s) ajouté(s)", { page = "guides" }) }
+            item { PItem("Chaînes", "Renommer, déplacer, masquer, catégories", { page = "channels" }) }
+            item { PItem("Lecteur", "Aperçu, audio et sous-titres", { page = "player" }) }
+            item { PItem("Affichage", "Météo dans la barre d'infos", { page = "display" }) }
+            item { PItem("À propos", "", { page = "about" }) }
+        }
+        "sources" -> PanelShell("Sources", { back() }, actions = { PButton("Terminé", { back() }) }) {
+            item {
+                PItem(
+                    "Intervalle de synchronisation", hoursLabel(cfg.syncHours) + "  (rechargement des guides)",
+                    { onCfg(cfg.copy(syncHours = SYNC_OPTIONS[(SYNC_OPTIONS.indexOf(cfg.syncHours) + 1) % SYNC_OPTIONS.size])) },
+                    autoFocus = true
+                )
+            }
+            item {
+                PItem(
+                    "Mettre à jour maintenant",
+                    "Dernière exécution : " + (if (lastSync > 0) SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(lastSync)) else "—"),
+                    { onReload(); msg = "Mise à jour lancée…" }
+                )
+            }
+            item {
+                PItem("Ajouter une source", "Playlist M3U / M3U8 ou Xtream Codes", { editingId = null; type = "xtream"; msg = ""; page = "src_type" })
+            }
+            items(sources, key = { it.id }) { s ->
+                PItem(s.name, if (s.type == "m3u") "M3U · " + s.url else "Xtream · " + s.host, { selSrc = s; page = "src_menu" })
+            }
+            item {
+                PItem(
+                    "Exporter la configuration", "Fichier avec sources et réglages (contient vos identifiants)",
+                    {
+                        try { exporter.launch("iptv-config.json") } catch (ex: Exception) { msg = "Pas d'explorateur de fichiers sur cette TV." }
+                    }
+                )
+            }
+            item {
+                PItem(
+                    "Restaurer la configuration", "Lit un fichier exporté auparavant",
+                    {
+                        try { importer.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "Pas d'explorateur de fichiers sur cette TV." }
+                    }
+                )
+            }
+            if (msg.isNotBlank()) item { PInfo(msg) }
+        }
+        "src_menu" -> {
+            val s = selSrc
+            if (s != null) {
+                PanelShell(s.name, { back() }, actions = { PButton("Retour", { back() }) }) {
+                    item { PItem("Modifier", "", { openForm(s) }, autoFocus = true) }
+                    item { PItem("Supprimer cette source", "", { onSources(sources.filter { it.id != s.id }); page = "sources" }) }
+                }
+            }
+        }
+        "src_type" -> PanelShell(
+            "Ajouter une source", { back() },
+            actions = {
+                PButton("Suivant", { openForm(null) }, autoFocus = false)
+                if (canExit) PButton("Retour", { back() })
+            }
+        ) {
+            item { PRadio("Playlist (M3U / M3U8)", "Lien ou fichier local", type == "m3u", { type = "m3u" }, autoFocus = true) }
+            item { PRadio("Xtream Codes", "Serveur, identifiant et mot de passe", type == "xtream", { type = "xtream" }) }
+        }
+        "src_form" -> PanelShell(
+            if (type == "m3u") "Playlist M3U / M3U8" else "Xtream Codes", { back() },
+            actions = {
+                PButton("Enregistrer", { saveForm() })
+                PButton("Retour", { back() })
+            }
+        ) {
+            item { PInput("Nom (optionnel)", fName, { fName = it }, autoFocus = true) }
+            if (type == "m3u") {
+                item { PInput("Lien (URL) ou fichier M3U / M3U8", fUrl, { fUrl = it }) }
+                item {
+                    PItem(
+                        "Choisir un fichier local", "",
+                        {
+                            try { picker.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "Pas d'explorateur de fichiers sur cette TV : utilise un lien (URL)." }
+                        }
+                    )
+                }
+            } else {
+                item { PInput("Serveur (http://host:port)", fHost, { fHost = it }) }
+                item { PInput("Identifiant", fUser, { fUser = it }) }
+                item { PInput("Mot de passe", fPass, { fPass = it }) }
+            }
+            item { PInput("Guide XMLTV de cette source (optionnel)", fEpg, { fEpg = it }) }
+            if (msg.isNotBlank()) item { PInfo(msg, true) }
+        }
+        "guides" -> PanelShell("Guides (EPG)", { back() }, actions = { PButton("Terminé", { back() }) }) {
+            item { PItem("Ajouter un guide XMLTV", "URL d'un fichier .xml ou .gz", { epgIn = ""; page = "guide_add" }, autoFocus = true) }
+            items(cfg.epgs) { u -> PItem(u, "Le guide du haut a la priorité · OK : gérer", { selEpg = u; page = "guide_menu" }) }
+            item {
+                PItem(
+                    "Priorité des logos",
+                    if (cfg.logoPrio == "xmltv") "1) guide XMLTV   2) liste" else "1) liste   2) guide XMLTV",
+                    { onCfg(cfg.copy(logoPrio = if (cfg.logoPrio == "xmltv") "playlist" else "xmltv")) }
+                )
+            }
+            item {
+                PItem(
+                    "Associer automatiquement les ID EPG", "${guide.size} chaînes dans le guide chargé",
+                    {
+                        if (guide.isEmpty()) {
+                            msg = "Aucun guide chargé pour le moment."
+                        } else {
+                            val r = autoMatch(all, cfg, guide)
+                            onCfg(r.first)
+                            msg = "${r.second} chaîne(s) associée(s) au guide."
+                        }
+                    }
+                )
+            }
+            if (msg.isNotBlank()) item { PInfo(msg) }
+            item { PHeader("État du chargement") }
+            if (report.isEmpty()) item { PInfo("Chargement en cours…") }
+            items(report) { line -> PInfo(line, line.startsWith("ERREUR")) }
+        }
+        "guide_menu" -> PanelShell("Guide", { back() }, actions = { PButton("Retour", { back() }) }) {
+            item { PInfo(selEpg) }
+            item {
+                PItem("Supprimer ce guide", "", { onCfg(cfg.copy(epgs = cfg.epgs.filter { it != selEpg })); page = "guides" }, autoFocus = true)
+            }
+            item {
+                PItem("Placer en premier (priorité)", "", { onCfg(cfg.copy(epgs = listOf(selEpg) + cfg.epgs.filter { it != selEpg })); page = "guides" })
+            }
+        }
+        "guide_add" -> PanelShell(
+            "Ajouter un guide XMLTV", { back() },
+            actions = {
+                PButton("Enregistrer", {
+                    if (epgIn.isNotBlank()) onCfg(cfg.copy(epgs = (cfg.epgs + norm(epgIn)).distinct()))
+                    page = "guides"
+                })
+                PButton("Retour", { back() })
+            }
+        ) {
+            item { PInput("URL du guide (.xml ou .gz)", epgIn, { epgIn = it }, autoFocus = true) }
+        }
+        "channels" -> PanelShell("Chaînes", { back() }, actions = { PButton("Terminé", { back() }) }) {
+            item { PItem("Nouvelle catégorie", "", { catIn = ""; page = "newcat" }, autoFocus = true) }
+            items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} chaîne(s)", { selCat = cat; page = "chlist" }) }
+        }
+        "newcat" -> PanelShell(
+            "Nouvelle catégorie", { back() },
+            actions = {
+                PButton("Enregistrer", {
+                    val v = catIn.trim()
+                    if (v.isNotBlank()) {
+                        onCfg(cfg.copy(cats = (cfg.cats + v).distinct()))
+                        selCat = v
+                    }
+                    page = "channels"
+                })
+                PButton("Retour", { back() })
+            }
+        ) {
+            item { PInput("Nom de la catégorie", catIn, { catIn = it }, autoFocus = true) }
+        }
+        "chlist" -> {
+            val list = all.filter { it.cat == selCat }
+            val firstId = list.firstOrNull()?.id
+            PanelShell(selCat, { back() }, actions = { PButton("Retour", { back() }) }) {
+                if (list.isEmpty()) item { PInfo("Aucune chaîne dans cette catégorie.") }
+                items(list, key = { it.id }) { c ->
+                    PItem(
+                        c.name + if (c.hidden) "  (masquée)" else "",
+                        "EPG : ${c.epgId.ifBlank { "—" }}",
+                        { editCh = c.id },
+                        autoFocus = c.id == firstId, icon = c.icon
+                    )
+                }
+            }
+        }
+        "player" -> PanelShell("Lecteur", { back() }, actions = { PButton("Terminé", { back() }) }) {
+            item {
+                PSwitch(
+                    "Son de l'aperçu en arrière-plan", "Sur l'écran d'accueil", cfg.bgSound,
+                    { onCfg(cfg.copy(bgSound = !cfg.bgSound)) }, autoFocus = true
+                )
+            }
+            item {
+                PInfo("Pendant la lecture : Haut/Bas = zapping, OK = liste des chaînes, Droite = programmes suivants, Gauche = audio et sous-titres.")
+            }
+        }
+        "display" -> PanelShell("Affichage", { back() }, actions = { PButton("Terminé", { back() }) }) {
+            item {
+                PItem(
+                    "Météo dans la barre d'infos", if (cfg.city.isBlank()) "Désactivée" else cfg.city,
+                    { cityIn = cfg.city; page = "city" }, autoFocus = true
+                )
+            }
+        }
+        "city" -> PanelShell(
+            "Météo", { back() },
+            actions = {
+                PButton("Enregistrer", { onCfg(cfg.copy(city = cityIn.trim())); page = "display" })
+                PButton("Retour", { back() })
+            }
+        ) {
+            item { PInput("Ville (vide = désactivée)", cityIn, { cityIn = it }, autoFocus = true) }
+        }
+        else -> PanelShell("À propos", { back() }, actions = { PButton("Retour", { back() }) }) {
+            item { PInfo("IPTV TV · version 0.1") }
+            item { PInfo("${sources.size} source(s) · ${all.size} chaînes · ${guide.size} chaînes dans le guide") }
+            item { PItem("Retour", "", { back() }, autoFocus = true) }
+        }
+    }
+
+    val ec = editCh
+    if (ec != null) ChannelEditor(ec, all, cfg, guide, onCfg) { editCh = null }
+}

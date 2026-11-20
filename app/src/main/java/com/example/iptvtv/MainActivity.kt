@@ -267,8 +267,8 @@ fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
         Text("Quitter l'application ?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr)) { Text("Oui", color = Color.White, fontSize = 16.sp) }
-            FocusRow(onNo, Modifier.width(110.dp)) { Text("Non", color = Color.White, fontSize = 16.sp) }
+            FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr)) { Text("Oui", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onNo, Modifier.width(110.dp)) { Text("Non", color = fcolor(Color.White), fontSize = 16.sp) }
         }
     }
 }
@@ -293,7 +293,8 @@ fun App() {
     var bg by remember { mutableStateOf<Channel?>(null) }
     var full by remember { mutableStateOf(false) }
     var screen by remember { mutableStateOf("") }
-    var editSrc by remember { mutableStateOf<Source?>(null) }
+    var settingsPage by remember { mutableStateOf("") }
+    var lastSync by remember { mutableStateOf(0L) }
     var editCh by remember { mutableStateOf<Int?>(null) }
     var exitAsk by remember { mutableStateOf(false) }
     var weather by remember { mutableStateOf("") }
@@ -447,12 +448,16 @@ fun App() {
 
         epg = Epg(emptyMap())
         epg = fetchGuides(rep, true)
+        lastSync = System.currentTimeMillis()
         report = rep.toList()
         status = if (rep.any { it.startsWith("ERREUR") }) "Une source a échoué : voir Sources et guides" else ""
         while (true) {
-            delay(30 * 60 * 1000L)
+            delay(cfg.syncHours.coerceAtLeast(1) * 3600_000L)
             val g2 = fetchGuides(ArrayList(), false)
-            if (g2.progs.isNotEmpty() || g2.chans.isNotEmpty()) epg = g2
+            if (g2.progs.isNotEmpty() || g2.chans.isNotEmpty()) {
+                epg = g2
+                lastSync = System.currentTimeMillis()
+            }
         }
     }
 
@@ -464,41 +469,15 @@ fun App() {
                 modifier = Modifier.fillMaxSize()
             )
             when {
-                sources.isEmpty() || screen == "form" -> Solid {
-                    SourceForm(
-                        editSrc, sources.isNotEmpty(),
-                        { s ->
-                            val first = sources.isEmpty()
-                            val l = if (editSrc != null) sources.map { if (it.id == s.id) s else it } else sources + s
-                            saveSources(ctx, l)
-                            sources = l
-                            editSrc = null
-                            screen = if (first) "" else "sources"
-                        },
-                        {
-                            editSrc = null
-                            screen = "sources"
-                        }
-                    )
-                }
-                screen == "sources" -> Solid {
-                    SourcesScreen(
-                        sources, cfg, all, epg.chans, report,
-                        { editSrc = null; screen = "form" },
-                        { editSrc = it; screen = "form" },
-                        { d ->
-                            val l = sources.filter { it.id != d.id }
-                            saveSources(ctx, l)
-                            sources = l
-                        },
-                        { cfg = it; saveCfg(ctx, it) },
-                        { reload++ },
-                        { screen = "" }
-                    )
-                }
-                screen == "settings" -> Solid {
-                    SettingsScreen(all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { screen = "" }
-                }
+                sources.isEmpty() || screen == "settings" -> SettingsHub(
+                    if (sources.isEmpty()) "src_type" else settingsPage,
+                    sources, cfg, all, epg.chans, report, lastSync,
+                    { l -> saveSources(ctx, l); sources = l },
+                    { cfg = it; saveCfg(ctx, it) },
+                    { reload++ },
+                    sources.isNotEmpty(),
+                    { screen = "" }
+                )
                 screen == "search" -> Solid {
                     SearchScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
                 }
@@ -509,7 +488,7 @@ fun App() {
                 else -> Home(
                     shown, sources, epg, status, hist, cur,
                     { play(it); full = true },
-                    { screen = "search" }, { screen = "settings" }, { screen = "sources" },
+                    { screen = "search" }, { settingsPage = ""; screen = "settings" }, { settingsPage = "sources"; screen = "settings" },
                     { editCh = it.id },
                     { screen = "guide" }
                 )
@@ -550,7 +529,7 @@ fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
     Column(Modifier.width(w)) {
         FocusRow(onClick) {
             Text(
-                label, color = if (selected) Color.White else MUTED, fontSize = 16.sp,
+                label, color = fcolor(if (selected) Color.White else MUTED), fontSize = 16.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1
             )
         }

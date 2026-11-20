@@ -24,7 +24,8 @@ data class Cfg(
     val epgs: List<String> = emptyList(),
     val logoPrio: String = "playlist",
     val bgSound: Boolean = true,
-    val city: String = ""
+    val city: String = "",
+    val syncHours: Int = 24
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -69,29 +70,7 @@ fun saveSources(c: Context, l: List<Source>) {
     c.getSharedPreferences("src", 0).edit().putString("j", a.toString()).apply()
 }
 
-fun loadCfg(c: Context): Cfg {
-    val s = c.getSharedPreferences("cfg", 0).getString("j", null) ?: return Cfg()
-    return try {
-        val j = JSONObject(s)
-        val o = j.getJSONObject("ov")
-        val m = HashMap<Int, Ov>()
-        for (key in o.keys()) {
-            val x = o.getJSONObject(key)
-            m[key.toInt()] = Ov(x.optString("n"), x.optString("l"), x.optString("e"), x.optBoolean("h"), x.optString("c"))
-        }
-        val od = j.getJSONArray("order")
-        val ord = (0 until od.length()).map { od.getInt(it) }
-        val ca = j.getJSONArray("cats")
-        val cs = (0 until ca.length()).map { ca.getString(it) }
-        val ea = j.optJSONArray("epgs")
-        val es = if (ea == null) emptyList() else (0 until ea.length()).map { ea.getString(it) }
-        Cfg(m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" }, j.optBoolean("bs", true), j.optString("ct", ""))
-    } catch (ex: Exception) {
-        Cfg()
-    }
-}
-
-fun saveCfg(c: Context, g: Cfg) {
+fun cfgToJson(g: Cfg): JSONObject {
     val j = JSONObject()
     val o = JSONObject()
     for ((id, v) in g.ov) {
@@ -104,7 +83,70 @@ fun saveCfg(c: Context, g: Cfg) {
     j.put("lp", g.logoPrio)
     j.put("bs", g.bgSound)
     j.put("ct", g.city)
-    c.getSharedPreferences("cfg", 0).edit().putString("j", j.toString()).apply()
+    j.put("sh", g.syncHours)
+    return j
+}
+
+fun cfgFromJson(j: JSONObject): Cfg {
+    val o = j.getJSONObject("ov")
+    val m = HashMap<Int, Ov>()
+    for (key in o.keys()) {
+        val x = o.getJSONObject(key)
+        m[key.toInt()] = Ov(x.optString("n"), x.optString("l"), x.optString("e"), x.optBoolean("h"), x.optString("c"))
+    }
+    val od = j.getJSONArray("order")
+    val ord = (0 until od.length()).map { od.getInt(it) }
+    val ca = j.getJSONArray("cats")
+    val cs = (0 until ca.length()).map { ca.getString(it) }
+    val ea = j.optJSONArray("epgs")
+    val es = if (ea == null) emptyList() else (0 until ea.length()).map { ea.getString(it) }
+    return Cfg(
+        m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" },
+        j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24)
+    )
+}
+
+fun loadCfg(c: Context): Cfg {
+    val s = c.getSharedPreferences("cfg", 0).getString("j", null) ?: return Cfg()
+    return try {
+        cfgFromJson(JSONObject(s))
+    } catch (ex: Exception) {
+        Cfg()
+    }
+}
+
+fun saveCfg(c: Context, g: Cfg) {
+    c.getSharedPreferences("cfg", 0).edit().putString("j", cfgToJson(g).toString()).apply()
+}
+
+// Export / restauration de la configuration (sources + réglages) au format JSON.
+fun exportConfig(sources: List<Source>, cfg: Cfg): String {
+    val a = JSONArray()
+    for (s in sources) {
+        a.put(
+            JSONObject().put("i", s.id).put("n", s.name).put("t", s.type).put("h", s.host)
+                .put("u", s.user).put("p", s.pass).put("l", s.url).put("e", s.epg)
+        )
+    }
+    return JSONObject().put("app", "iptv-tv").put("sources", a).put("cfg", cfgToJson(cfg)).toString(2)
+}
+
+fun importConfig(text: String): Pair<List<Source>, Cfg>? {
+    return try {
+        val j = JSONObject(text)
+        if (j.optString("app") != "iptv-tv") return null
+        val a = j.getJSONArray("sources")
+        val list = (0 until a.length()).map {
+            val x = a.getJSONObject(it)
+            Source(
+                x.optString("i"), x.optString("n"), x.optString("t"), x.optString("h"),
+                x.optString("u"), x.optString("p"), x.optString("l"), x.optString("e")
+            )
+        }
+        Pair(list, cfgFromJson(j.getJSONObject("cfg")))
+    } catch (ex: Exception) {
+        null
+    }
 }
 
 // Applique noms, ID EPG, catégories, masquage, ordre, et résout le logo :
