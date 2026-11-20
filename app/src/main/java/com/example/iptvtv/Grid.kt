@@ -162,7 +162,7 @@ fun MiniPlayer(
 // Guide graphique (grille horaire)
 // ---------------------------------------------------------------------------
 private const val DPM = 4
-private const val TOTAL_MIN = 2100
+private const val TOTAL_MIN = 2160
 private val LW = 270.dp
 private val P_DARK_TXT = Color(0xFF14213D)
 
@@ -224,7 +224,7 @@ fun EpgGrid(
         }
     }
     val slot = 30 * 60000L
-    val winStart = remember { (System.currentTimeMillis() / slot) * slot - 4 * slot }
+    val winStart = remember { (System.currentTimeMillis() / 60000L) * 60000L }
     val winEnd = winStart + TOTAL_MIN * 60000L
     var cat by remember { mutableStateOf("") }
     val cats = remember(chans) { chans.map { it.cat }.distinct() }
@@ -239,7 +239,6 @@ fun EpgGrid(
     }
     val req = remember { FocusRequester() }
     LaunchedEffect(Unit) {
-        hs.scrollTo(with(density) { (3 * 30 * DPM).dp.toPx().toInt() })
         delay(350)
         try { req.requestFocus() } catch (ex: Exception) { }
     }
@@ -268,12 +267,16 @@ fun EpgGrid(
                 Row(Modifier.fillMaxWidth().height(26.dp)) {
                     Spacer(Modifier.width(LW))
                     Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width }.horizontalScroll(hs, enabled = false)) {
-                        Row(Modifier.fillMaxHeight()) {
-                            for (i in 0 until TOTAL_MIN / 30) {
-                                Box(Modifier.width((30 * DPM).dp).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
+                        Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
+                            val first = ((winStart + slot - 1) / slot) * slot
+                            for (k in 0 until TOTAL_MIN / 30) {
+                                val t = first + k * slot
+                                if (t < winEnd) {
                                     Text(
-                                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(winStart + i * slot)),
-                                        color = M_GRAY, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp)
+                                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(t)),
+                                        color = M_GRAY, fontSize = 13.sp,
+                                        modifier = Modifier.align(Alignment.CenterStart)
+                                            .offset(x = ((t - winStart) / 60000f * DPM).dp)
                                     )
                                 }
                             }
