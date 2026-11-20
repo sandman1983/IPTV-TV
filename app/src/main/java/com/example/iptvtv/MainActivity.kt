@@ -27,6 +27,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -242,6 +244,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { App() }
+    }
+
+    // Compose can throw while moving focus during a fast scroll (a known library bug).
+    // Ignore that single key press instead of closing the app.
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        return try {
+            super.dispatchKeyEvent(event)
+        } catch (e: IllegalStateException) {
+            true
+        }
     }
 }
 
@@ -727,9 +739,17 @@ fun Home(
     val baseIdx = (if (status.isNotBlank()) 1 else 0) + (if (recent.isNotEmpty()) 2 else 0)
     var lastRow by remember { mutableStateOf(-1) }
     fun rowFocus(idx: Int) {
-        if (idx != lastRow) {
+        val aligned = listState.firstVisibleItemIndex == idx && listState.firstVisibleItemScrollOffset == 0
+        if (idx != lastRow || !aligned) {
             lastRow = idx
-            homeScope.launch { try { listState.animateScrollToItem(idx.coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
+            homeScope.launch {
+                try {
+                    delay(70)
+                    listState.animateScrollToItem(idx.coerceAtLeast(0))
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                }
+            }
         }
     }
     Box(Modifier.fillMaxSize()) {
@@ -823,17 +843,35 @@ fun Home(
 
 // Carte de chaîne : image du programme, logo en bas à gauche, barre de progression, titre et suite.
 // Le cadre de sélection est dessiné autour de l'image (il ne cache pas la barre de progression).
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (Channel) -> Unit, onRowFocus: () -> Unit) {
     val st = rememberLazyListState()
     val sc = rememberCoroutineScope()
+    val firstReq = remember { FocusRequester() }
+    var firstReady by remember { mutableStateOf(false) }
+    var hadFocus by remember { mutableStateOf(false) }
     LazyRow(
         state = st,
+        modifier = Modifier
+            .focusProperties { enter = { if (firstReady) firstReq else FocusRequester.Default } }
+            .focusGroup()
+            .onFocusChanged {
+                // Leaving the row: put it back at its first card, so coming back always starts there.
+                if (hadFocus && !it.hasFocus) sc.launch { try { st.scrollToItem(0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
+                hadFocus = it.hasFocus
+            },
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(start = 20.dp, end = 70.dp, top = 14.dp, bottom = 30.dp)
     ) {
         itemsIndexed(list, key = { i, c -> "${c.id}_$i" }) { i, c ->
-            ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) }) {
+            if (i == 0) {
+                DisposableEffect(Unit) {
+                    firstReady = true
+                    onDispose { firstReady = false }
+                }
+            }
+            ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) }, if (i == 0) firstReq else null) {
                 onRowFocus()
                 sc.launch { try { st.animateScrollToItem((i - 1).coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
             }
@@ -842,7 +880,7 @@ fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (C
 }
 
 @Composable
-fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, onFocus: () -> Unit = {}) {
+fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, req: FocusRequester? = null, onFocus: () -> Unit = {}) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     val scale by animateFloatAsState(if (f) 1.06f else 1f, label = "cardScale")
@@ -853,6 +891,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, o
         Modifier.width(200.dp)
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
