@@ -50,6 +50,16 @@ import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -233,6 +243,33 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+fun activityOf(c: Context): Activity? {
+    var x = c
+    while (x is ContextWrapper) {
+        if (x is Activity) return x
+        x = x.baseContext
+    }
+    return null
+}
+
+// Boîte de confirmation de sortie, en bas à droite.
+@Composable
+fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
+    val fr = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(100)
+        try { fr.requestFocus() } catch (ex: Exception) { }
+    }
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xF0151A24)).padding(16.dp)) {
+        Text("Quitter l'application ?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr)) { Text("Oui", color = Color.White, fontSize = 16.sp) }
+            FocusRow(onNo, Modifier.width(110.dp)) { Text("Non", color = Color.White, fontSize = 16.sp) }
+        }
+    }
+}
+
 @Composable
 fun Solid(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color(0xFF0E1117))) { content() }
@@ -255,6 +292,9 @@ fun App() {
     var screen by remember { mutableStateOf("") }
     var editSrc by remember { mutableStateOf<Source?>(null) }
     var editCh by remember { mutableStateOf<Int?>(null) }
+    var exitAsk by remember { mutableStateOf(false) }
+    var lastBack by remember { mutableStateOf(0L) }
+    var resumeTick by remember { mutableStateOf(0) }
 
     val exo = remember {
         ExoPlayer.Builder(ctx)
@@ -275,6 +315,51 @@ fun App() {
         saveHist(ctx, hist)
     }
 
+    // Retour : action normale, mais un 2e appui en moins de 1,5 s ouvre la confirmation de sortie.
+    fun onRootBack(normal: () -> Unit) {
+        if (exitAsk) {
+            exitAsk = false
+            return
+        }
+        val t = System.currentTimeMillis()
+        if (t - lastBack < 1500) {
+            exitAsk = true
+            lastBack = 0L
+        } else {
+            lastBack = t
+            normal()
+        }
+    }
+    BackHandler(enabled = screen == "" && !(cur != null && full) && sources.isNotEmpty()) {
+        onRootBack {
+            if (cur != null) full = true
+            else Toast.makeText(ctx, "Appuie encore sur Retour pour quitter", Toast.LENGTH_SHORT).show()
+        }
+    }
+    LaunchedEffect(exitAsk) {
+        if (exitAsk) {
+            delay(8000)
+            exitAsk = false
+        }
+    }
+
+    // Coupe le son quand l'app passe en arrière-plan ; reprend la chaîne au retour.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val stopped = BooleanArray(1)
+        val obs = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                exo.pause()
+                stopped[0] = true
+            } else if (event == Lifecycle.Event.ON_START && stopped[0]) {
+                stopped[0] = false
+                resumeTick++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+
     // Au démarrage : la dernière chaîne regardée joue en fond de l'accueil.
     LaunchedEffect(all) {
         if (bg == null) {
@@ -282,7 +367,7 @@ fun App() {
             if (id != null) bg = all.firstOrNull { it.id == id }
         }
     }
-    LaunchedEffect(bg?.id, screen) {
+    LaunchedEffect(bg?.id, screen, resumeTick) {
         val c = bg
         if (c != null && screen == "") {
             resetTracks(exo)
@@ -403,8 +488,8 @@ fun App() {
                 }
                 screen == "guide" -> GuideScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
                 cur != null && full -> PlayerScreen(
-                    cur, exo, shown, epg, all, cfg, { cfg = it; saveCfg(ctx, it) }, { play(it) }
-                ) { full = false }
+                    cur, exo, shown, epg, all, cfg, exitAsk, { cfg = it; saveCfg(ctx, it) }, { play(it) }
+                ) { onRootBack { full = false } }
                 else -> Home(
                     shown, sources, epg, status, hist, cur,
                     { play(it); full = true },
@@ -416,6 +501,13 @@ fun App() {
             val ec = editCh
             if (ec != null) {
                 ChannelEditor(ec, all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { editCh = null }
+            }
+            if (exitAsk) {
+                ExitBox(
+                    Modifier.align(Alignment.BottomEnd).padding(24.dp),
+                    { exo.pause(); activityOf(ctx)?.finishAndRemoveTask() },
+                    { exitAsk = false }
+                )
             }
         }
     }
@@ -512,7 +604,10 @@ fun Home(
                         )
                     }
                     item {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                        ) {
                             items(recent, key = { it.id }) { c ->
                                 ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
                             }
@@ -531,7 +626,10 @@ fun Home(
                             r.title.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
                         )
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                        ) {
                             items(r.chans, key = { it.id }) { c ->
                                 ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
                             }
@@ -544,62 +642,66 @@ fun Home(
 }
 
 // Carte de chaîne : image du programme, logo en bas à gauche, barre de progression, titre et suite.
+// Le cadre de sélection est dessiné autour de l'image (il ne cache pas la barre de progression).
 @Composable
 fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { BooleanArray(1) }
+    val scale by animateFloatAsState(if (f) 1.06f else 1f, label = "cardScale")
     val p = epg.now(c.epgId)
     val nx = epg.upcoming(c.epgId, 1).firstOrNull()
-    val shape = RoundedCornerShape(10.dp)
+    val outer = RoundedCornerShape(12.dp)
+    val inner = RoundedCornerShape(9.dp)
     Column(
         Modifier.width(220.dp)
+            .zIndex(if (f) 1f else 0f)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape).background(Color(0xFF1B2230))
-                .border(if (f) 3.dp else 0.dp, if (f) Color.White else Color.Transparent, shape)
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                .border(3.dp, if (f) Color.White else Color.Transparent, outer).padding(3.dp)
         ) {
-            if (p != null && p.icon.isNotBlank()) {
-                AsyncImage(
-                    model = p.icon, contentDescription = null,
-                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
-                )
-            } else {
-                Text(
-                    c.name, color = MUTED, fontSize = 14.sp, maxLines = 2, textAlign = TextAlign.Center,
-                    modifier = Modifier.align(Alignment.Center).padding(8.dp)
-                )
-            }
-            if (c.icon.isNotBlank()) {
-                Box(
-                    Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 10.dp)
-                        .clip(RoundedCornerShape(4.dp)).background(Color(0x99000000))
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                ) {
+            Box(Modifier.fillMaxSize().clip(inner).background(Color(0xFF1B2230))) {
+                if (p != null && p.icon.isNotBlank()) {
                     AsyncImage(
-                        model = c.icon, contentDescription = null,
-                        modifier = Modifier.size(48.dp, 26.dp), contentScale = ContentScale.Fit
+                        model = p.icon, contentDescription = null,
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Text(
+                        c.name, color = MUTED, fontSize = 14.sp, maxLines = 2, textAlign = TextAlign.Center,
+                        modifier = Modifier.align(Alignment.Center).padding(8.dp)
                     )
                 }
-            }
-            if (p != null) {
-                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
-                    Box(
-                        Modifier.fillMaxWidth(fracOf(p, System.currentTimeMillis())).fillMaxHeight()
-                            .background(Color(0xFF1E88E5))
+                if (c.icon.isNotBlank()) {
+                    AsyncImage(
+                        model = c.icon, contentDescription = null,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 10.dp)
+                            .size(48.dp, 26.dp),
+                        contentScale = ContentScale.Fit
                     )
+                }
+                if (p != null) {
+                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
+                        Box(
+                            Modifier.fillMaxWidth(fracOf(p, System.currentTimeMillis())).fillMaxHeight()
+                                .background(Color(0xFF1E88E5))
+                        )
+                    }
                 }
             }
         }
         Text(
             p?.title ?: c.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp)
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 3.dp)
         )
         Text(
             if (nx != null) "${hm(nx.start)} · ${nx.title}" else if (p != null) c.name else "",
-            color = MUTED, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+            color = MUTED, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 3.dp)
         )
     }
 }
@@ -607,7 +709,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
-    c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg,
+    c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean,
     onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
@@ -631,9 +733,9 @@ fun PlayerScreen(
         show = true
         tick++
     }
-    LaunchedEffect(panel, tracksOpen, editId) {
+    LaunchedEffect(panel, tracksOpen, editId, exitAsk) {
         delay(100)
-        if (!panel && !tracksOpen && editId == null) { try { fr.requestFocus() } catch (ex: Exception) { } }
+        if (!panel && !tracksOpen && editId == null && !exitAsk) { try { fr.requestFocus() } catch (ex: Exception) { } }
     }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
     LaunchedEffect(tick) { delay(7000); show = false }
