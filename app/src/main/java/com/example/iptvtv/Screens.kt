@@ -639,6 +639,7 @@ fun SourcesScreen(
     var addEpg by remember { mutableStateOf(false) }
     var delEpg by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf("") }
+    var cityDlg by remember { mutableStateOf(false) }
 
     LazyColumn(Modifier.fillMaxSize().padding(32.dp)) {
         item {
@@ -698,6 +699,14 @@ fun SourcesScreen(
                 )
             }
         }
+        item {
+            FocusRow({ cityDlg = true }) {
+                Text(
+                    "Météo dans la barre d'infos : " + if (cfg.city.isBlank()) "désactivée" else cfg.city,
+                    color = Color.White, fontSize = 16.sp
+                )
+            }
+        }
         item { Section("Logos et ID EPG") }
         item {
             FocusRow({ onCfg(cfg.copy(logoPrio = if (cfg.logoPrio == "xmltv") "playlist" else "xmltv")) }) {
@@ -746,6 +755,13 @@ fun SourcesScreen(
                 addEpg = false
             },
             { addEpg = false }
+        )
+    }
+    if (cityDlg) {
+        InputDialog(
+            "Ville pour la météo (vide = désactivée)", cfg.city,
+            { v -> onCfg(cfg.copy(city = v)); cityDlg = false },
+            { cityDlg = false }
         )
     }
     val de = delEpg

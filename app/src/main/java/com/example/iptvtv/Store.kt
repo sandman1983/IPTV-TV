@@ -23,7 +23,8 @@ data class Cfg(
     val cats: List<String> = emptyList(),
     val epgs: List<String> = emptyList(),
     val logoPrio: String = "playlist",
-    val bgSound: Boolean = true
+    val bgSound: Boolean = true,
+    val city: String = ""
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -84,7 +85,7 @@ fun loadCfg(c: Context): Cfg {
         val cs = (0 until ca.length()).map { ca.getString(it) }
         val ea = j.optJSONArray("epgs")
         val es = if (ea == null) emptyList() else (0 until ea.length()).map { ea.getString(it) }
-        Cfg(m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" }, j.optBoolean("bs", true))
+        Cfg(m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" }, j.optBoolean("bs", true), j.optString("ct", ""))
     } catch (ex: Exception) {
         Cfg()
     }
@@ -102,6 +103,7 @@ fun saveCfg(c: Context, g: Cfg) {
     j.put("epgs", JSONArray(g.epgs))
     j.put("lp", g.logoPrio)
     j.put("bs", g.bgSound)
+    j.put("ct", g.city)
     c.getSharedPreferences("cfg", 0).edit().putString("j", j.toString()).apply()
 }
 

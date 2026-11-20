@@ -58,6 +58,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.zIndex
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.media3.common.C
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
@@ -293,6 +296,7 @@ fun App() {
     var editSrc by remember { mutableStateOf<Source?>(null) }
     var editCh by remember { mutableStateOf<Int?>(null) }
     var exitAsk by remember { mutableStateOf(false) }
+    var weather by remember { mutableStateOf("") }
     var lastBack by remember { mutableStateOf(0L) }
     var resumeTick by remember { mutableStateOf(0) }
 
@@ -379,6 +383,18 @@ fun App() {
         }
     }
     LaunchedEffect(full, cfg.bgSound) { exo.volume = if (!full && !cfg.bgSound) 0f else 1f }
+
+    // Météo (Open-Meteo) pour la ville choisie, actualisée toutes les 30 minutes.
+    LaunchedEffect(cfg.city) {
+        if (cfg.city.isBlank()) {
+            weather = ""
+        } else {
+            while (true) {
+                weather = fetchWeather(cfg.city.trim())
+                delay(30 * 60 * 1000L)
+            }
+        }
+    }
 
     // Rafraîchit l'affichage "en cours / à suivre" toutes les 30 s.
     LaunchedEffect(Unit) {
@@ -488,7 +504,7 @@ fun App() {
                 }
                 screen == "guide" -> GuideScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
                 cur != null && full -> PlayerScreen(
-                    cur, exo, shown, epg, all, cfg, exitAsk, { cfg = it; saveCfg(ctx, it) }, { play(it) }
+                    cur, exo, shown, epg, all, cfg, exitAsk, weather, { cfg = it; saveCfg(ctx, it) }, { play(it) }
                 ) { onRootBack { full = false } }
                 else -> Home(
                     shown, sources, epg, status, hist, cur,
@@ -709,12 +725,14 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
-    c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean,
+    c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String,
     onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
     val p = epg.now(c.epgId)
-    val nx = epg.upcoming(c.epgId, 1).firstOrNull()
+    val ups = epg.upcoming(c.epgId, 4)
+    var evIdx by remember { mutableStateOf(-1) }
+    var dir by remember { mutableStateOf(1) }
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
     var tracksOpen by remember { mutableStateOf(false) }
@@ -730,6 +748,7 @@ fun PlayerScreen(
     val fr = remember { FocusRequester() }
 
     LaunchedEffect(c.id) {
+        evIdx = -1
         show = true
         tick++
     }
@@ -738,7 +757,7 @@ fun PlayerScreen(
         if (!panel && !tracksOpen && editId == null && !exitAsk) { try { fr.requestFocus() } catch (ex: Exception) { } }
     }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
-    LaunchedEffect(tick) { delay(7000); show = false }
+    LaunchedEffect(tick) { delay(if (evIdx >= 0) 12000L else 7000L); show = false; evIdx = -1 }
     DisposableEffect(exo) {
         val l = object : Player.Listener {
             override fun onTracksChanged(t: Tracks) {
@@ -764,7 +783,7 @@ fun PlayerScreen(
         l.onVideoSizeChanged(exo.videoSize)
         onDispose { exo.removeListener(l) }
     }
-    BackHandler { if (panel) panel = false else onBack() }
+    BackHandler { if (panel) panel = false else if (evIdx >= 0) evIdx = -1 else onBack() }
 
     Box(
         Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
@@ -773,6 +792,20 @@ fun PlayerScreen(
             } else if (it.key == Key.DirectionCenter || it.key == Key.Enter || it.key == Key.NumPadEnter) {
                 panel = true
                 focusId = c.id
+                true
+            } else if (it.key == Key.DirectionRight) {
+                if (evIdx < ups.size - 1) {
+                    dir = 1
+                    evIdx++
+                }
+                show = true
+                tick++
+                true
+            } else if (it.key == Key.DirectionLeft && evIdx >= 0) {
+                dir = -1
+                evIdx--
+                show = true
+                tick++
                 true
             } else if (it.key == Key.DirectionLeft || it.key == Key.Menu) {
                 tracksOpen = true
@@ -794,7 +827,16 @@ fun PlayerScreen(
             }
         }
     ) {
-        if (show && !panel) InfoBar(c, num, p, nx, nowMs, res, codec, quality, Modifier.align(Alignment.BottomCenter))
+        SlideIn(show && !panel, true, Modifier.align(Alignment.TopCenter)) {
+            TopInfo(
+                c, num, weather, codec, quality,
+                tracks.groups.count { it.type == C.TRACK_TYPE_AUDIO },
+                tracks.groups.count { it.type == C.TRACK_TYPE_TEXT }
+            )
+        }
+        SlideIn(show && !panel, false, Modifier.align(Alignment.BottomCenter)) {
+            BottomInfo(c, p, ups, evIdx, dir, nowMs, res)
+        }
         if (panel) {
             ChannelPanel(
                 channels.filter { it.cat == c.cat }, c, epg, nowMs, focusId, refocus,
@@ -813,94 +855,213 @@ fun PlayerScreen(
     }
 }
 
+private val LIME = Color(0xFFB5D334)
+private val SOFT = Color(0xFFEFF5B0)
+
+fun wmoText(code: Int): String = when (code) {
+    0 -> "Dégagé"
+    1, 2 -> "Peu nuageux"
+    3 -> "Couvert"
+    45, 48 -> "Brouillard"
+    in 51..57 -> "Bruine"
+    in 61..67 -> "Pluie"
+    in 71..77 -> "Neige"
+    in 80..82 -> "Averses"
+    in 95..99 -> "Orage"
+    else -> ""
+}
+
+// Ville -> coordonnées (Open-Meteo) -> température actuelle. Retourne "" en cas d'échec.
+suspend fun fetchWeather(city: String): String = withContext(Dispatchers.IO) {
+    try {
+        val q = java.net.URLEncoder.encode(city, "UTF-8")
+        val g = JSONObject(get("https://geocoding-api.open-meteo.com/v1/search?name=$q&count=1&language=fr"))
+        val r = g.optJSONArray("results") ?: return@withContext ""
+        val o = r.getJSONObject(0)
+        val lat = o.getDouble("latitude")
+        val lon = o.getDouble("longitude")
+        val label = o.optString("name") + (if (o.has("country")) ", " + o.optString("country") else "")
+        val w = JSONObject(get("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code"))
+        val cur = w.getJSONObject("current")
+        val t = Math.round(cur.getDouble("temperature_2m")).toInt()
+        val txt = wmoText(cur.getInt("weather_code"))
+        label + "  ·  " + t + "°C" + (if (txt.isNotEmpty()) "  ·  " + txt else "")
+    } catch (ex: Exception) {
+        ""
+    }
+}
+
+// Apparition / disparition animée : glissement + fondu.
 @Composable
-fun InfoBar(
-    c: Channel, num: Int, p: Prog?, nx: Prog?, nowMs: Long,
-    res: String, codec: String, quality: String, modifier: Modifier
-) {
-    Column(modifier.fillMaxWidth()) {
-        if (p != null && p.icon.isNotBlank()) {
-            AsyncImage(
-                model = p.icon, contentDescription = null,
-                modifier = Modifier.padding(start = 16.dp, bottom = 8.dp).width(160.dp).height(90.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                contentScale = ContentScale.Crop
-            )
-        }
-        Row(
-            Modifier.fillMaxWidth().background(Color(0xCC12151C)).padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("$num", color = Color.White, fontSize = 20.sp)
-            Spacer(Modifier.width(24.dp))
-            Text(c.name, color = Color.White, fontSize = 20.sp, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(codec, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(16.dp))
-            Text(quality, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(24.dp))
-            Text(hm(nowMs), color = Color.White, fontSize = 22.sp)
-        }
-        Row(
-            Modifier.fillMaxWidth().background(Color(0xF00B0D12)).padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ProgPanel(p, nowMs, true, Modifier.weight(1f))
-            Box(Modifier.padding(horizontal = 16.dp).width(160.dp).height(80.dp), contentAlignment = Alignment.Center) {
-                if (c.icon.isNotBlank()) {
-                    AsyncImage(
-                        model = c.icon, contentDescription = null,
-                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
-                    )
-                } else {
-                    Text(c.name, color = Color.White, fontSize = 18.sp, maxLines = 2)
-                }
+fun SlideIn(visible: Boolean, fromTop: Boolean, modifier: Modifier, content: @Composable () -> Unit) {
+    val p = remember { Animatable(0f) }
+    LaunchedEffect(visible) { p.animateTo(if (visible) 1f else 0f, tween(320)) }
+    if (visible || p.value > 0.01f) {
+        Box(
+            modifier.graphicsLayer {
+                translationY = (1f - p.value) * size.height * 0.5f * (if (fromTop) -1f else 1f)
+                alpha = p.value
             }
-            ProgPanel(nx, nowMs, false, Modifier.weight(1f))
-        }
-        Row(
-            Modifier.fillMaxWidth().background(Color(0xFF080A0E)).padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(c.cat, color = ACCENT, fontSize = 14.sp, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(res, color = Color(0xFF2EE05A), fontSize = 14.sp)
-            Text(
-                SimpleDateFormat("EEEE dd.MM.yyyy", Locale.getDefault()).format(Date(nowMs)),
-                color = Color.White, fontSize = 14.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
-            )
-        }
+        ) { content() }
     }
 }
 
 @Composable
-fun ProgPanel(pr: Prog?, nowMs: Long, current: Boolean, modifier: Modifier) {
-    Column(modifier) {
-        if (pr == null) {
-            Text("—", color = MUTED, fontSize = 20.sp)
+fun Badge(t: String) {
+    Text(
+        t, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 8.dp).border(1.dp, Color(0xAAFFFFFF), RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    )
+}
+
+// Barre du haut : numéro, nom de la chaîne, météo, badges.
+@Composable
+fun TopInfo(c: Channel, num: Int, weather: String, codec: String, quality: String, audioN: Int, subN: Int) {
+    Row(
+        Modifier.fillMaxWidth()
+            .background(Brush.verticalGradient(listOf(Color(0xEE000000), Color(0x00000000))))
+            .padding(horizontal = 24.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("$num", color = LIME, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.width(20.dp))
+        Text(c.name, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(
+            weather, color = Color(0xFFE0E4EC), fontSize = 16.sp, maxLines = 1,
+            textAlign = TextAlign.Center, modifier = Modifier.weight(1.3f)
+        )
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            if (subN > 0) Badge("SUB")
+            if (audioN > 1) Badge("AUDIO $audioN")
+            if (codec.isNotBlank()) Badge(codec)
+            if (quality.isNotBlank()) Badge(quality)
+        }
+    }
+}
+
+// Bandeau du bas : horloge, vignette, heure + progression, titre, description, logo.
+// Droite = événements suivants (glissement animé), gauche = retour.
+@Composable
+fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowMs: Long, res: String) {
+    val slide = remember { Animatable(0f) }
+    val first = remember { BooleanArray(1) { true } }
+    LaunchedEffect(evIdx, c.id) {
+        if (first[0]) {
+            first[0] = false
         } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color.White, fontSize = 18.sp)
-                if (current) {
-                    val total = (pr.stop - pr.start).coerceAtLeast(1L)
-                    val frac = ((nowMs - pr.start).toFloat() / total).coerceIn(0f, 1f)
-                    Box(Modifier.padding(horizontal = 12.dp).weight(1f).height(3.dp).background(Color(0xFF444B58))) {
-                        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color.Red))
+            slide.snapTo(1f)
+            slide.animateTo(0f, tween(380))
+        }
+    }
+    val ev: Prog? = if (evIdx in ups.indices) ups[evIdx] else null
+    val sp: Prog? = ev ?: p
+    Column(
+        Modifier.fillMaxWidth().background(
+            Brush.verticalGradient(listOf(Color(0x00000000), Color(0xE6000000), Color(0xF5000000)))
+        )
+    ) {
+        SlideIn(ev != null, false, Modifier) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ups.forEachIndexed { i, u ->
+                    val sel = i == evIdx
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                            .background(if (sel) Color.White else Color(0x66000000)).padding(8.dp)
+                    ) {
+                        Text(hm(u.start), color = if (sel) Color.Black else LIME, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            u.title, color = if (sel) Color(0xFF222222) else Color.White, fontSize = 13.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    Text("+${((pr.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color.White, fontSize = 16.sp)
-                } else {
-                    Spacer(Modifier.weight(1f))
-                    Text("${(pr.stop - pr.start) / 60000} min", color = Color.White, fontSize = 16.sp)
+                }
+                repeat(4 - ups.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.width(190.dp)) {
+                Text(hm(nowMs), color = LIME, fontSize = 44.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    SimpleDateFormat("EEEE dd MMMM", Locale.getDefault()).format(Date(nowMs)),
+                    color = LIME, fontSize = 14.sp
+                )
+            }
+            Row(
+                Modifier.weight(1f).graphicsLayer {
+                    translationX = slide.value * dir * 90.dp.toPx()
+                    alpha = 1f - slide.value * 0.9f
+                },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.width(190.dp).height(107.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1B2230))) {
+                    if (sp != null && sp.icon.isNotBlank()) {
+                        AsyncImage(
+                            model = sp.icon, contentDescription = null,
+                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                        )
+                    } else if (c.icon.isNotBlank()) {
+                        AsyncImage(
+                            model = c.icon, contentDescription = null,
+                            modifier = Modifier.fillMaxSize().padding(12.dp), contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+                Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                    if (sp == null) {
+                        Text("Pas d'informations de guide", color = MUTED, fontSize = 16.sp)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (ev == null) {
+                                Text(hm(sp.start), color = Color.White, fontSize = 16.sp)
+                                Box(Modifier.padding(horizontal = 12.dp).weight(1f).height(4.dp).background(Color.White)) {
+                                    Box(
+                                        Modifier.fillMaxWidth(fracOf(sp, nowMs)).fillMaxHeight()
+                                            .background(Color(0xFF2F7FC1))
+                                    )
+                                }
+                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color.White, fontSize = 16.sp)
+                            } else {
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color.White, fontSize = 16.sp)
+                                Spacer(Modifier.weight(1f))
+                                Text("dans ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 14.sp)
+                            }
+                        }
+                        Text(
+                            sp.title, color = SOFT, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            sp.desc.ifBlank { sp.sub }, color = Color(0xFFDDE2EA), fontSize = 14.sp,
+                            maxLines = 3, overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
+            Box(Modifier.width(170.dp).height(70.dp), contentAlignment = Alignment.Center) {
+                if (c.icon.isNotBlank()) {
+                    AsyncImage(
+                        model = c.icon, contentDescription = null,
+                        modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Text(c.name, color = Color.White, fontSize = 18.sp, maxLines = 2, textAlign = TextAlign.Center)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(c.cat, color = MUTED, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(res, color = Color(0xFF2EE05A), fontSize = 13.sp)
             Text(
-                pr.title, color = ACCENT, fontSize = 24.sp, fontWeight = FontWeight.Bold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
+                "←  audio / sous-titres     →  à suivre     ↑↓  zapping     OK  liste",
+                color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
             )
-            if (pr.sub.isNotBlank()) {
-                Text(pr.sub, color = Color.White, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (pr.cat.isNotBlank()) {
-                Text(pr.cat, color = MUTED, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
         }
     }
 }
