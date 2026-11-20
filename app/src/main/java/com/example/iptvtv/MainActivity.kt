@@ -982,6 +982,8 @@ fun PlayerScreen(
             tick++
         }
     }
+    // Opening the mini player or the channel list hides the infobar for good (it must not come back when they close).
+    LaunchedEffect(mini, panel) { if (mini || panel) { show = false; evIdx = -1 } }
     LaunchedEffect(mini, miniTick) {
         if (mini) {
             delay(12000)
