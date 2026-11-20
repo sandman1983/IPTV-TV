@@ -630,10 +630,11 @@ fun buildRows(ch: List<Channel>, sources: List<Source>): List<HomeRow> {
 @Composable
 fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
     Column(Modifier.width(w)) {
-        FocusRow(onClick) {
+        FocusRow(onClick, pad = 12.dp, corner = 10.dp) {
             Text(
                 label, color = fcolor(if (selected) Color.White else MUTED), fontSize = 16.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
         }
         Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) ACCENT else Color.Transparent))
@@ -660,23 +661,31 @@ fun Home(
         )
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 4.dp),
+                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "IPTV", color = ACCENT, fontSize = 24.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 28.dp)
                 )
-                TopTab("My TV", true, 120.dp) { }
+                TopTab("My TV", true, 130.dp) { }
                 TopTab("Guide", false, 110.dp) { onGuide() }
                 TopTab("Search", false, 150.dp) { onSearch() }
-                TopTab("Settings", false, 140.dp) { onSettings() }
-                TopTab("Sources & guides", false, 220.dp) { onSources() }
+                TopTab("Settings", false, 150.dp) { onSettings() }
             }
             Box(Modifier.weight(0.38f).fillMaxWidth()) {
                 Column(Modifier.align(Alignment.BottomStart).padding(start = 32.dp, bottom = 8.dp)) {
                     if (cur != null) {
-                        Text(cur.name, color = MUTED, fontSize = 16.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (cur.icon.isNotBlank()) {
+                                AsyncImage(
+                                    model = cur.icon, contentDescription = null,
+                                    modifier = Modifier.padding(end = 10.dp).size(56.dp, 30.dp),
+                                    contentScale = ContentScale.Fit
+                                )
+                            }
+                            Text(cur.name, color = MUTED, fontSize = 16.sp)
+                        }
                         Text(
                             cp?.title ?: "", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -704,7 +713,7 @@ fun Home(
                     item {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                         ) {
                             items(recent, key = { it.id }) { c ->
                                 ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
@@ -726,7 +735,7 @@ fun Home(
                         )
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                         ) {
                             items(r.chans, key = { it.id }) { c ->
                                 ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
@@ -747,11 +756,10 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
     val fired = remember { booleanArrayOf(true) }
     val scale by animateFloatAsState(if (f) 1.06f else 1f, label = "cardScale")
     val p = epg.now(c.epgId)
-    val nx = epg.upcoming(c.epgId, 1).firstOrNull()
     val outer = RoundedCornerShape(12.dp)
     val inner = RoundedCornerShape(9.dp)
     Column(
-        Modifier.width(220.dp)
+        Modifier.width(200.dp)
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .onFocusChanged { f = it.isFocused }
@@ -797,7 +805,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 3.dp)
         )
         Text(
-            if (nx != null) "${hm(nx.start)} · ${nx.title}" else if (p != null) c.name else "",
+            if (p != null) "${hm(p.start)} - ${hm(p.stop)}" else "",
             color = MUTED, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 3.dp)
         )
