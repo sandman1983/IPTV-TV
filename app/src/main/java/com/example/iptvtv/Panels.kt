@@ -3,6 +3,7 @@
 package com.example.iptvtv
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -419,7 +420,7 @@ private fun hoursLabel(h: Int): String = when (h) {
 @Composable
 fun SettingsHub(
     startPage: String, sources: List<Source>, cfg: Cfg, all: List<Channel>, guide: List<GuideCh>,
-    report: List<String>, lastSync: Long,
+    report: List<String>, lastSync: Long, recs: List<Rec>, onRecAct: (String, String) -> Unit,
     onSources: (List<Source>) -> Unit, onCfg: (Cfg) -> Unit, onReload: () -> Unit,
     canExit: Boolean, onExit: () -> Unit
 ) {
@@ -441,6 +442,7 @@ fun SettingsHub(
     var catIn by remember { mutableStateOf("") }
     var cityIn by remember { mutableStateOf("") }
     var editCh by remember { mutableStateOf<Int?>(null) }
+    var selRec by remember { mutableStateOf<Rec?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -448,6 +450,16 @@ fun SettingsHub(
                 ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (ex: Exception) { }
             fUrl = uri.toString()
+        }
+    }
+    val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            try {
+                ctx.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (ex: Exception) { }
+            onCfg(cfg.copy(dvrUri = uri.toString()))
         }
     }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -488,6 +500,8 @@ fun SettingsHub(
             "guide_menu", "guide_add" -> page = "guides"
             "chlist", "newcat" -> page = "channels"
             "city" -> page = "display"
+            "recs" -> page = "dvr"
+            "rec_menu" -> page = "recs"
             else -> page = ""
         }
     }
@@ -539,6 +553,7 @@ fun SettingsHub(
             item { PItem("Guides (EPG)", "${cfg.epgs.size} guide(s) added", { page = "guides" }) }
             item { PItem("Channels", "Rename, move, hide, categories", { page = "channels" }) }
             item { PItem("Player", "Preview, audio and subtitles", { page = "player" }) }
+            item { PItem("DVR", "Recordings, reminders, storage", { page = "dvr" }) }
             item { PItem("Display", "Weather in the info bar", { page = "display" }) }
             item { PItem("About", "", { page = "about" }) }
         }
@@ -720,6 +735,86 @@ fun SettingsHub(
             }
             item {
                 PInfo("While watching: Up/Down = zap, OK = channel list, Right = up next, Left = audio and subtitles.")
+            }
+        }
+        "dvr" -> PanelShell("DVR", { back() }, actions = { PButton("Done", { back() }) }) {
+            item {
+                PSwitch(
+                    "Enable reminders", "Ability to add reminders", cfg.remOn,
+                    { onCfg(cfg.copy(remOn = !cfg.remOn)) }, autoFocus = true
+                )
+            }
+            item {
+                PItem(
+                    "DVR location",
+                    if (cfg.dvrUri.isBlank()) "Internal app storage" else (Uri.parse(cfg.dvrUri).lastPathSegment ?: cfg.dvrUri),
+                    {
+                        try { treePicker.launch(null) } catch (ex: Exception) { msg = "No folder picker on this TV: internal storage is used." }
+                    }
+                )
+            }
+            if (cfg.dvrUri.isNotBlank()) {
+                item { PItem("Use internal storage", "Reset the DVR location", { onCfg(cfg.copy(dvrUri = "")) }) }
+            }
+            item {
+                PItem(
+                    "Recording start time", if (cfg.recStart == 0) "On time" else "${cfg.recStart} min before",
+                    {
+                        val o = listOf(0, 1, 2, 5, 10, 15)
+                        onCfg(cfg.copy(recStart = o[(o.indexOf(cfg.recStart) + 1) % o.size]))
+                    }
+                )
+            }
+            item {
+                PItem(
+                    "Recording stop time", if (cfg.recStop == 0) "On time" else "${cfg.recStop} min after",
+                    {
+                        val o = listOf(0, 1, 2, 5, 10, 15, 30)
+                        onCfg(cfg.copy(recStop = o[(o.indexOf(cfg.recStop) + 1) % o.size]))
+                    }
+                )
+            }
+            item { PItem("Recordings and reminders", "${recs.size} item(s)", { page = "recs" }) }
+            item { PInfo("Recording works while the app is running. Keep the TV on and the app open.") }
+            if (msg.isNotBlank()) item { PInfo(msg) }
+        }
+        "recs" -> PanelShell("Recordings and reminders", { back() }, actions = { PButton("Back", { back() }) }) {
+            if (recs.isEmpty()) item { PInfo("Nothing scheduled yet. In the guide, select a future programme to record it or set a reminder.") }
+            items(recs.sortedByDescending { it.start }, key = { it.id }) { r ->
+                val st = when (r.state) {
+                    "scheduled" -> "Scheduled"
+                    "recording" -> "Recording…"
+                    "done" -> if (r.kind == "rec") "Saved" else "Reminder done"
+                    else -> "Failed: " + r.note
+                }
+                PItem(
+                    (if (r.kind == "rec") "● " else "⏰ ") + r.title,
+                    r.chName + " · " + SimpleDateFormat("dd MMM HH:mm", Locale.ENGLISH).format(Date(r.start)) + " · " + st,
+                    { selRec = r; page = "rec_menu" }
+                )
+            }
+        }
+        "rec_menu" -> {
+            val r = recs.firstOrNull { it.id == selRec?.id }
+            if (r == null) {
+                page = "recs"
+            } else {
+                PanelShell(r.title, { back() }, actions = { PButton("Back", { back() }) }) {
+                    item { PInfo(r.chName + " · " + hm(r.start) + " - " + hm(r.stop)) }
+                    if (r.state == "done" && r.kind == "rec" && r.path.isNotBlank()) {
+                        item { PItem("Play", "", { onRecAct("play", r.id) }, autoFocus = true) }
+                    }
+                    if (r.state == "recording") {
+                        item { PItem("Stop recording", "", { onRecAct("stop", r.id) }, autoFocus = true) }
+                    }
+                    if (r.state == "scheduled") {
+                        item { PItem(if (r.kind == "rec") "Cancel recording" else "Cancel reminder", "", { onRecAct("cancel", r.id); page = "recs" }, autoFocus = true) }
+                    }
+                    if (r.state == "done" || r.state == "failed") {
+                        item { PItem("Delete", if (r.path.isNotBlank()) "Also deletes the file" else "", { onRecAct("delete", r.id); page = "recs" }, autoFocus = r.state == "failed") }
+                    }
+                    if (r.state == "failed") item { PInfo(r.note, true) }
+                }
             }
         }
         "display" -> PanelShell("Display", { back() }, actions = { PButton("Done", { back() }) }) {

@@ -182,10 +182,11 @@ private fun GChip(label: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun GBlock(
-    p: Prog?, x: Dp, w: Dp, nowMs: Long, req: FocusRequester?,
-    onSel: () -> Unit, onPlay: () -> Unit
+    p: Prog?, x: Dp, w: Dp, nowMs: Long, req: FocusRequester?, mark: String,
+    onSel: () -> Unit, onPlay: () -> Unit, onLong: () -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
+    val fired = remember { booleanArrayOf(true) }
     val live = p != null && p.start <= nowMs && nowMs < p.stop
     val past = p != null && p.stop <= nowMs
     Box(
@@ -194,12 +195,13 @@ private fun GBlock(
             .background(if (f) Color.White else if (live) Color(0xFF2F3B48) else Color(0xFF262626))
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onSel() }
+            .onPreviewKeyEvent { okLong(it, fired, onPlay, onLong) }
             .clickable { onPlay() }
             .padding(horizontal = 8.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
-            p?.title ?: "No information",
+            (if (mark.isNotEmpty()) "$mark " else "") + (p?.title ?: "No information"),
             color = if (f) P_DARK_TXT else if (past) M_GRAY else Color.White,
             fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
             overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
@@ -211,9 +213,11 @@ private fun GBlock(
 @Composable
 fun EpgGrid(
     chans: List<Channel>, epg: Epg, current: Channel?, showNums: Boolean,
-    onPlay: (Channel) -> Unit, onBack: () -> Unit
+    recs: List<Rec>, remOn: Boolean,
+    onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onBack: () -> Unit
 ) {
     BackHandler { onBack() }
+    var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -318,8 +322,8 @@ fun EpgGrid(
                                     Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
                                         if (progs.isEmpty()) {
                                             GBlock(
-                                                null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, if (isCur) req else null,
-                                                { sel = Pair(ch, null) }, { onPlay(ch) }
+                                                null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, if (isCur) req else null, "",
+                                                { sel = Pair(ch, null) }, { onPlay(ch) }, { }
                                             )
                                         }
                                         for (p in progs) {
@@ -332,8 +336,12 @@ fun EpgGrid(
                                             if (useReq) reqUsed = true
                                             val xPx = with(density) { x.toPx().toInt() }
                                             val ePx = with(density) { (x + w).toPx().toInt() }
+                                            val mk = recs.firstOrNull {
+                                                it.chId == ch.id && it.start == p.start &&
+                                                    (it.state == "scheduled" || it.state == "recording")
+                                            }?.let { if (it.kind == "rec") "●" else "⏰" } ?: ""
                                             GBlock(
-                                                p, x, w, nowMs, if (useReq) req else null,
+                                                p, x, w, nowMs, if (useReq) req else null, mk,
                                                 {
                                                     sel = Pair(ch, p)
                                                     val vs = hs.value
@@ -341,7 +349,8 @@ fun EpgGrid(
                                                         scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
                                                     }
                                                 },
-                                                { onPlay(ch) }
+                                                { if (p.start > nowMs) dvrFor = Pair(ch, p) else onPlay(ch) },
+                                                { dvrFor = Pair(ch, p) }
                                             )
                                         }
                                         if (nowX > 0.dp) {
@@ -391,6 +400,39 @@ fun EpgGrid(
                     }
                 }
             }
+        }
+    }
+    val d = dvrFor
+    if (d != null) {
+        val dch = d.first
+        val dp = d.second
+        val recId = "${dch.id}_${dp.start}_rec"
+        val remId = "${dch.id}_${dp.start}_rem"
+        val hasRec = recs.any { it.id == recId && (it.state == "scheduled" || it.state == "recording") }
+        val hasRem = recs.any { it.id == remId && it.state == "scheduled" }
+        val live = dp.start <= nowMs && nowMs < dp.stop
+        PanelDialog(dp.title, { dvrFor = null }, actions = { PButton("Close", { dvrFor = null }) }) {
+            item { PInfo(dch.name + "  ·  " + hm(dp.start) + " - " + hm(dp.stop)) }
+            if (live) {
+                item { PItem("Watch now", "", { dvrFor = null; onPlay(dch) }, autoFocus = true) }
+            }
+            item {
+                PItem(
+                    if (hasRec) "Cancel recording" else "Record",
+                    if (hasRec) "" else if (live) "Starts now" else "Recorded automatically at start time",
+                    { onDvr(dch, dp, if (hasRec) "unrec" else "rec"); dvrFor = null },
+                    autoFocus = !live
+                )
+            }
+            if (remOn && !live) {
+                item {
+                    PItem(
+                        if (hasRem) "Remove reminder" else "Set reminder", "A notice appears when it starts",
+                        { onDvr(dch, dp, if (hasRem) "unrem" else "rem"); dvrFor = null }
+                    )
+                }
+            }
+            if (!live) item { PItem("Watch channel", "", { dvrFor = null; onPlay(dch) }) }
         }
     }
 }

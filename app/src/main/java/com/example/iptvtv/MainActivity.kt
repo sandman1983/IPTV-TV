@@ -46,6 +46,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -269,6 +270,24 @@ fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
 }
 
 @Composable
+fun ReminderBox(r: Rec, modifier: Modifier, onWatch: () -> Unit, onClose: () -> Unit) {
+    val fr = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        delay(100)
+        try { fr.requestFocus() } catch (ex: Exception) { }
+    }
+    Column(modifier.width(360.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xF0151515)).padding(16.dp)) {
+        Text("Reminder", color = Color(0xFF8FCBF7), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(r.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(r.chName + " · " + hm(r.start), color = MUTED, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            FocusRow(onWatch, Modifier.width(140.dp).focusRequester(fr)) { Text("Watch", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onClose, Modifier.width(140.dp)) { Text("Dismiss", color = fcolor(Color.White), fontSize = 16.sp) }
+        }
+    }
+}
+
+@Composable
 fun Solid(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color(0xFF0E1117))) { content() }
 }
@@ -295,11 +314,17 @@ fun App() {
     var weather by remember { mutableStateOf("") }
     var lastBack by remember { mutableStateOf(0L) }
     var resumeTick by remember { mutableStateOf(0) }
+    var miniStart by remember { mutableStateOf(true) }
+    var reminder by remember { mutableStateOf<Rec?>(null) }
+    val recs = remember(Dvr.tick) { loadRecs(ctx) }
+    val cfgNow by rememberUpdatedState(cfg)
 
     val exo = remember {
         ExoPlayer.Builder(ctx)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true))
+                DefaultMediaSourceFactory(
+                    DefaultDataSource.Factory(ctx, DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true))
+                )
             )
             .build()
     }
@@ -313,6 +338,38 @@ fun App() {
         bg = c
         hist = pushHist(hist, c.id)
         saveHist(ctx, hist)
+    }
+
+    LaunchedEffect(Unit) { Dvr.cleanup(ctx) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = System.currentTimeMillis()
+            val c = cfgNow
+            for (r in loadRecs(ctx)) {
+                if (r.state != "scheduled") continue
+                if (r.kind == "rec") {
+                    if (now >= r.stop + c.recStop * 60000L) {
+                        Dvr.update(ctx, r.id) { it.copy(state = "failed", note = "Missed (app was not running)") }
+                    } else if (now >= r.start - c.recStart * 60000L) {
+                        Dvr.start(ctx, r, c)
+                    }
+                } else if (c.remOn) {
+                    if (now >= r.stop) {
+                        Dvr.update(ctx, r.id) { it.copy(state = "done") }
+                    } else if (now >= r.start - 60000L) {
+                        Dvr.update(ctx, r.id) { it.copy(state = "done") }
+                        reminder = r
+                    }
+                }
+            }
+            delay(10000)
+        }
+    }
+    LaunchedEffect(reminder) {
+        if (reminder != null) {
+            delay(45000)
+            reminder = null
+        }
     }
 
     // Retour : action normale, mais un 2e appui en moins de 1,5 s ouvre la confirmation de sortie.
@@ -466,7 +523,23 @@ fun App() {
             when {
                 sources.isEmpty() || screen == "settings" -> SettingsHub(
                     if (sources.isEmpty()) "src_type" else settingsPage,
-                    sources, cfg, all, epg.chans, report, lastSync,
+                    sources, cfg, all, epg.chans, report, lastSync, recs,
+                    { act, id ->
+                        val r = recs.firstOrNull { it.id == id }
+                        if (r != null) {
+                            when (act) {
+                                "play" -> {
+                                    play(Channel(-Math.abs(r.id.hashCode()) - 1, r.title, "", "", "Recordings", false, r.path, ""))
+                                    full = true
+                                    miniStart = false
+                                    screen = ""
+                                }
+                                "stop" -> Dvr.stop(r.id)
+                                "cancel" -> Dvr.remove(ctx, r.id)
+                                "delete" -> Dvr.delete(ctx, r)
+                            }
+                        }
+                    },
                     { l -> saveSources(ctx, l); sources = l },
                     { cfg = it; saveCfg(ctx, it) },
                     { reload++ },
@@ -474,16 +547,27 @@ fun App() {
                     { screen = "" }
                 )
                 screen == "search" -> Solid {
-                    SearchScreen(shown, epg, { play(it); full = true; screen = "" }) { screen = "" }
+                    SearchScreen(shown, epg, { play(it); full = true; miniStart = true; screen = "" }) { screen = "" }
                 }
-                screen == "guide" -> EpgGrid(shown, epg, cur, cfg.showNums, { play(it); full = true; screen = "" }) { screen = "" }
+                screen == "guide" -> EpgGrid(
+                    shown, epg, cur, cfg.showNums, recs, cfg.remOn,
+                    { play(it); full = true; miniStart = false; screen = "" },
+                    { ch, p, act ->
+                        when (act) {
+                            "rec" -> Dvr.schedule(ctx, ch, p, "rec")
+                            "rem" -> Dvr.schedule(ctx, ch, p, "rem")
+                            "unrec" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rec")
+                            "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
+                        }
+                    }
+                ) { miniStart = true; screen = "" }
                 cur != null && full -> PlayerScreen(
                     sources,
-                    cur, exo, shown, epg, all, cfg, exitAsk, weather, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" }
+                    cur, exo, shown, epg, all, cfg, exitAsk || reminder != null, weather, miniStart, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" }
                 ) { onRootBack { full = false } }
                 else -> Home(
                     shown, sources, epg, status, hist, cur,
-                    { play(it); full = true },
+                    { play(it); full = true; miniStart = true },
                     { screen = "search" }, { settingsPage = ""; screen = "settings" }, { settingsPage = "sources"; screen = "settings" },
                     { editCh = it.id },
                     { screen = "guide" }
@@ -498,6 +582,23 @@ fun App() {
                     Modifier.align(Alignment.BottomEnd).padding(24.dp),
                     { exo.pause(); activityOf(ctx)?.finishAndRemoveTask() },
                     { exitAsk = false }
+                )
+            }
+            val rm = reminder
+            if (rm != null && !exitAsk) {
+                ReminderBox(
+                    rm, Modifier.align(Alignment.TopEnd).padding(24.dp),
+                    {
+                        val ch = all.firstOrNull { it.id == rm.chId }
+                        reminder = null
+                        if (ch != null) {
+                            play(ch)
+                            full = true
+                            miniStart = false
+                            screen = ""
+                        }
+                    },
+                    { reminder = null }
                 )
             }
         }
@@ -700,7 +801,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
-    sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String,
+    sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String, startMini: Boolean,
     onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onGuide: () -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
@@ -710,7 +811,7 @@ fun PlayerScreen(
     var dir by remember { mutableStateOf(1) }
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
-    var mini by remember { mutableStateOf(true) }
+    var mini by remember { mutableStateOf(startMini) }
     var miniTick by remember { mutableStateOf(0) }
     val firstC = remember { booleanArrayOf(true) }
     val okFired = remember { booleanArrayOf(true) }
@@ -730,7 +831,7 @@ fun PlayerScreen(
         evIdx = -1
         if (firstC[0]) {
             firstC[0] = false
-            show = false
+            show = !startMini
         } else {
             mini = false
             show = true

@@ -26,7 +26,11 @@ data class Cfg(
     val bgSound: Boolean = true,
     val city: String = "",
     val syncHours: Int = 24,
-    val showNums: Boolean = true
+    val showNums: Boolean = true,
+    val dvrUri: String = "",
+    val recStart: Int = 0,
+    val recStop: Int = 0,
+    val remOn: Boolean = true
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -86,6 +90,10 @@ fun cfgToJson(g: Cfg): JSONObject {
     j.put("ct", g.city)
     j.put("sh", g.syncHours)
     j.put("sn", g.showNums)
+    j.put("du", g.dvrUri)
+    j.put("rb", g.recStart)
+    j.put("ra", g.recStop)
+    j.put("rm", g.remOn)
     return j
 }
 
@@ -104,7 +112,8 @@ fun cfgFromJson(j: JSONObject): Cfg {
     val es = if (ea == null) emptyList() else (0 until ea.length()).map { ea.getString(it) }
     return Cfg(
         m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" },
-        j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24), j.optBoolean("sn", true)
+        j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24), j.optBoolean("sn", true),
+        j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true)
     )
 }
 
