@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -630,9 +633,9 @@ fun buildRows(ch: List<Channel>, sources: List<Source>): List<HomeRow> {
 @Composable
 fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
     Column(Modifier.width(w)) {
-        FocusRow(onClick, pad = 12.dp, corner = 10.dp) {
+        FocusRow(onClick, pad = 5.dp, corner = 8.dp) {
             Text(
-                label, color = fcolor(if (selected) Color.White else MUTED), fontSize = 16.sp,
+                label, color = fcolor(if (selected) Color.White else MUTED), fontSize = 15.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1,
                 textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
             )
@@ -650,6 +653,16 @@ fun Home(
     val cp = cur?.let { epg.now(it.epgId) }
     val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
     val rows = remember(ch, sources) { buildRows(ch, sources) }
+    val listState = rememberLazyListState()
+    val homeScope = rememberCoroutineScope()
+    val baseIdx = (if (status.isNotBlank()) 1 else 0) + (if (recent.isNotEmpty()) 2 else 0)
+    var lastRow by remember { mutableStateOf(-1) }
+    fun rowFocus(idx: Int) {
+        if (idx != lastRow) {
+            lastRow = idx
+            homeScope.launch { listState.animateScrollToItem(idx) }
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         Box(
             Modifier.fillMaxSize().background(
@@ -661,11 +674,11 @@ fun Home(
         )
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 8.dp),
+                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "IPTV", color = ACCENT, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                    "IPTV", color = ACCENT, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 28.dp)
                 )
                 TopTab("My TV", true, 130.dp) { }
@@ -696,9 +709,11 @@ fun Home(
                     }
                 }
             }
+            BoxWithConstraints(Modifier.weight(0.62f).fillMaxWidth()) {
+            val rowH = maxHeight / 2.5f
             LazyColumn(
-                Modifier.weight(0.62f).fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 4.dp)
+                Modifier.fillMaxSize(), state = listState,
+                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 4.dp, bottom = 4.dp)
             ) {
                 if (status.isNotBlank()) {
                     item { Text(status, color = Color(0xFFFFB4A9), fontSize = 13.sp) }
@@ -711,17 +726,10 @@ fun Home(
                         )
                     }
                     item {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-                        ) {
-                            items(recent, key = { it.id }) { c ->
-                                ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
-                            }
-                        }
+                        CardRow(recent, epg, onPlay, onEdit) { rowFocus(baseIdx - 1) }
                     }
                 }
-                items(rows) { r ->
+                itemsIndexed(rows) { ri, r ->
                     if (r.header) {
                         Text(
                             r.title.uppercase(), color = ACCENT, fontSize = 22.sp, fontWeight = FontWeight.Bold,
@@ -729,20 +737,16 @@ fun Home(
                         )
                         Box(Modifier.fillMaxWidth().height(2.dp).background(ACCENT))
                     } else {
-                        Text(
-                            r.title.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
-                        )
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-                        ) {
-                            items(r.chans, key = { it.id }) { c ->
-                                ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) })
-                            }
+                        Column(Modifier.heightIn(min = rowH)) {
+                            Text(
+                                r.title.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
+                            )
+                            CardRow(r.chans, epg, onPlay, onEdit) { rowFocus(baseIdx + ri) }
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -751,7 +755,25 @@ fun Home(
 // Carte de chaîne : image du programme, logo en bas à gauche, barre de progression, titre et suite.
 // Le cadre de sélection est dessiné autour de l'image (il ne cache pas la barre de progression).
 @Composable
-fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
+fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (Channel) -> Unit, onRowFocus: () -> Unit) {
+    val st = rememberLazyListState()
+    val sc = rememberCoroutineScope()
+    LazyRow(
+        state = st,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 70.dp, top = 12.dp, bottom = 12.dp)
+    ) {
+        itemsIndexed(list, key = { _, c -> c.id }) { i, c ->
+            ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) }) {
+                onRowFocus()
+                sc.launch { st.animateScrollToItem((i - 1).coerceAtLeast(0)) }
+            }
+        }
+    }
+}
+
+@Composable
+fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, onFocus: () -> Unit = {}) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     val scale by animateFloatAsState(if (f) 1.06f else 1f, label = "cardScale")
@@ -762,7 +784,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
         Modifier.width(200.dp)
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .onFocusChanged { f = it.isFocused }
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
@@ -785,18 +807,17 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit) {
                 if (c.icon.isNotBlank()) {
                     AsyncImage(
                         model = c.icon, contentDescription = null,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 10.dp)
+                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 24.dp)
                             .size(48.dp, 26.dp),
                         contentScale = ContentScale.Fit
                     )
                 }
                 if (p != null) {
-                    Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color(0x66FFFFFF))) {
-                        Box(
-                            Modifier.fillMaxWidth(fracOf(p, System.currentTimeMillis())).fillMaxHeight()
-                                .background(Color(0xFF1E88E5))
-                        )
-                    }
+                    Bar(
+                        fracOf(p, System.currentTimeMillis()),
+                        Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                        7.dp
+                    )
                 }
             }
         }
