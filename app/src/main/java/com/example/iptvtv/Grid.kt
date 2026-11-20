@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -293,7 +295,9 @@ fun EpgGrid(
                         items(rows, key = { it.id }) { ch ->
                             val isCur = ch.id == current?.id
                             val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
-                            var reqUsed = false
+                            val rowReq = remember { FocusRequester() }
+                            val rr = if (isCur) req else rowReq
+                            val tgt = progs.indexOfFirst { it.start <= nowMs && nowMs < it.stop }.coerceAtLeast(0)
                             Row(Modifier.fillMaxWidth().height(rowH)) {
                                 Row(
                                     Modifier.width(LW).fillMaxHeight().padding(start = 12.dp),
@@ -318,22 +322,26 @@ fun EpgGrid(
                                         modifier = Modifier.padding(start = 10.dp, end = 8.dp).weight(1f)
                                     )
                                 }
-                                Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(hs)) {
+                                Box(
+                                    Modifier.weight(1f).fillMaxHeight()
+                                        .focusProperties { enter = { rr } }
+                                        .focusGroup()
+                                        .horizontalScroll(hs)
+                                ) {
                                     Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
                                         if (progs.isEmpty()) {
                                             GBlock(
-                                                null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, if (isCur) req else null, "",
+                                                null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, rr, "",
                                                 { sel = Pair(ch, null) }, { onPlay(ch) }, { }
                                             )
                                         }
-                                        for (p in progs) {
+                                        for ((pi, p) in progs.withIndex()) {
                                             val s = maxOf(p.start, winStart)
                                             val e = minOf(p.stop, winEnd)
                                             val x = ((s - winStart) / 60000f * DPM).dp
                                             val w = ((e - s) / 60000f * DPM).dp.coerceAtLeast(24.dp)
                                             val live = p.start <= nowMs && nowMs < p.stop
-                                            val useReq = isCur && live && !reqUsed
-                                            if (useReq) reqUsed = true
+                                            val useReq = pi == tgt
                                             val xPx = with(density) { x.toPx().toInt() }
                                             val ePx = with(density) { (x + w).toPx().toInt() }
                                             val mk = recs.firstOrNull {
@@ -341,11 +349,11 @@ fun EpgGrid(
                                                     (it.state == "scheduled" || it.state == "recording")
                                             }?.let { if (it.kind == "rec") "●" else "⏰" } ?: ""
                                             GBlock(
-                                                p, x, w, nowMs, if (useReq) req else null, mk,
+                                                p, x, w, nowMs, if (useReq) rr else null, mk,
                                                 {
                                                     sel = Pair(ch, p)
                                                     val vs = hs.value
-                                                    if (xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
+                                                    if (xPx < vs || xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
                                                         scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
                                                     }
                                                 },

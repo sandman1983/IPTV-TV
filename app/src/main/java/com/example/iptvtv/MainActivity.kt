@@ -315,6 +315,7 @@ fun App() {
     var lastBack by remember { mutableStateOf(0L) }
     var resumeTick by remember { mutableStateOf(0) }
     var miniStart by remember { mutableStateOf(true) }
+    var fromGuide by remember { mutableStateOf(false) }
     var reminder by remember { mutableStateOf<Rec?>(null) }
     val recs = remember(Dvr.tick) { loadRecs(ctx) }
     val cfgNow by rememberUpdatedState(cfg)
@@ -547,11 +548,11 @@ fun App() {
                     { screen = "" }
                 )
                 screen == "search" -> Solid {
-                    SearchScreen(shown, epg, { play(it); full = true; miniStart = true; screen = "" }) { screen = "" }
+                    SearchScreen(shown, epg, { play(it); full = true; miniStart = true; fromGuide = false; screen = "" }) { screen = "" }
                 }
                 screen == "guide" -> EpgGrid(
                     shown, epg, cur, cfg.showNums, recs, cfg.remOn,
-                    { play(it); full = true; miniStart = false; screen = "" },
+                    { play(it); full = true; miniStart = false; fromGuide = true; screen = "" },
                     { ch, p, act ->
                         when (act) {
                             "rec" -> Dvr.schedule(ctx, ch, p, "rec")
@@ -560,14 +561,19 @@ fun App() {
                             "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
                         }
                     }
-                ) { miniStart = true; screen = "" }
+                ) {
+                    if (fromGuide) { fromGuide = false; full = false } else miniStart = true
+                    screen = ""
+                }
                 cur != null && full -> PlayerScreen(
                     sources,
                     cur, exo, shown, epg, all, cfg, exitAsk || reminder != null, weather, miniStart, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" }
-                ) { onRootBack { full = false } }
+                ) {
+                    if (fromGuide) screen = "guide" else onRootBack { full = false }
+                }
                 else -> Home(
                     shown, sources, epg, status, hist, cur,
-                    { play(it); full = true; miniStart = true },
+                    { play(it); full = true; miniStart = true; fromGuide = false },
                     { screen = "search" }, { settingsPage = ""; screen = "settings" }, { settingsPage = "sources"; screen = "settings" },
                     { editCh = it.id },
                     { screen = "guide" }
