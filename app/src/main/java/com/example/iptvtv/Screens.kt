@@ -161,7 +161,9 @@ fun ChannelPanel(
     Row(
         Modifier.fillMaxSize().onPreviewKeyEvent { ev ->
             val rc = ev.nativeKeyEvent.repeatCount
-            if (ev.type != KeyEventType.KeyDown) {
+            if (upIdx >= 0 && (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter)) {
+                true
+            } else if (ev.type != KeyEventType.KeyDown) {
                 false
             } else if (upIdx >= 0) {
                 if (rc > 0) {
@@ -234,7 +236,7 @@ fun ChannelPanel(
         }
         Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
             Box(
-                Modifier.fillMaxWidth().padding(vertical = 8.dp).background(Color(0x26FFFFFF)).padding(vertical = 10.dp),
+                Modifier.fillMaxWidth().background(Color(0x26FFFFFF)).padding(vertical = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -242,8 +244,9 @@ fun ChannelPanel(
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
+            Spacer(Modifier.height(6.dp))
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                val rowH = maxHeight / 10
+                val rowH = maxHeight / 9
                 LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
                     items(list, key = { it.id }) { c ->
                         val pr = epg.now(c.epgId)
@@ -256,7 +259,7 @@ fun ChannelPanel(
                         ) {
                             if (showNums) {
                                 Text(
-                                    "${all.indexOf(c) + 1}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 14.sp,
+                                    "${all.indexOf(c) + 1}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold, maxLines = 1,
                                     modifier = Modifier.width(36.dp).padding(start = 4.dp)
                                 )
@@ -272,20 +275,20 @@ fun ChannelPanel(
                             val rf = LocalRowFocused.current
                             Column(Modifier.padding(start = 10.dp).weight(1f)) {
                                 Text(
-                                    c.name, color = fcolor(Color.White), fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold,
+                                    c.name, color = fcolor(Color.White), fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold,
                                     maxLines = 1, softWrap = false,
                                     overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                     modifier = if (rf) Modifier.basicMarquee() else Modifier
                                 )
                                 Text(
-                                    pr?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 11.sp, lineHeight = 15.sp,
+                                    pr?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 13.sp, lineHeight = 17.sp,
                                     maxLines = 1, softWrap = false,
                                     overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                     modifier = if (rf) Modifier.basicMarquee() else Modifier
                                 )
                             }
                             if (pr != null) {
-                                Bar(fracOf(pr, nowMs), Modifier.padding(start = 8.dp, end = 6.dp).width(54.dp), 9.dp)
+                                Bar(fracOf(pr, nowMs), Modifier.padding(start = 8.dp, end = 6.dp).width(54.dp), 10.dp)
                             }
                         }
                     }
