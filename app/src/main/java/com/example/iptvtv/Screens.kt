@@ -92,9 +92,13 @@ fun FocusRow(
 }
 
 @Composable
-fun Bar(frac: Float, modifier: Modifier = Modifier) {
-    Box(modifier.height(3.dp).background(Color(0xFF444B58))) {
-        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFF1E88E5)))
+fun Bar(frac: Float, modifier: Modifier = Modifier, h: androidx.compose.ui.unit.Dp = 8.dp) {
+    val shape = RoundedCornerShape(2.dp)
+    Box(
+        modifier.height(h).clip(shape).background(Color(0xFF070C1A))
+            .border(1.5.dp, fcolor(Color(0xDDFFFFFF), Color(0xFF14213D)), shape).padding(1.5.dp)
+    ) {
+        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFF8FCBF7)))
     }
 }
 
@@ -195,7 +199,7 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF2000000)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xFA04070F)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
                 Text("Sources", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                 LazyColumn {
                     items(srcIds) { sid ->
@@ -209,7 +213,7 @@ fun ChannelPanel(
                     }
                 }
             }
-            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xEB000000)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xF706101F)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
                 Text("Categories", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                 LazyColumn {
                     items(srcCats) { cat ->
@@ -227,7 +231,7 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xE0000000))) {
+        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5050913))) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     selCat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
@@ -276,14 +280,21 @@ fun ChannelPanel(
                                     overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                     modifier = if (rf) Modifier.basicMarquee() else Modifier
                                 )
-                                if (pr != null) Bar(fracOf(pr, nowMs), Modifier.padding(top = 1.dp).fillMaxWidth(0.8f))
+                                if (pr != null) Bar(fracOf(pr, nowMs), Modifier.padding(top = 1.dp).fillMaxWidth(0.8f), 7.dp)
                             }
                         }
                     }
                 }
             }
         }
-        if (!cols) Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xD9000000)).padding(24.dp)) {
+        Box(
+            Modifier.width(2.dp).fillMaxHeight().background(
+                Brush.verticalGradient(
+                    listOf(Color.Transparent, Color(0xFF9CC9FF), Color.White, Color(0xFF9CC9FF), Color.Transparent)
+                )
+            )
+        )
+        if (!cols) Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xF2050913)).padding(24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
@@ -338,8 +349,8 @@ fun ChannelPanel(
                 Column(
                     Modifier.fillMaxWidth().graphicsLayer { scaleX = boxScale; scaleY = boxScale }
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (browsing) Color(0xF01B2A4A) else Color(0x99000000))
-                        .then(if (browsing) Modifier.border(2.dp, Color.White, RoundedCornerShape(10.dp)) else Modifier)
+                        .background(if (browsing) Color(0xF2080E1C) else Color(0xB3000000))
+                        .then(if (browsing) Modifier.border(1.5.dp, Color(0x99FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
                         .padding(12.dp)
                 ) {
                     Text("Up next", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
