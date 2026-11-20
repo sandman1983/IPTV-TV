@@ -199,7 +199,7 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xFA04070F)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF5151515)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
                 Text("Sources", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                 LazyColumn {
                     items(srcIds) { sid ->
@@ -213,7 +213,7 @@ fun ChannelPanel(
                     }
                 }
             }
-            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xF706101F)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xF5191919)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
                 Text("Categories", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                 LazyColumn {
                     items(srcCats) { cat ->
@@ -231,7 +231,7 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5050913))) {
+        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     selCat, color = CYAN, fontSize = 18.sp, fontWeight = FontWeight.Bold,
@@ -280,7 +280,9 @@ fun ChannelPanel(
                                     overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                     modifier = if (rf) Modifier.basicMarquee() else Modifier
                                 )
-                                if (pr != null) Bar(fracOf(pr, nowMs), Modifier.padding(top = 1.dp).fillMaxWidth(0.8f), 7.dp)
+                            }
+                            if (pr != null) {
+                                Bar(fracOf(pr, nowMs), Modifier.padding(start = 8.dp, end = 6.dp).width(54.dp), 9.dp)
                             }
                         }
                     }
@@ -294,7 +296,7 @@ fun ChannelPanel(
                 )
             )
         )
-        if (!cols) Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xF2050913)).padding(24.dp)) {
+        if (!cols) Column(Modifier.weight(1f).fillMaxHeight().background(Color(0xF5171717)).padding(24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold,
@@ -349,7 +351,7 @@ fun ChannelPanel(
                 Column(
                     Modifier.fillMaxWidth().graphicsLayer { scaleX = boxScale; scaleY = boxScale }
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (browsing) Color(0xF2080E1C) else Color(0xB3000000))
+                        .background(if (browsing) Color(0xF2101010) else Color(0xCC0C0C0C))
                         .then(if (browsing) Modifier.border(1.5.dp, Color(0x99FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
                         .padding(12.dp)
                 ) {
@@ -378,11 +380,11 @@ fun ChannelPanel(
                                 }
                                 Text(
                                     hm(u.start), color = if (sel) Color.Black else Color.White,
-                                    fontSize = 14.sp, fontWeight = FontWeight.Bold
+                                    fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1
                                 )
                                 Text(
-                                    u.title, color = if (sel) Color(0xFF222222) else GRAY, fontSize = 13.sp,
-                                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                                    u.title, color = if (sel) Color(0xFF222222) else GRAY, fontSize = 13.sp, lineHeight = 17.sp,
+                                    minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
