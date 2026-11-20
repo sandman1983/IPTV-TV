@@ -314,6 +314,11 @@ fun App() {
     var lastSync by remember { mutableStateOf(0L) }
     var editCh by remember { mutableStateOf<Int?>(null) }
     var exitAsk by remember { mutableStateOf(false) }
+    var crash by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        CrashLog.install(ctx)
+        crash = withContext(Dispatchers.IO) { CrashLog.take(ctx) }
+    }
     var weather by remember { mutableStateOf("") }
     var lastBack by remember { mutableStateOf(0L) }
     var resumeTick by remember { mutableStateOf(0) }
@@ -463,34 +468,31 @@ fun App() {
 
     // Chargement des sources et des guides, puis rechargement des guides toutes les 30 minutes.
     LaunchedEffect(sources, cfg.epgs, reload) {
-        status = "Loading channels…"
-        val chs = ArrayList<Channel>()
-        val urls = ArrayList<String>(cfg.epgs)
-        val rep = ArrayList<String>()
-        for (s in sources) {
-            try {
-                val r = loadSource(ctx, s)
-                chs.addAll(r.first)
-                urls.add(s.epg.ifBlank { r.second })
-                rep.add("OK - ${s.name} : ${r.first.size} channels")
-            } catch (ex: Exception) {
-                rep.add("ERROR - ${s.name} : ${ex.message}")
+        val cacheKey = sources.joinToString("|") { "${it.id}${it.type}${it.host}${it.user}${it.url}${it.epg}" } +
+            "#" + cfg.epgs.joinToString("|")
+        val force = reload > 0
+        val maxAge = cfg.syncHours.coerceAtLeast(1) * 3600_000L
+        var haveCache = false
+        var fresh = false
+        if (!force) {
+            val cc = withContext(Dispatchers.IO) { GuideCache.loadChannels(ctx, cacheKey) }
+            val ce = withContext(Dispatchers.IO) { GuideCache.loadEpg(ctx, cacheKey) }
+            if (cc != null && ce != null) {
+                channels = cc.first
+                epg = ce.first
+                lastSync = ce.second
+                haveCache = true
+                fresh = System.currentTimeMillis() - ce.second < maxAge
+                status = ""
+                report = listOf("Loaded from cache")
             }
         }
-        val seen = HashSet<Int>()
-        channels = chs.map { c ->
-            var id = c.id
-            while (!seen.add(id)) id++
-            if (id == c.id) c else c.copy(id = id)
-        }
-        val guideUrls = urls.filter { it.isNotBlank() }.distinct()
-
-        suspend fun fetchGuides(into: MutableList<String>, show: Boolean): Epg {
+        suspend fun fetchGuides(urls: List<String>, into: MutableList<String>, show: Boolean): Epg {
             var g = Epg(emptyMap())
             var n = 0
-            for (u in guideUrls) {
+            for (u in urls) {
                 n++
-                if (show) status = "Loading guide $n/${guideUrls.size}…"
+                if (show) status = "Loading guide $n/${urls.size}…"
                 try {
                     val e = loadEpg(u)
                     g = mergeEpg(g, e)
@@ -502,18 +504,65 @@ fun App() {
             return g
         }
 
-        epg = Epg(emptyMap())
-        epg = fetchGuides(rep, true)
-        lastSync = System.currentTimeMillis()
-        report = rep.toList()
-        status = if (rep.any { it.startsWith("ERROR") }) "A source failed: see Settings > Sources" else ""
+        var guideUrls: List<String> = emptyList()
+        if (!(haveCache && fresh)) {
+            // Cache missing or old: refresh (silently when cached data is already shown).
+            if (!haveCache) status = "Loading channels…"
+            val chs = ArrayList<Channel>()
+            val urls = ArrayList<String>(cfg.epgs)
+            val rep = ArrayList<String>()
+            for (s in sources) {
+                try {
+                    val r = loadSource(ctx, s)
+                    chs.addAll(r.first)
+                    urls.add(s.epg.ifBlank { r.second })
+                    rep.add("OK - ${s.name} : ${r.first.size} channels")
+                } catch (ex: Exception) {
+                    rep.add("ERROR - ${s.name} : ${ex.message}")
+                }
+            }
+            val seen = HashSet<Int>()
+            val newCh = chs.map { c ->
+                var id = c.id
+                while (!seen.add(id)) id++
+                if (id == c.id) c else c.copy(id = id)
+            }
+            guideUrls = urls.filter { it.isNotBlank() }.distinct()
+            val okAll = rep.none { it.startsWith("ERROR") }
+            if (newCh.isNotEmpty() || !haveCache) channels = newCh
+            val g = fetchGuides(guideUrls, rep, !haveCache)
+            if (g.progs.isNotEmpty() || g.chans.isNotEmpty() || !haveCache) epg = g
+            lastSync = System.currentTimeMillis()
+            report = rep.toList()
+            status = if (rep.any { it.startsWith("ERROR") }) "A source failed: see Settings > Sources" else ""
+            if (okAll && newCh.isNotEmpty()) {
+                withContext(Dispatchers.IO) {
+                    GuideCache.saveChannels(ctx, cacheKey, newCh)
+                    if (g.progs.isNotEmpty() || g.chans.isNotEmpty()) GuideCache.saveEpg(ctx, cacheKey, g)
+                }
+            }
+            delay(maxAge)
+        } else {
+            // Rebuild the guide URL list (needed for later refreshes) without downloading channels again.
+            guideUrls = (cfg.epgs + sources.map { it.epg }).filter { it.isNotBlank() }.distinct()
+            delay((maxAge - (System.currentTimeMillis() - lastSync)).coerceAtLeast(60_000L))
+        }
         while (true) {
-            delay(cfg.syncHours.coerceAtLeast(1) * 3600_000L)
-            val g2 = fetchGuides(ArrayList(), false)
+            if (guideUrls.isEmpty()) {
+                val u = ArrayList<String>(cfg.epgs)
+                for (s in sources) {
+                    if (s.epg.isNotBlank()) u.add(s.epg)
+                    else try { u.add(loadSource(ctx, s).second) } catch (ex: Exception) { }
+                }
+                guideUrls = u.filter { it.isNotBlank() }.distinct()
+            }
+            val g2 = fetchGuides(guideUrls, ArrayList(), false)
             if (g2.progs.isNotEmpty() || g2.chans.isNotEmpty()) {
                 epg = g2
                 lastSync = System.currentTimeMillis()
+                withContext(Dispatchers.IO) { GuideCache.saveEpg(ctx, cacheKey, g2) }
             }
+            delay(maxAge)
         }
     }
 
@@ -585,6 +634,26 @@ fun App() {
             val ec = editCh
             if (ec != null) {
                 ChannelEditor(ec, all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { editCh = null }
+            }
+            val cr = crash
+            if (cr != null) {
+                val fr2 = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    delay(150)
+                    try { fr2.requestFocus() } catch (ex: Exception) { }
+                }
+                Column(
+                    Modifier.align(Alignment.Center).width(760.dp).clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xF2101010)).padding(18.dp)
+                ) {
+                    Text("The app closed unexpectedly last time", color = Color(0xFFFFB4A9), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Please take a photo of this and send it to Claude:", color = MUTED, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
+                    Text(cr.take(1400), color = Color.White, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 28, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(10.dp))
+                    FocusRow({ crash = null }, Modifier.width(160.dp).focusRequester(fr2)) {
+                        Text("Close", color = fcolor(Color.White), fontSize = 16.sp)
+                    }
+                }
             }
             if (exitAsk) {
                 ExitBox(
@@ -660,7 +729,7 @@ fun Home(
     fun rowFocus(idx: Int) {
         if (idx != lastRow) {
             lastRow = idx
-            homeScope.launch { try { listState.animateScrollToItem(idx.coerceAtLeast(0)) } catch (e: IllegalArgumentException) { } }
+            homeScope.launch { try { listState.animateScrollToItem(idx.coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
         }
     }
     Box(Modifier.fillMaxSize()) {
@@ -710,10 +779,10 @@ fun Home(
                 }
             }
             BoxWithConstraints(Modifier.weight(0.62f).fillMaxWidth()) {
-            val rowH = maxHeight / 2.5f
+            val rowH = maxHeight / 1.6f
             LazyColumn(
                 Modifier.fillMaxSize(), state = listState,
-                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 4.dp, bottom = maxHeight / 2)
+                contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 4.dp, bottom = maxHeight)
             ) {
                 if (status.isNotBlank()) {
                     item { Text(status, color = Color(0xFFFFB4A9), fontSize = 13.sp) }
@@ -742,7 +811,7 @@ fun Home(
                                 r.title.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
                             )
-                            CardRow(r.chans, epg, onPlay, onEdit) { rowFocus(baseIdx + ri) }
+                            CardRow(r.chans, epg, onPlay, onEdit) { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }
                         }
                     }
                 }
@@ -766,7 +835,7 @@ fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (C
         itemsIndexed(list, key = { i, c -> "${c.id}_$i" }) { i, c ->
             ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) }) {
                 onRowFocus()
-                sc.launch { try { st.animateScrollToItem((i - 1).coerceAtLeast(0)) } catch (e: IllegalArgumentException) { } }
+                sc.launch { try { st.animateScrollToItem((i - 1).coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
             }
         }
     }
