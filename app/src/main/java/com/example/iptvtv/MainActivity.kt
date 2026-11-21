@@ -664,7 +664,7 @@ fun App() {
                     PlayerView(it).apply {
                         player = exo
                         useController = false
-                        setErrorMessageProvider { e -> Pair(0, friendlyError(e)) }
+                        setErrorMessageProvider { e -> android.util.Pair(0, friendlyError(e)) }
                     }
                 },
                 modifier = Modifier.fillMaxSize()
