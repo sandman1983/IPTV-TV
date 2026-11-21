@@ -316,7 +316,8 @@ fun ChannelEditor(
     var page by remember { mutableStateOf("menu") }
     var text by remember { mutableStateOf("") }
     val picked = remember { mutableStateListOf<Int>() }
-    val cats = (all.map { it.cat } + cfg.cats).distinct()
+    // Seulement les catégories visibles (au moins une chaîne affichée) + les catégories créées + la catégorie actuelle
+    val cats = (all.filter { !it.hidden }.map { it.cat } + cfg.cats + e.cat).distinct()
 
     fun upd(f: (Ov) -> Ov) {
         onCfg(cfg.copy(ov = cfg.ov + (id to f(cfg.ov[id] ?: Ov()))))
