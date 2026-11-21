@@ -261,7 +261,7 @@ fun MiniPlayer(
         val cf = clearFor
         if (cf != null) {
             Column(
-                Modifier.align(Alignment.Center).width(380.dp)
+                Modifier.align(Alignment.TopEnd).padding(24.dp).width(380.dp)
                     .clip(RoundedCornerShape(12.dp)).background(Color(0xF2151A24)).padding(16.dp)
             ) {
                 Text("Clear recent channels", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
