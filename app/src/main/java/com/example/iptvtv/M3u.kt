@@ -90,3 +90,27 @@ suspend fun loadSource(ctx: Context, s: Source): Pair<List<Channel>, String> = w
     val r = if (s.type == "m3u") loadM3u(ctx, s.url, s.id) else loadXtream(s)
     Pair(r.first.map { it.copy(src = s.name) }, r.second)
 }
+
+
+// Informations de compte Xtream (statut, expiration, connexions).
+suspend fun fetchAccount(s: Source): String = withContext(Dispatchers.IO) {
+    if (s.type != "xtream") return@withContext "Account info is only available for Xtream sources."
+    try {
+        val j = org.json.JSONObject(get("${s.host}/player_api.php?username=${s.user}&password=${s.pass}"))
+        val u = j.optJSONObject("user_info") ?: return@withContext "No answer from the server: wrong host, username or password."
+        if (u.optInt("auth", 1) == 0) return@withContext "Login refused: wrong username or password."
+        val st = u.optString("status")
+        val exp = u.optString("exp_date")
+        val expTxt = if (exp.isBlank() || exp == "null") "Unlimited"
+        else java.text.SimpleDateFormat("dd MMM yyyy HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(exp.toLong() * 1000))
+        val left = if (exp.isBlank() || exp == "null") "" else {
+            val d = (exp.toLong() * 1000 - System.currentTimeMillis()) / 86400000L
+            if (d < 0) " (expired)" else " ($d days left)"
+        }
+        "Status: $st\nExpires: $expTxt$left\nConnections: ${u.optString("active_cons")} / ${u.optString("max_connections")}" +
+            (if (u.optString("is_trial") == "1") "\nTrial account" else "")
+    } catch (ex: Exception) {
+        "Cannot reach the server: " + (ex.message ?: ex.javaClass.simpleName)
+    }
+}

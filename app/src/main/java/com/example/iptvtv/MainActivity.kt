@@ -383,18 +383,28 @@ fun App() {
             )
             .build()
     }
-    // Reconnexion automatique : erreur réseau ou blocage en mise en mémoire > 10 s.
+    // Reconnexion automatique (3 essais espacés de 3 s) sauf erreurs 4xx (accès refusé, introuvable).
+    val retries = remember { intArrayOf(0) }
     DisposableEffect(exo) {
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
         val l = object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                try {
-                    exo.prepare()
-                    exo.playWhenReady = true
-                } catch (ex: Exception) { }
+                val code = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
+                if (code in 400..499 || retries[0] >= 3) return
+                retries[0]++
+                handler.postDelayed({
+                    try {
+                        exo.prepare()
+                        exo.playWhenReady = true
+                    } catch (ex: Exception) { }
+                }, 3000)
+            }
+            override fun onPlaybackStateChanged(state: Int) {
+                if (state == Player.STATE_READY) retries[0] = 0
             }
         }
         exo.addListener(l)
-        onDispose { exo.removeListener(l) }
+        onDispose { handler.removeCallbacksAndMessages(null); exo.removeListener(l) }
     }
     LaunchedEffect(exo) {
         var stuck = 0
@@ -510,6 +520,7 @@ fun App() {
         val c = bg
         if (c != null) {
             resetTracks(exo)
+            retries[0] = 0
             try {
                 exo.setMediaItem(MediaItem.fromUri(c.url))
                 exo.prepare()
@@ -649,7 +660,13 @@ fun App() {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             // Lecteur vidéo toujours présent en fond : aperçu à l'accueil, plein écran en lecture.
             AndroidView(
-                factory = { PlayerView(it).apply { player = exo; useController = false } },
+                factory = {
+                    PlayerView(it).apply {
+                        player = exo
+                        useController = false
+                        setErrorMessageProvider { e -> Pair(0, friendlyError(e)) }
+                    }
+                },
                 modifier = Modifier.fillMaxSize()
             )
             when {
@@ -1385,5 +1402,35 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
                 color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
             )
         }
+    }
+}
+
+
+// Message d'erreur lisible pour l'écran du lecteur.
+@OptIn(UnstableApi::class)
+fun friendlyError(e: androidx.media3.common.PlaybackException): String {
+    val http = e.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException
+    if (http != null) {
+        return when (val c = http.responseCode) {
+            401 -> "Login refused (401)\nWrong username or password, or account expired"
+            403 -> "Access denied (403)\nAccount expired, too many connections, or channel blocked"
+            404 -> "Channel not found (404)\nThe stream no longer exists on the server"
+            407, 429 -> "Server busy ($c)\nToo many requests: try again in a moment"
+            in 500..599 -> "Server error ($c)\nThe provider's server has a problem"
+            else -> "Server answered with error $c"
+        }
+    }
+    return when (e.errorCode) {
+        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+            "No response from the server\nThe stream is offline or too slow"
+        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
+            "Cannot connect\nCheck your internet connection or the provider"
+        androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+        androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
+            "Invalid stream\nThe channel sends data the player cannot read"
+        androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+        androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ->
+            "Video format not supported by this TV"
+        else -> "Playback error\n" + e.errorCodeName
     }
 }

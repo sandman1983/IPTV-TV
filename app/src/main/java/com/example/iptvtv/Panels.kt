@@ -620,6 +620,7 @@ fun SettingsHub(
     var fEpg by remember { mutableStateOf("") }
     var selCat by remember { mutableStateOf("") }
     var editCatName by remember { mutableStateOf<String?>(null) }
+    var accTxt by remember { mutableStateOf("") }
     var selEpg by remember { mutableStateOf("") }
     var epgIn by remember { mutableStateOf("") }
     var catIn by remember { mutableStateOf("") }
@@ -678,7 +679,7 @@ fun SettingsHub(
         when (page) {
             "" -> onExit()
             "src_menu" -> page = "sources"
-            "src_cats" -> page = "src_menu"
+            "src_cats", "src_acc" -> page = "src_menu"
             "src_type" -> if (canExit) page = "sources"
             "src_form" -> page = if (editingId != null) "src_menu" else "src_type"
             "guide_menu", "guide_add" -> page = "guides"
@@ -785,8 +786,18 @@ fun SettingsHub(
             if (s != null) {
                 PanelShell(s.name, { back() }, actions = { PButton("Back", { back() }) }) {
                     item { PItem("Edit", "", { openForm(s) }, autoFocus = true) }
+                    item { PItem("Account status", "Expiry, connections, login check", { accTxt = "Checking..."; page = "src_acc" }) }
                     item { PItem("Choose categories", "Pick the ones you want to keep", { page = "src_cats" }) }
                     item { PItem("Delete this source", "", { onSources(sources.filter { it.id != s.id }); page = "sources" }) }
+                }
+            }
+        }
+        "src_acc" -> {
+            val s = selSrc
+            if (s != null) {
+                LaunchedEffect(s.id) { accTxt = fetchAccount(s) }
+                PanelShell(s.name + " : account", { back() }, actions = { PButton("Back", { back() }) }) {
+                    item { PInfo(accTxt) }
                 }
             }
         }
