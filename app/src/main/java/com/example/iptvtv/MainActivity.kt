@@ -631,7 +631,8 @@ fun App() {
                             "unrec" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rec")
                             "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
                         }
-                    }
+                    },
+                    { editCh = it.id }
                 ) {
                     if (fromGuide) { fromGuide = false; full = false } else miniStart = true
                     screen = ""

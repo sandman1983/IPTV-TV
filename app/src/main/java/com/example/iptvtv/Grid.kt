@@ -295,7 +295,7 @@ private fun GBlock(
 fun EpgGrid(
     chans: List<Channel>, epg: Epg, current: Channel?, showNums: Boolean,
     recs: List<Rec>, remOn: Boolean,
-    onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onBack: () -> Unit
+    onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onEdit: (Channel) -> Unit, onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
@@ -411,7 +411,7 @@ fun EpgGrid(
                                         if (progs.isEmpty()) {
                                             GBlock(
                                                 null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, rr, "",
-                                                { sel = Pair(ch, null) }, { onPlay(ch) }, { }
+                                                { sel = Pair(ch, null) }, { onPlay(ch) }, { onEdit(ch) }
                                             )
                                         }
                                         for ((pi, p) in progs.withIndex()) {
@@ -437,7 +437,7 @@ fun EpgGrid(
                                                     }
                                                 },
                                                 { if (p.start > nowMs) dvrFor = Pair(ch, p) else onPlay(ch) },
-                                                { dvrFor = Pair(ch, p) }
+                                                { onEdit(ch) }
                                             )
                                         }
                                         if (nowX > 0.dp) {

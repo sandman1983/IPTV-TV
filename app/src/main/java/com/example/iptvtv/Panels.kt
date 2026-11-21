@@ -55,7 +55,8 @@ import java.util.Locale
 private val P_TOP = Color(0xFF14224A)
 private val P_BOTTOM = Color(0xFF2D6199)
 private val P_DARK = Color(0xFF14213D)
-private val P_SUB = Color(0xFFB9C7E0)
+private val P_BAR = Color(0xFFFFFFFF)
+private val P_SUB = Color(0xFFB0B8C8)
 private val P_SUB_DARK = Color(0xFF45557A)
 
 @Composable
@@ -68,17 +69,17 @@ fun PanelShell(
 ) {
     if (backEnabled) BackHandler { onBack() }
     Row(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(0.34f).fillMaxHeight().background(Color(0x99000000)))
+        Box(Modifier.weight(0.40f).fillMaxHeight().background(Color(0x80000000)))
+        Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
         Row(
-            Modifier.weight(0.66f).fillMaxHeight()
-                .background(Brush.verticalGradient(listOf(P_TOP, P_BOTTOM)))
+            Modifier.weight(0.60f).fillMaxHeight().background(Color(0xF5171717))
         ) {
-            Column(Modifier.weight(1f).fillMaxHeight().padding(start = 40.dp, end = 24.dp, top = 36.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().padding(start = 24.dp, end = 16.dp, top = 28.dp)) {
                 if (title.isNotEmpty()) {
                     Text(
-                        title, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Light,
+                        title, color = Color(0xFF1EB6E8), fontSize = 22.sp, fontWeight = FontWeight.Bold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 18.dp)
+                        modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
                     )
                 }
                 LazyColumn(
@@ -88,9 +89,9 @@ fun PanelShell(
             }
             if (actions != null) {
                 Column(
-                    Modifier.width(190.dp).fillMaxHeight().background(Color(0x33000000))
-                        .padding(start = 12.dp, end = 12.dp, top = 100.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    Modifier.width(150.dp).fillMaxHeight().background(Color(0xF5191919))
+                        .padding(start = 8.dp, end = 8.dp, top = 70.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) { actions() }
             }
         }
@@ -142,7 +143,7 @@ fun PItem(
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { if (onLong != null) okLong(it, fired, onClick, onLong) else false }
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (leading != null) {
@@ -152,19 +153,19 @@ fun PItem(
         if (icon.isNotBlank()) {
             AsyncImage(
                 model = icon, contentDescription = null,
-                modifier = Modifier.size(56.dp, 34.dp), contentScale = ContentScale.Fit
+                modifier = Modifier.size(44.dp, 28.dp), contentScale = ContentScale.Fit
             )
             Spacer(Modifier.width(14.dp))
         }
         Column(Modifier.weight(1f)) {
             Text(
-                title, color = if (f) P_DARK else Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium,
+                title, color = if (f) P_DARK else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium,
                 maxLines = 1, softWrap = false, overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
                 modifier = if (f) Modifier.basicMarquee() else Modifier
             )
             if (sub.isNotBlank()) {
                 Text(
-                    sub, color = if (f) P_SUB_DARK else P_SUB, fontSize = 14.sp,
+                    sub, color = if (f) P_SUB_DARK else P_SUB, fontSize = 12.sp,
                     maxLines = 1, softWrap = false, overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
                     modifier = if (f) Modifier.basicMarquee() else Modifier
                 )
@@ -183,12 +184,12 @@ fun PSwitch(title: String, sub: String, on: Boolean, onToggle: () -> Unit, autoF
         title, sub, onToggle, autoFocus = autoFocus,
         trailing = { _ ->
             Box(
-                Modifier.size(44.dp, 24.dp).clip(RoundedCornerShape(12.dp))
+                Modifier.size(38.dp, 20.dp).clip(RoundedCornerShape(10.dp))
                     .background(if (on) Color(0xFF2F7FC1) else Color(0xFF8A94A8))
             ) {
                 Box(
                     Modifier.align(if (on) Alignment.CenterEnd else Alignment.CenterStart)
-                        .padding(2.dp).size(20.dp).clip(CircleShape).background(Color.White)
+                        .padding(2.dp).size(16.dp).clip(CircleShape).background(Color.White)
                 )
             }
         }
@@ -201,7 +202,7 @@ fun PRadio(title: String, sub: String, selected: Boolean, onClick: () -> Unit, a
         title, sub, onClick, autoFocus = autoFocus,
         leading = { f ->
             val c = if (f) P_DARK else Color.White
-            Box(Modifier.size(22.dp).border(2.dp, c, CircleShape).padding(5.dp)) {
+            Box(Modifier.size(18.dp).border(2.dp, c, CircleShape).padding(4.dp)) {
                 if (selected) Box(Modifier.fillMaxSize().clip(CircleShape).background(c))
             }
         }
@@ -224,25 +225,25 @@ fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
             .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Text(label, color = if (f) P_DARK else Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = if (f) P_DARK else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
 @Composable
 fun PHeader(t: String) {
     Text(
-        t.uppercase(), color = Color(0xFF9CC2F5), fontSize = 13.sp, fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 4.dp)
+        t.uppercase(), color = Color(0xFF9CC2F5), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp)
     )
 }
 
 @Composable
 fun PInfo(text: String, error: Boolean = false) {
     Text(
-        text, color = if (error) Color(0xFFFFB4A9) else Color(0xDDFFFFFF), fontSize = 15.sp,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        text, color = if (error) Color(0xFFFFB4A9) else Color(0xDDFFFFFF), fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
     )
 }
 
@@ -304,7 +305,7 @@ fun TracksDialog(tracks: Tracks, exo: ExoPlayer, onClose: () -> Unit) {
 }
 
 // ---------------------------------------------------------------------------
-// Options d'une chaîne
+// Options d'une chaîne : Add to category / Move / Edit channel / Show-Hide
 // ---------------------------------------------------------------------------
 @Composable
 fun ChannelEditor(
@@ -314,36 +315,117 @@ fun ChannelEditor(
     val e = all.firstOrNull { it.id == id } ?: return
     var page by remember { mutableStateOf("menu") }
     var text by remember { mutableStateOf("") }
+    val picked = remember { mutableStateListOf<Int>() }
     val cats = (all.map { it.cat } + cfg.cats).distinct()
 
     fun upd(f: (Ov) -> Ov) {
         onCfg(cfg.copy(ov = cfg.ov + (id to f(cfg.ov[id] ?: Ov()))))
     }
     fun back() {
-        if (page == "menu") onClose() else page = "menu"
+        if (page == "menu") onClose()
+        else if (page in listOf("rename", "logo", "epgtxt", "epg")) page = "edit"
+        else page = "menu"
     }
     fun open(p: String, init: String) {
         text = init
         page = p
     }
+    // Déplace toutes les chaînes cochées (ou la chaîne courante) d'un cran.
+    fun moveSel(dir: Int) {
+        val ids = (if (picked.isEmpty()) listOf(e.id) else picked.toList())
+        val order = all.map { it.id }.toMutableList()
+        val sel = ids.toSet()
+        val seq = if (dir < 0) order.indices else order.indices.reversed()
+        for (i in seq) {
+            if (order[i] !in sel) continue
+            val cat = all.first { it.id == order[i] }.cat
+            var j = i + dir
+            while (j in order.indices && all.first { it.id == order[j] }.cat != cat) j += dir
+            if (j !in order.indices || order[j] in sel) continue
+            val t = order[i]; order[i] = order[j]; order[j] = t
+        }
+        onCfg(cfg.copy(order = order))
+    }
+    fun moveEdge(top: Boolean) {
+        val sel = (if (picked.isEmpty()) listOf(e.id) else picked.toList()).toSet()
+        val cat = e.cat
+        val inCat = all.filter { it.cat == cat }.map { it.id }
+        val moved = inCat.filter { it in sel }
+        val rest = inCat.filter { it !in sel }
+        val newCat = if (top) moved + rest else rest + moved
+        var k = 0
+        val order = all.map { if (it.cat == cat) newCat[k++] else it.id }
+        onCfg(cfg.copy(order = order))
+    }
 
     PanelDialogHost({ back() }) {
         when (page) {
             "menu" -> PanelShell(e.name, { back() }, false, actions = { PButton("Close", { onClose() }) }) {
+                item { PItem("Add to category", e.cat, { page = "cat" }, autoFocus = true) }
+                item { PItem("Move", "Several channels at once", { picked.clear(); picked.add(e.id); page = "move" }) }
+                item { PItem("Edit channel", "Name, logo, EPG ID", { page = "edit" }) }
+                item { PItem("Show / Hide", "Choose from a list", { page = "vis" }) }
+            }
+            "edit" -> PanelShell("Edit channel", { back() }, false, actions = { PButton("Back", { page = "menu" }) }) {
                 item { PItem("Rename", e.name, { open("rename", e.name) }, autoFocus = true) }
                 item { PItem("Change logo (URL)", if (e.icon.isBlank()) "None" else e.icon, { open("logo", e.icon) }, icon = e.icon) }
                 item { PItem("Change EPG ID", e.epgId.ifBlank { "None" }, { open("epg", e.name) }) }
-                item { PItem("Change category", e.cat, { page = "cat" }) }
-                item { PItem("Move up", "", { onCfg(moveCh(cfg, all, e.id, -1)) }) }
-                item { PItem("Move down", "", { onCfg(moveCh(cfg, all, e.id, 1)) }) }
-                item { PSwitch("Hide channel", "", e.hidden, { upd { o -> o.copy(hidden = !e.hidden) } }) }
-                item { PItem("Reset this channel", "", { onCfg(cfg.copy(ov = cfg.ov - e.id)) }) }
+                item { PItem("Reset this channel", "", { onCfg(cfg.copy(ov = cfg.ov - e.id)); page = "menu" }) }
+            }
+            "move" -> {
+                val list = all.filter { it.cat == e.cat }
+                PanelShell(
+                    "Move (${e.cat})", { back() }, false,
+                    actions = {
+                        PButton("Move up", { moveSel(-1) })
+                        PButton("Move down", { moveSel(1) })
+                        PButton("To top", { moveEdge(true) })
+                        PButton("To bottom", { moveEdge(false) })
+                        PButton("Done", { page = "menu" })
+                    }
+                ) {
+                    item { PInfo("OK = tick channels, then use the buttons on the right (Right key).") }
+                    items(list, key = { it.id }) { c ->
+                        PSwitch(
+                            c.name, "", c.id in picked,
+                            { if (c.id in picked) picked.remove(c.id) else picked.add(c.id) },
+                            autoFocus = c.id == e.id
+                        )
+                    }
+                }
+            }
+            "vis" -> {
+                val list = all.filter { it.cat == e.cat }
+                PanelShell(
+                    "Show / Hide (${e.cat})", { back() }, false,
+                    actions = {
+                        PButton("Show all", {
+                            var ov = cfg.ov
+                            for (c in list) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = false))
+                            onCfg(cfg.copy(ov = ov))
+                        })
+                        PButton("Hide all", {
+                            var ov = cfg.ov
+                            for (c in list) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = true))
+                            onCfg(cfg.copy(ov = ov))
+                        })
+                        PButton("Done", { page = "menu" })
+                    }
+                ) {
+                    items(list, key = { it.id }) { c ->
+                        PSwitch(
+                            c.name, "", !c.hidden,
+                            { onCfg(cfg.copy(ov = cfg.ov + (c.id to (cfg.ov[c.id] ?: Ov()).copy(hidden = !c.hidden)))) },
+                            autoFocus = c.id == e.id
+                        )
+                    }
+                }
             }
             "rename", "logo", "epgtxt", "newcat" -> {
                 val label = when (page) {
                     "rename" -> "Channel name"
-                    "logo" -> "URL du logo / picon"
-                    "epgtxt" -> "ID EPG (identifiant XMLTV)"
+                    "logo" -> "Logo / picon URL"
+                    "epgtxt" -> "EPG ID (XMLTV identifier)"
                     else -> "New category"
                 }
                 PanelShell(
@@ -360,9 +442,9 @@ fun ChannelEditor(
                                     onCfg(g.copy(ov = g.ov + (id to (g.ov[id] ?: Ov()).copy(cat = v))))
                                 }
                             }
-                            page = "menu"
+                            page = if (page == "newcat") "menu" else "edit"
                         })
-                        PButton("Cancel", { page = "menu" })
+                        PButton("Cancel", { back() })
                     }
                 ) {
                     item { PInput(label, text, { text = it }, autoFocus = true) }
@@ -377,8 +459,8 @@ fun ChannelEditor(
                 PanelShell(
                     "Search the guide", { back() }, false,
                     actions = {
-                        PButton("Saisir l'ID", { open("epgtxt", e.epgId) })
-                        PButton("Back", { page = "menu" })
+                        PButton("Type ID", { open("epgtxt", e.epgId) })
+                        PButton("Back", { page = "edit" })
                     }
                 ) {
                     item { PInput("Name or ID", text, { text = it }, autoFocus = true) }
@@ -388,13 +470,13 @@ fun ChannelEditor(
                     items(res) { g ->
                         PItem(
                             if (g.name.isBlank()) g.id else g.name, g.id,
-                            { upd { o -> o.copy(epg = g.id) }; page = "menu" },
+                            { upd { o -> o.copy(epg = g.id) }; page = "edit" },
                             icon = g.icon
                         )
                     }
                 }
             }
-            "cat" -> PanelShell("Category", { back() }, false, actions = { PButton("Back", { page = "menu" }) }) {
+            "cat" -> PanelShell("Add to category", { back() }, false, actions = { PButton("Back", { page = "menu" }) }) {
                 item { PItem("New category", "", { open("newcat", "") }, autoFocus = true) }
                 items(cats) { cat ->
                     PItem(cat, if (cat == e.cat) "Current category" else "", { upd { o -> o.copy(cat = cat) }; page = "menu" })
