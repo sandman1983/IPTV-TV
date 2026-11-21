@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +65,7 @@ private fun MiniItem(
     sub: String,
     frac: Float?,
     logo: String?,
+    onFocus: () -> Unit,
     thumb: @Composable BoxScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
@@ -71,7 +73,7 @@ private fun MiniItem(
     Column(
         Modifier.width(170.dp).graphicsLayer { scaleX = sc; scaleY = sc }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
-            .onFocusChanged { f = it.isFocused }
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .clickable { onClick() }
     ) {
         // The selection frame is drawn around the picture, so it never hides the progress bar.
@@ -122,6 +124,11 @@ fun MiniPlayer(
     val gr = remember { FocusRequester() }
     val btn = remember { FocusRequester() }
     var ctrl by remember { mutableStateOf(false) }
+    val st = rememberLazyListState()
+    val sc = rememberCoroutineScope()
+    fun focusItem(idx: Int) {
+        sc.launch { try { st.animateScrollToItem((idx - 1).coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
+    }
     var playing by remember { mutableStateOf(isPlaying()) }
     LaunchedEffect(Unit) {
         delay(150)
@@ -160,7 +167,11 @@ fun MiniPlayer(
                     Modifier.padding(top = 10.dp).size(64.dp, 40.dp).clip(RoundedCornerShape(20.dp))
                         .background(if (bf) Color.White else Color(0x66FFFFFF))
                         .focusRequester(btn)
-                        .onFocusChanged { bf = it.isFocused }
+                        .onFocusChanged {
+                            // Leaving the button (Down to the channels) makes it disappear again.
+                            if (bf && !it.isFocused) ctrl = false
+                            bf = it.isFocused
+                        }
                         .clickable {
                             onToggle()
                             playing = isPlaying()
@@ -186,11 +197,12 @@ fun MiniPlayer(
                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
             )
             LazyRow(
+                state = st,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(start = 14.dp, end = 40.dp, top = 12.dp, bottom = 14.dp)
+                contentPadding = PaddingValues(start = 14.dp, end = 60.dp, top = 12.dp, bottom = 14.dp)
             ) {
                 item {
-                    MiniItem(onGuide, gr, "Program guide", "", null, null) {
+                    MiniItem(onGuide, gr, "Program guide", "", null, null, { focusItem(0) }) {
                         Column(
                             Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
@@ -203,14 +215,15 @@ fun MiniPlayer(
                         }
                     }
                 }
-                items(recent, key = { it.id }) { ch ->
+                itemsIndexed(recent, key = { _, ch -> ch.id }) { ri, ch ->
                     val pr = epg.now(ch.epgId)
                     val num = channels.indexOfFirst { it.id == ch.id } + 1
                     MiniItem(
                         { onPick(ch) }, null,
                         pr?.title ?: ch.name, "$num - ${ch.name.uppercase()}",
                         if (pr != null) fracOf(pr, nowMs) else null,
-                        if (pr?.icon.isNullOrBlank()) null else ch.icon
+                        if (pr?.icon.isNullOrBlank()) null else ch.icon,
+                        { focusItem(ri + 1) }
                     ) {
                         val img = pr?.icon?.ifBlank { null } ?: ch.icon
                         if (img.isNotBlank()) {
