@@ -358,6 +358,7 @@ fun App() {
     var miniStart by remember { mutableStateOf(true) }
     var fromGuide by remember { mutableStateOf(false) }
     var quietStart by remember { mutableStateOf(false) }
+    var playErr by remember { mutableStateOf("") }
     var reminder by remember { mutableStateOf<Rec?>(null) }
     val recs = remember(Dvr.tick) { loadRecs(ctx) }
     val cfgNow by rememberUpdatedState(cfg)
@@ -389,6 +390,7 @@ fun App() {
         val handler = android.os.Handler(android.os.Looper.getMainLooper())
         val l = object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                playErr = friendlyError(error)
                 val code = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
                 if (code in 400..499 || retries[0] >= 3) return
                 retries[0]++
@@ -400,7 +402,7 @@ fun App() {
                 }, 3000)
             }
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_READY) retries[0] = 0
+                if (state == Player.STATE_READY) { retries[0] = 0; playErr = "" }
             }
         }
         exo.addListener(l)
@@ -521,6 +523,7 @@ fun App() {
         if (c != null) {
             resetTracks(exo)
             retries[0] = 0
+            playErr = ""
             try {
                 exo.setMediaItem(MediaItem.fromUri(c.url))
                 exo.prepare()
@@ -664,7 +667,13 @@ fun App() {
                     PlayerView(it).apply {
                         player = exo
                         useController = false
-                        setErrorMessageProvider { e -> android.util.Pair(0, friendlyError(e)) }
+                        // Le message d'erreur est affiché par notre propre boîte (en bas à gauche).
+                        setErrorMessageProvider { _ -> android.util.Pair(0, "") }
+                        findViewById<android.widget.TextView>(androidx.media3.ui.R.id.exo_error_message)?.apply {
+                            setBackgroundColor(0)
+                            setPadding(0, 0, 0, 0)
+                            textSize = 0f
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -755,6 +764,19 @@ fun App() {
                     Spacer(Modifier.height(10.dp))
                     FocusRow({ crash = null }, Modifier.width(160.dp).focusRequester(fr2)) {
                         Text("Close", color = fcolor(Color.White), fontSize = 16.sp)
+                    }
+                }
+            }
+            if (playErr.isNotEmpty() && screen != "settings" && !exitAsk) {
+                val parts = playErr.split("\n")
+                Column(
+                    Modifier.align(Alignment.BottomStart).padding(24.dp).width(440.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(Color(0xF0151A24)).padding(16.dp)
+                ) {
+                    Text("Stream problem", color = Color(0xFFFFB4A9), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(parts.first(), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+                    if (parts.size > 1) {
+                        Text(parts.drop(1).joinToString(" "), color = Color(0xFFB0B8C8), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
