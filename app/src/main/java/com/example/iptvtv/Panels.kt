@@ -141,7 +141,7 @@ fun PItem(
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
             .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
-            .onPreviewKeyEvent { if (onLong != null) okLong(it, fired, onClick, onLong) else false }
+            .onPreviewKeyEvent { if (holdGuard(it)) true else if (onLong != null) okLong(it, fired, onClick, onLong) else false }
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -224,6 +224,7 @@ fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
             .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
+            .onPreviewKeyEvent { holdGuard(it) }
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
@@ -374,7 +375,7 @@ fun ChannelEditor(
                 item { PItem("Reset this channel", "", { onCfg(cfg.copy(ov = cfg.ov - e.id)); page = "menu" }) }
             }
             "move" -> {
-                val list = all.filter { it.cat == e.cat }
+                val list = all.filter { it.cat == e.cat && (!it.hidden || it.id == e.id) }
                 PanelShell(
                     "Move (${e.cat})", { back() }, false,
                     actions = {
@@ -501,6 +502,7 @@ fun CategoryEditor(
     var cur by remember { mutableStateOf(cat) }
     val picked = remember { mutableStateListOf<String>() }
     val cats = all.map { it.cat }.distinct()
+    val visCats = all.filter { !it.hidden }.map { it.cat }.distinct()
 
     fun back() { if (page == "menu") onClose() else page = "menu" }
     fun setHidden(names: Collection<String>, hide: Boolean) {
@@ -554,7 +556,7 @@ fun CategoryEditor(
                 }
             ) {
                 item { PInfo("OK = tick categories, then press Right to use the buttons.") }
-                items(cats, key = { it }) { c ->
+                items(visCats, key = { it }) { c ->
                     PSwitch(
                         c, "", c in picked,
                         { if (c in picked) picked.remove(c) else picked.add(c) },

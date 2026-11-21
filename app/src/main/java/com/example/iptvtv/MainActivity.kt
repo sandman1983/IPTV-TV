@@ -135,6 +135,25 @@ fun hm(ms: Long): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format
 fun parseDate(f: SimpleDateFormat, s: String?): Long =
     try { f.parse(s ?: "")?.time ?: 0L } catch (ex: Exception) { 0L }
 
+// Après un appui long qui ouvre un panneau, la touche OK est encore enfoncée : les composants
+// du nouveau panneau doivent ignorer ses répétitions et son relâchement.
+object HoldGuard {
+    @Volatile var block = false
+}
+
+// Renvoie true si l'événement doit être ignoré (suite d'un appui long déjà traité).
+fun holdGuard(ev: KeyEvent): Boolean {
+    val k = ev.key
+    if (k != Key.DirectionCenter && k != Key.Enter && k != Key.NumPadEnter) return false
+    if (!HoldGuard.block) return false
+    if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0) {
+        HoldGuard.block = false
+        return false
+    }
+    if (ev.type == KeyEventType.KeyUp) HoldGuard.block = false
+    return true
+}
+
 // Appui court sur OK = onShort, appui long (environ 0,5 s) = onLong.
 fun okLong(ev: KeyEvent, fired: BooleanArray, onShort: () -> Unit, onLong: () -> Unit): Boolean {
     val k = ev.key
@@ -145,6 +164,7 @@ fun okLong(ev: KeyEvent, fired: BooleanArray, onShort: () -> Unit, onLong: () ->
             fired[0] = false
         } else if (rc == 1 && !fired[0]) {
             fired[0] = true
+            HoldGuard.block = true
             onLong()
         }
         return true

@@ -243,23 +243,31 @@ fun saveHist(c: Context, l: List<Int>) {
 fun pushHist(h: List<Int>, id: Int): List<Int> = (listOf(id) + h.filter { it != id }).take(10)
 
 
-// Déplace des catégories entières (blocs de chaînes) d'un cran dans l'ordre global.
+// Déplace des catégories entières (blocs de chaînes). Seules les catégories visibles comptent :
+// les catégories masquées gardent leur place.
+private fun rebuildOrder(g: Cfg, all: List<Channel>, names: List<String>, newVis: List<String>): Cfg {
+    val vis = newVis.iterator()
+    val final = names.map { n -> if (all.any { it.cat == n && !it.hidden }) vis.next() else n }
+    return g.copy(order = final.flatMap { n -> all.filter { it.cat == n }.map { it.id } })
+}
+
 fun moveCats(g: Cfg, all: List<Channel>, cats: Set<String>, dir: Int): Cfg {
-    val names = all.map { it.cat }.distinct().toMutableList()
-    val seq = if (dir < 0) names.indices else names.indices.reversed()
+    val names = all.map { it.cat }.distinct()
+    val v = names.filter { n -> all.any { it.cat == n && !it.hidden } }.toMutableList()
+    val seq = if (dir < 0) v.indices else v.indices.reversed()
     for (i in seq) {
-        if (names[i] !in cats) continue
+        if (v[i] !in cats) continue
         val j = i + dir
-        if (j !in names.indices || names[j] in cats) continue
-        val t = names[i]; names[i] = names[j]; names[j] = t
+        if (j !in v.indices || v[j] in cats) continue
+        val t = v[i]; v[i] = v[j]; v[j] = t
     }
-    return g.copy(order = names.flatMap { n -> all.filter { it.cat == n }.map { it.id } })
+    return rebuildOrder(g, all, names, v)
 }
 
 fun moveCatsEdge(g: Cfg, all: List<Channel>, cats: Set<String>, top: Boolean): Cfg {
     val names = all.map { it.cat }.distinct()
-    val moved = names.filter { it in cats }
-    val rest = names.filter { it !in cats }
-    val n2 = if (top) moved + rest else rest + moved
-    return g.copy(order = n2.flatMap { n -> all.filter { it.cat == n }.map { it.id } })
+    val v = names.filter { n -> all.any { it.cat == n && !it.hidden } }
+    val moved = v.filter { it in cats }
+    val rest = v.filter { it !in cats }
+    return rebuildOrder(g, all, names, if (top) moved + rest else rest + moved)
 }
