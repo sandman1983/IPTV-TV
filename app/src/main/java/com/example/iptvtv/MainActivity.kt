@@ -770,7 +770,7 @@ fun App() {
             if (playErr.isNotEmpty() && screen != "settings" && !exitAsk) {
                 val parts = playErr.split("\n")
                 Column(
-                    Modifier.align(Alignment.BottomStart).padding(24.dp).width(440.dp)
+                    Modifier.align(Alignment.TopEnd).padding(24.dp).width(440.dp)
                         .clip(RoundedCornerShape(12.dp)).background(Color(0xF0151A24)).padding(16.dp)
                 ) {
                     Text("Stream problem", color = Color(0xFFFFB4A9), fontSize = 13.sp, fontWeight = FontWeight.Bold)
