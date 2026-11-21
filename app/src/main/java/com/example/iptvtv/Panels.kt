@@ -65,9 +65,13 @@ fun PanelShell(
     onBack: () -> Unit,
     backEnabled: Boolean = true,
     actions: (@Composable ColumnScope.() -> Unit)? = null,
+    scrollTo: Int = 0,
     content: LazyListScope.() -> Unit
 ) {
     if (backEnabled) BackHandler { onBack() }
+    val lstate = androidx.compose.foundation.lazy.rememberLazyListState(
+        initialFirstVisibleItemIndex = (scrollTo - 2).coerceAtLeast(0)
+    )
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.weight(0.40f).fillMaxHeight().background(Color(0x80000000)))
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
@@ -84,6 +88,7 @@ fun PanelShell(
                 }
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
+                    state = lstate,
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) { content() }
             }
@@ -113,7 +118,7 @@ fun PanelDialog(
     actions: (@Composable ColumnScope.() -> Unit)? = null,
     content: LazyListScope.() -> Unit
 ) {
-    PanelDialogHost(onBack) { PanelShell(title, onBack, false, actions, content) }
+    PanelDialogHost(onBack) { PanelShell(title, onBack, false, actions, 0, content) }
 }
 
 @Composable
@@ -378,6 +383,7 @@ fun ChannelEditor(
                 val list = all.filter { it.cat == e.cat && (!it.hidden || it.id == e.id) }
                 PanelShell(
                     "Move (${e.cat})", { back() }, false,
+                    scrollTo = 1 + list.indexOfFirst { it.id == e.id }.coerceAtLeast(0),
                     actions = {
                         PButton("Move up", { moveSel(-1) })
                         PButton("Move down", { moveSel(1) })
@@ -400,6 +406,7 @@ fun ChannelEditor(
                 val list = all.filter { it.cat == e.cat }
                 PanelShell(
                     "Show / Hide (${e.cat})", { back() }, false,
+                    scrollTo = list.indexOfFirst { it.id == e.id }.coerceAtLeast(0),
                     actions = {
                         PButton("Show all", {
                             var ov = cfg.ov
@@ -478,10 +485,10 @@ fun ChannelEditor(
                     }
                 }
             }
-            "cat" -> PanelShell("Add to category", { back() }, false, actions = { PButton("Back", { page = "menu" }) }) {
-                item { PItem("New category", "", { open("newcat", "") }, autoFocus = true) }
+            "cat" -> PanelShell("Add to category", { back() }, false, actions = { PButton("Back", { page = "menu" }) }, scrollTo = 1 + cats.indexOf(e.cat).coerceAtLeast(0)) {
+                item { PItem("New category", "", { open("newcat", "") }) }
                 items(cats) { cat ->
-                    PItem(cat, if (cat == e.cat) "Current category" else "", { upd { o -> o.copy(cat = cat) }; page = "menu" })
+                    PItem(cat, if (cat == e.cat) "Current category" else "", { upd { o -> o.copy(cat = cat) }; page = "menu" }, autoFocus = cat == e.cat)
                 }
             }
             else -> page = "menu"
@@ -547,6 +554,7 @@ fun CategoryEditor(
             }
             "move" -> PanelShell(
                 "Move categories", { back() }, false,
+                scrollTo = 1 + visCats.indexOf(cur).coerceAtLeast(0),
                 actions = {
                     PButton("Move up", { onCfg(moveCats(cfg, all, picked.toSet(), -1)) })
                     PButton("Move down", { onCfg(moveCats(cfg, all, picked.toSet(), 1)) })
@@ -566,7 +574,7 @@ fun CategoryEditor(
             }
             "vis" -> {
                 val allHidden = all.all { it.hidden }
-                PanelShell("Category visibility", { back() }, false, actions = { PButton("Done", { onClose() }) }) {
+                PanelShell("Category visibility", { back() }, false, actions = { PButton("Done", { onClose() }) }, scrollTo = 1 + cats.indexOf(cur).coerceAtLeast(0)) {
                     item { PSwitch("Hide all", "", allHidden, { setHidden(cats, !allHidden) }) }
                     items(cats, key = { it }) { c ->
                         val shown = all.any { it.cat == c && !it.hidden }
@@ -795,6 +803,7 @@ fun SettingsHub(
                 val keptCount = scats.count { c -> mine.any { it.cat == c && !it.hidden } }
                 PanelShell(
                     s.name + " : categories", { back() },
+                    scrollTo = 0,
                     actions = {
                         PButton("Select all", { setHid(scats, false) })
                         PButton("Unselect all", { setHid(scats, true) })
