@@ -758,7 +758,6 @@ fun buildRows(ch: List<Channel>, sources: List<Source>): List<HomeRow> {
     val order = sources.map { it.id } + bySrc.keys.filter { k -> sources.none { it.id == k } }
     for (sid in order) {
         val list = bySrc[sid] ?: continue
-        if (multi) out.add(HomeRow(true, sources.firstOrNull { it.id == sid }?.name ?: "Other", emptyList()))
         for ((cat, l) in list.groupBy { it.cat }) out.add(HomeRow(false, cat, l))
     }
     return out

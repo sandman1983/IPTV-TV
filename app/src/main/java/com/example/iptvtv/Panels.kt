@@ -667,6 +667,7 @@ fun SettingsHub(
         when (page) {
             "" -> onExit()
             "src_menu" -> page = "sources"
+            "src_cats" -> page = "src_menu"
             "src_type" -> if (canExit) page = "sources"
             "src_form" -> page = if (editingId != null) "src_menu" else "src_type"
             "guide_menu", "guide_add" -> page = "guides"
@@ -773,7 +774,36 @@ fun SettingsHub(
             if (s != null) {
                 PanelShell(s.name, { back() }, actions = { PButton("Back", { back() }) }) {
                     item { PItem("Edit", "", { openForm(s) }, autoFocus = true) }
+                    item { PItem("Choose categories", "Pick the ones you want to keep", { page = "src_cats" }) }
                     item { PItem("Delete this source", "", { onSources(sources.filter { it.id != s.id }); page = "sources" }) }
+                }
+            }
+        }
+        "src_cats" -> {
+            val s = selSrc
+            if (s != null) {
+                val mine = all.filter { it.src == s.id || it.src == s.name }
+                val scats = mine.map { it.cat }.distinct()
+                fun setHid(names: Collection<String>, hide: Boolean) {
+                    var ov = cfg.ov
+                    for (c in mine) if (c.cat in names) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = hide))
+                    onCfg(cfg.copy(ov = ov))
+                }
+                val keptCount = scats.count { c -> mine.any { it.cat == c && !it.hidden } }
+                PanelShell(
+                    s.name + " : categories", { back() },
+                    actions = {
+                        PButton("Select all", { setHid(scats, false) })
+                        PButton("Unselect all", { setHid(scats, true) })
+                        PButton("Done", { back() })
+                    }
+                ) {
+                    item { PInfo("$keptCount of ${scats.size} categories selected. OK = select / unselect.") }
+                    items(scats, key = { it }) { c ->
+                        val n = mine.count { it.cat == c }
+                        val on = mine.any { it.cat == c && !it.hidden }
+                        PSwitch(c, "$n channel(s)", on, { setHid(listOf(c), on) }, autoFocus = c == scats.first())
+                    }
                 }
             }
         }
