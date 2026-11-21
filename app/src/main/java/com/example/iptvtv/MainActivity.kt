@@ -1183,7 +1183,8 @@ fun PlayerScreen(
             ChannelPanel(
                 if (cfg.merge) channels.map { it.copy(src = "") } else channels, sources,
                 if (cfg.merge) c.copy(src = "") else c, epg, nowMs, focusId, refocus,
-                cfg.showNums, { onZap(it); panel = false }, { editId = it.id }, { editCatP = it }
+                cfg.showNums, { onZap(it); panel = false }, { editId = it.id }, { editCatP = it },
+                onClose = { panel = false }
             )
         }
         if (tracksOpen) TracksDialog(tracks, exo) { tracksOpen = false }

@@ -118,7 +118,8 @@ fun Section(t: String) {
 fun ChannelPanel(
     all: List<Channel>, sources: List<Source>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
     showNums: Boolean, onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit,
-    onEditCat: (String) -> Unit = {}
+    onEditCat: (String) -> Unit = {},
+    onClose: () -> Unit = {}
 ) {
     var selSrc by remember { mutableStateOf(current.src) }
     var selCat by remember { mutableStateOf(current.cat) }
@@ -153,17 +154,13 @@ fun ChannelPanel(
     LaunchedEffect(selSrc, selCat) {
         if (firstSel) firstSel = false else ls.scrollToItem(0)
     }
-    BackHandler(enabled = upIdx >= 0 || cols) {
-        if (upIdx >= 0) upIdx = -1 else {
-            cols = false
-            selSrc = current.src
-            selCat = current.cat
-        }
-    }
     Row(
         Modifier.fillMaxSize().onPreviewKeyEvent { ev ->
             val rc = ev.nativeKeyEvent.repeatCount
-            if (upIdx >= 0 && (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter)) {
+            if (ev.key == Key.Back || ev.key == Key.Escape) {
+                if (ev.type == KeyEventType.KeyUp) onClose()
+                true
+            } else if (upIdx >= 0 && (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter)) {
                 true
             } else if (ev.type != KeyEventType.KeyDown) {
                 false
@@ -239,11 +236,11 @@ fun ChannelPanel(
         }
         Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
             Box(
-                Modifier.fillMaxWidth().background(Color(0x26FFFFFF)).padding(vertical = 14.dp),
+                Modifier.fillMaxWidth().background(Color(0x26FFFFFF)).padding(vertical = 5.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    selCat, color = CYAN, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    selCat, color = CYAN, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
