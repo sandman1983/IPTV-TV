@@ -488,6 +488,95 @@ fun ChannelEditor(
 }
 
 // ---------------------------------------------------------------------------
+// Options d'une catégorie : Move / Edit category / Show-Hide
+// ---------------------------------------------------------------------------
+@Composable
+fun CategoryEditor(
+    cat: String, all: List<Channel>, cfg: Cfg,
+    onCfg: (Cfg) -> Unit, onClose: () -> Unit
+) {
+    var page by remember { mutableStateOf("menu") }
+    var text by remember { mutableStateOf("") }
+    var cur by remember { mutableStateOf(cat) }
+    val picked = remember { mutableStateListOf<String>() }
+    val cats = all.map { it.cat }.distinct()
+
+    fun back() { if (page == "menu") onClose() else page = "menu" }
+    fun setHidden(names: Collection<String>, hide: Boolean) {
+        var ov = cfg.ov
+        for (c in all) if (c.cat in names) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = hide))
+        onCfg(cfg.copy(ov = ov))
+    }
+    fun rename(from: String, to: String) {
+        var ov = cfg.ov
+        for (c in all) if (c.cat == from) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(cat = to))
+        onCfg(cfg.copy(ov = ov, cats = cfg.cats.map { if (it == from) to else it }.distinct()))
+    }
+    fun restore(name: String) {
+        var ov = cfg.ov
+        for (c in all) if (c.cat == name && ov[c.id]?.cat?.isNotBlank() == true) ov = ov + (c.id to ov[c.id]!!.copy(cat = ""))
+        onCfg(cfg.copy(ov = ov))
+    }
+
+    PanelDialogHost({ back() }) {
+        when (page) {
+            "menu" -> PanelShell(cur, { back() }, false, actions = { PButton("Close", { onClose() }) }) {
+                item { PItem("Move", "Several categories at once", { picked.clear(); picked.add(cur); page = "move" }, autoFocus = true) }
+                item { PItem("Edit category", "Rename, restore", { page = "edit" }) }
+                item { PItem("Show / Hide", "Choose from a list", { page = "vis" }) }
+            }
+            "edit" -> PanelShell("Edit category", { back() }, false, actions = { PButton("Back", { page = "menu" }) }) {
+                item { PItem("Rename", cur, { text = cur; page = "rename" }, autoFocus = true) }
+                item { PItem("Restore original name", "Undo renaming", { restore(cur); page = "menu"; onClose() }) }
+                item { PItem("Show all channels", "Make every channel of this category visible", { setHidden(listOf(cur), false) }) }
+            }
+            "rename" -> PanelShell(
+                "Rename category", { page = "edit" }, false,
+                actions = {
+                    PButton("Save", {
+                        val v = text.trim()
+                        if (v.isNotBlank() && v != cur) { rename(cur, v); onClose() } else page = "edit"
+                    })
+                    PButton("Cancel", { page = "edit" })
+                }
+            ) {
+                item { PInput("Category name", text, { text = it }, autoFocus = true) }
+            }
+            "move" -> PanelShell(
+                "Move categories", { back() }, false,
+                actions = {
+                    PButton("Move up", { onCfg(moveCats(cfg, all, picked.toSet(), -1)) })
+                    PButton("Move down", { onCfg(moveCats(cfg, all, picked.toSet(), 1)) })
+                    PButton("To top", { onCfg(moveCatsEdge(cfg, all, picked.toSet(), true)) })
+                    PButton("To bottom", { onCfg(moveCatsEdge(cfg, all, picked.toSet(), false)) })
+                    PButton("Done", { onClose() })
+                }
+            ) {
+                item { PInfo("OK = tick categories, then press Right to use the buttons.") }
+                items(cats, key = { it }) { c ->
+                    PSwitch(
+                        c, "", c in picked,
+                        { if (c in picked) picked.remove(c) else picked.add(c) },
+                        autoFocus = c == cur
+                    )
+                }
+            }
+            "vis" -> {
+                val allHidden = all.all { it.hidden }
+                PanelShell("Category visibility", { back() }, false, actions = { PButton("Done", { onClose() }) }) {
+                    item { PSwitch("Hide all", "", allHidden, { setHidden(cats, !allHidden) }) }
+                    items(cats, key = { it }) { c ->
+                        val shown = all.any { it.cat == c && !it.hidden }
+                        PSwitch(c, "", shown, { setHidden(listOf(c), shown) }, autoFocus = c == cur)
+                    }
+                }
+            }
+            else -> page = "menu"
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Réglages : Sources, Guides, Chaînes, Lecteur, Affichage, À propos
 // ---------------------------------------------------------------------------
 private val SYNC_OPTIONS = listOf(1, 3, 6, 12, 24, 48)
@@ -519,6 +608,7 @@ fun SettingsHub(
     var fUrl by remember { mutableStateOf("") }
     var fEpg by remember { mutableStateOf("") }
     var selCat by remember { mutableStateOf("") }
+    var editCatName by remember { mutableStateOf<String?>(null) }
     var selEpg by remember { mutableStateOf("") }
     var epgIn by remember { mutableStateOf("") }
     var catIn by remember { mutableStateOf("") }
@@ -775,7 +865,7 @@ fun SettingsHub(
         }
         "channels" -> PanelShell("Channels", { back() }, actions = { PButton("Done", { back() }) }) {
             item { PItem("New category", "", { catIn = ""; page = "newcat" }, autoFocus = true) }
-            items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)", { selCat = cat; page = "chlist" }) }
+            items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)" + if (all.none { it.cat == cat && !it.hidden }) " · hidden" else "", { selCat = cat; page = "chlist" }, onLong = { editCatName = cat }) }
         }
         "newcat" -> PanelShell(
             "New category", { back() },
@@ -931,4 +1021,6 @@ fun SettingsHub(
 
     val ec = editCh
     if (ec != null) ChannelEditor(ec, all, cfg, guide, onCfg) { editCh = null }
+    val ecat = editCatName
+    if (ecat != null) CategoryEditor(ecat, all, cfg, onCfg) { editCatName = null }
 }

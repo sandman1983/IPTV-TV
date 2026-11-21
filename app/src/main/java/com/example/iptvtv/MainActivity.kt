@@ -325,6 +325,7 @@ fun App() {
     var settingsPage by remember { mutableStateOf("") }
     var lastSync by remember { mutableStateOf(0L) }
     var editCh by remember { mutableStateOf<Int?>(null) }
+    var editCat by remember { mutableStateOf<String?>(null) }
     var exitAsk by remember { mutableStateOf(false) }
     var crash by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -632,7 +633,8 @@ fun App() {
                             "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
                         }
                     },
-                    { editCh = it.id }
+                    { editCh = it.id },
+                    { editCat = it }
                 ) {
                     if (fromGuide) { fromGuide = false; full = false } else miniStart = true
                     screen = ""
@@ -654,6 +656,10 @@ fun App() {
             val ec = editCh
             if (ec != null) {
                 ChannelEditor(ec, all, cfg, epg.chans, { cfg = it; saveCfg(ctx, it) }) { editCh = null }
+            }
+            val ecat = editCat
+            if (ecat != null) {
+                CategoryEditor(ecat, all, cfg, { cfg = it; saveCfg(ctx, it) }) { editCat = null }
             }
             val cr = crash
             if (cr != null) {
@@ -969,6 +975,7 @@ fun PlayerScreen(
     var tracksOpen by remember { mutableStateOf(false) }
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     var editId by remember { mutableStateOf<Int?>(null) }
+    var editCatP by remember { mutableStateOf<String?>(null) }
     var focusId by remember { mutableStateOf(c.id) }
     var refocus by remember { mutableStateOf(0) }
     var tick by remember { mutableStateOf(0) }
@@ -997,9 +1004,9 @@ fun PlayerScreen(
             mini = false
         }
     }
-    LaunchedEffect(panel, tracksOpen, editId, exitAsk, mini) {
+    LaunchedEffect(panel, tracksOpen, editId, editCatP, exitAsk, mini) {
         delay(100)
-        if (!panel && !tracksOpen && editId == null && !exitAsk && !mini) { try { fr.requestFocus() } catch (ex: Exception) { } }
+        if (!panel && !tracksOpen && editId == null && editCatP == null && !exitAsk && !mini) { try { fr.requestFocus() } catch (ex: Exception) { } }
     }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
     LaunchedEffect(tick) { delay(if (evIdx >= 0) 12000L else 7000L); show = false; evIdx = -1 }
@@ -1033,7 +1040,7 @@ fun PlayerScreen(
     Box(
         Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
             val isOk = it.key == Key.DirectionCenter || it.key == Key.Enter || it.key == Key.NumPadEnter
-            if (panel || tracksOpen || editId != null || mini) {
+            if (panel || tracksOpen || editId != null || editCatP != null || mini) {
                 false
             } else if (isOk) {
                 okLong(it, okFired, { mini = true; miniTick++ }, { panel = true; focusId = c.id })
@@ -1095,10 +1102,12 @@ fun PlayerScreen(
         if (panel) {
             ChannelPanel(
                 channels, sources, c, epg, nowMs, focusId, refocus,
-                cfg.showNums, { onZap(it); panel = false }, { editId = it.id }
+                cfg.showNums, { onZap(it); panel = false }, { editId = it.id }, { editCatP = it }
             )
         }
         if (tracksOpen) TracksDialog(tracks, exo) { tracksOpen = false }
+        val ecp = editCatP
+        if (ecp != null) CategoryEditor(ecp, all, cfg, onCfg) { editCatP = null; refocus++ }
         val ed = editId
         if (ed != null) {
             ChannelEditor(ed, all, cfg, epg.chans, onCfg) {

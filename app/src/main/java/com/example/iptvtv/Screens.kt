@@ -117,7 +117,8 @@ fun Section(t: String) {
 @Composable
 fun ChannelPanel(
     all: List<Channel>, sources: List<Source>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
-    showNums: Boolean, onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit
+    showNums: Boolean, onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit,
+    onEditCat: (String) -> Unit = {}
 ) {
     var selSrc by remember { mutableStateOf(current.src) }
     var selCat by remember { mutableStateOf(current.cat) }
@@ -126,6 +127,7 @@ fun ChannelPanel(
     val catFr = remember { FocusRequester() }
     val srcIds = remember(all) { all.map { it.src }.distinct() }
     val srcCats = all.filter { it.src == selSrc }.map { it.cat }.distinct()
+    if (selCat !in srcCats && srcCats.isNotEmpty()) selCat = srcCats.first()
     val list = all.filter { it.src == selSrc && it.cat == selCat }
     var focused by remember { mutableStateOf(current) }
     var upIdx by remember { mutableStateOf(-1) }
@@ -226,7 +228,8 @@ fun ChannelPanel(
                                 goList++
                             },
                             if (cat == selCat) Modifier.focusRequester(catFr) else Modifier,
-                            { selCat = cat }
+                            { selCat = cat },
+                            { onEditCat(cat) }
                         ) {
                             Text(cat, color = fcolor(if (cat == selCat) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }

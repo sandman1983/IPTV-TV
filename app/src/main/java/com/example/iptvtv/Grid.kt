@@ -248,12 +248,14 @@ private val LW = 270.dp
 private val P_DARK_TXT = Color(0xFF14213D)
 
 @Composable
-private fun GChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
+    val fired = remember { booleanArrayOf(true) }
     Box(
         Modifier.clip(RoundedCornerShape(16.dp))
             .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
             .onFocusChanged { f = it.isFocused }
+            .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
@@ -295,7 +297,7 @@ private fun GBlock(
 fun EpgGrid(
     chans: List<Channel>, epg: Epg, current: Channel?, showNums: Boolean,
     recs: List<Rec>, remOn: Boolean,
-    onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onEdit: (Channel) -> Unit, onBack: () -> Unit
+    onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onEdit: (Channel) -> Unit, onEditCat: (String) -> Unit, onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
@@ -313,6 +315,7 @@ fun EpgGrid(
     val winEnd = winStart + TOTAL_MIN * 60000L
     var cat by remember { mutableStateOf("") }
     val cats = remember(chans) { chans.map { it.cat }.distinct() }
+    if (cat.isNotEmpty() && cat !in cats) cat = ""
     val rows = remember(chans, cat) { if (cat.isEmpty()) chans else chans.filter { it.cat == cat } }
     val numOf = remember(chans) { chans.withIndex().associate { it.value.id to it.index + 1 } }
     val hs = rememberScrollState()
@@ -344,7 +347,7 @@ fun EpgGrid(
                 contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)
             ) {
                 item { GChip("All", cat.isEmpty()) { cat = "" } }
-                items(cats) { c2 -> GChip(c2, cat == c2) { cat = c2 } }
+                items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }) { cat = c2 } }
             }
         }
         Row(Modifier.weight(1f).fillMaxWidth()) {

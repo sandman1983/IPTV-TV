@@ -241,3 +241,25 @@ fun saveHist(c: Context, l: List<Int>) {
 }
 
 fun pushHist(h: List<Int>, id: Int): List<Int> = (listOf(id) + h.filter { it != id }).take(10)
+
+
+// Déplace des catégories entières (blocs de chaînes) d'un cran dans l'ordre global.
+fun moveCats(g: Cfg, all: List<Channel>, cats: Set<String>, dir: Int): Cfg {
+    val names = all.map { it.cat }.distinct().toMutableList()
+    val seq = if (dir < 0) names.indices else names.indices.reversed()
+    for (i in seq) {
+        if (names[i] !in cats) continue
+        val j = i + dir
+        if (j !in names.indices || names[j] in cats) continue
+        val t = names[i]; names[i] = names[j]; names[j] = t
+    }
+    return g.copy(order = names.flatMap { n -> all.filter { it.cat == n }.map { it.id } })
+}
+
+fun moveCatsEdge(g: Cfg, all: List<Channel>, cats: Set<String>, top: Boolean): Cfg {
+    val names = all.map { it.cat }.distinct()
+    val moved = names.filter { it in cats }
+    val rest = names.filter { it !in cats }
+    val n2 = if (top) moved + rest else rest + moved
+    return g.copy(order = n2.flatMap { n -> all.filter { it.cat == n }.map { it.id } })
+}
