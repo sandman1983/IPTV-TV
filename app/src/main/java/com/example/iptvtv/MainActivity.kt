@@ -343,13 +343,52 @@ fun App() {
     val cfgNow by rememberUpdatedState(cfg)
 
     val exo = remember {
+        val http = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent("VLC/3.0.18 LibVLC/3.0.18")
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(15000)
+        val extractors = androidx.media3.extractor.DefaultExtractorsFactory()
+            .setTsExtractorFlags(
+                androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+                    androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
+            )
+        val load = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(20000, 60000, 3000, 6000)
+            .build()
         ExoPlayer.Builder(ctx)
+            .setLoadControl(load)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(
-                    DefaultDataSource.Factory(ctx, DefaultHttpDataSource.Factory().setAllowCrossProtocolRedirects(true))
-                )
+                DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, http), extractors)
             )
             .build()
+    }
+    // Reconnexion automatique : erreur réseau ou blocage en mise en mémoire > 10 s.
+    DisposableEffect(exo) {
+        val l = object : Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                try {
+                    exo.prepare()
+                    exo.playWhenReady = true
+                } catch (ex: Exception) { }
+            }
+        }
+        exo.addListener(l)
+        onDispose { exo.removeListener(l) }
+    }
+    LaunchedEffect(exo) {
+        var stuck = 0
+        while (true) {
+            delay(1000)
+            if (exo.playbackState == Player.STATE_BUFFERING && exo.playWhenReady) stuck++ else stuck = 0
+            if (stuck >= 10) {
+                stuck = 0
+                try {
+                    exo.seekToDefaultPosition()
+                    exo.prepare()
+                } catch (ex: Exception) { }
+            }
+        }
     }
     DisposableEffect(exo) { onDispose { exo.release() } }
 
