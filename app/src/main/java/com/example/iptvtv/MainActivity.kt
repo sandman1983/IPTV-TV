@@ -450,9 +450,15 @@ fun App() {
         val c = bg
         if (c != null) {
             resetTracks(exo)
-            exo.setMediaItem(MediaItem.fromUri(c.url))
-            exo.prepare()
-            exo.playWhenReady = true
+            try {
+                exo.setMediaItem(MediaItem.fromUri(c.url))
+                exo.prepare()
+                exo.playWhenReady = true
+            } catch (e: IllegalStateException) {
+                // e.g. a DASH (.mpd) stream: this player build cannot open it. Do not crash.
+                exo.stop()
+                Toast.makeText(ctx, "This channel's stream type is not supported (" + c.name + ")", Toast.LENGTH_LONG).show()
+            }
         } else {
             exo.pause()
         }
