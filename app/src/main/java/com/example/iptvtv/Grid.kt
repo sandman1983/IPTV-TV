@@ -30,6 +30,10 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -59,6 +63,7 @@ private fun MiniItem(
     title: String,
     sub: String,
     frac: Float?,
+    logo: String?,
     thumb: @Composable BoxScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
@@ -69,41 +74,76 @@ private fun MiniItem(
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
     ) {
+        // The selection frame is drawn around the picture, so it never hides the progress bar.
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)).background(M_TILE)
-                .then(if (f) Modifier.border(2.dp, Color.White, RoundedCornerShape(6.dp)) else Modifier)
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                .border(3.dp, if (f) Color.White else Color.Transparent, RoundedCornerShape(10.dp)).padding(3.dp)
         ) {
-            thumb()
-            if (frac != null) {
-                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x66FFFFFF))) {
-                    Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFF42A5F5)))
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(M_TILE)) {
+                thumb()
+                if (!logo.isNullOrBlank()) {
+                    AsyncImage(
+                        model = logo, contentDescription = null,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 10.dp).size(40.dp, 22.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                if (frac != null) {
+                    Bar(frac, Modifier.align(Alignment.BottomStart).fillMaxWidth(), 5.dp)
                 }
             }
         }
         Text(
             title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
             overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
-            modifier = (if (f) Modifier.basicMarquee() else Modifier).padding(top = 6.dp)
+            modifier = (if (f) Modifier.basicMarquee() else Modifier).padding(top = 6.dp, start = 3.dp)
         )
-        Text(sub, color = M_GRAY, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(sub, color = M_GRAY, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 3.dp))
     }
 }
 
 @Composable
 fun MiniPlayer(
-    channels: List<Channel>, c: Channel, epg: Epg, nowMs: Long,
+    channels: List<Channel>, c: Channel, epg: Epg, nowMs: Long, hist: List<Int>,
+    isPlaying: () -> Boolean, onToggle: () -> Unit,
     onPick: (Channel) -> Unit, onGuide: () -> Unit, onKey: () -> Unit
 ) {
     val p = epg.now(c.epgId)
-    val n = channels.size
-    val i0 = channels.indexOfFirst { it.id == c.id }.coerceAtLeast(0)
-    val order = remember(channels, c.id) { (0 until n).map { (i0 + it) % n } }
+    // Always the last 10 channels played (the current one first).
+    val recent = remember(hist, channels, c.id) {
+        val l = ArrayList<Channel>()
+        l.add(c)
+        for (id in hist) {
+            val ch = channels.firstOrNull { it.id == id }
+            if (ch != null && l.none { it.id == ch.id }) l.add(ch)
+        }
+        l.take(10)
+    }
     val gr = remember { FocusRequester() }
+    val btn = remember { FocusRequester() }
+    var ctrl by remember { mutableStateOf(false) }
+    var playing by remember { mutableStateOf(isPlaying()) }
     LaunchedEffect(Unit) {
         delay(150)
         try { gr.requestFocus() } catch (ex: Exception) { }
     }
-    Box(Modifier.fillMaxSize().onPreviewKeyEvent { onKey(); false }) {
+    LaunchedEffect(ctrl) {
+        if (ctrl) {
+            delay(60)
+            try { btn.requestFocus() } catch (ex: Exception) { }
+        }
+    }
+    Box(
+        Modifier.fillMaxSize().onPreviewKeyEvent {
+            onKey()
+            if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp && !ctrl) {
+                ctrl = true
+                true
+            } else {
+                false
+            }
+        }
+    ) {
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6000000), Color(0xF5000000))))
@@ -114,18 +154,43 @@ fun MiniPlayer(
                 p?.title ?: "", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+            if (ctrl) {
+                var bf by remember { mutableStateOf(false) }
+                Box(
+                    Modifier.padding(top = 10.dp).size(64.dp, 40.dp).clip(RoundedCornerShape(20.dp))
+                        .background(if (bf) Color.White else Color(0x66FFFFFF))
+                        .focusRequester(btn)
+                        .onFocusChanged { bf = it.isFocused }
+                        .clickable {
+                            onToggle()
+                            playing = isPlaying()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (playing) "❚❚" else "▶", color = if (bf) P_DARK_TXT else Color.White,
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold
+                    )
+                }
+            }
             if (p != null) {
-                Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(4.dp).background(Color(0x55FFFFFF))) {
-                    Box(Modifier.fillMaxWidth(fracOf(p, nowMs)).fillMaxHeight().background(Color.White))
+                Row(Modifier.padding(top = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(hm(p.start), color = M_GRAY, fontSize = 13.sp)
+                    Bar(fracOf(p, nowMs), Modifier.weight(1f).padding(horizontal = 12.dp), 8.dp)
+                    val left = ((p.stop - nowMs) / 60000L).coerceAtLeast(0)
+                    Text("+$left min", color = M_GRAY, fontSize = 13.sp)
                 }
             }
             Text(
                 "Channels", color = Color(0xFFFFE9A8), fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
             )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(start = 14.dp, end = 40.dp, top = 12.dp, bottom = 14.dp)
+            ) {
                 item {
-                    MiniItem(onGuide, gr, "Program guide", "", null) {
+                    MiniItem(onGuide, gr, "Program guide", "", null, null) {
                         Column(
                             Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
@@ -138,13 +203,14 @@ fun MiniPlayer(
                         }
                     }
                 }
-                items(order, key = { channels[it].id }) { idx ->
-                    val ch = channels[idx]
+                items(recent, key = { it.id }) { ch ->
                     val pr = epg.now(ch.epgId)
+                    val num = channels.indexOfFirst { it.id == ch.id } + 1
                     MiniItem(
                         { onPick(ch) }, null,
-                        pr?.title ?: ch.name, "${idx + 1} - ${ch.name.uppercase()}",
-                        if (pr != null) fracOf(pr, nowMs) else null
+                        pr?.title ?: ch.name, "$num - ${ch.name.uppercase()}",
+                        if (pr != null) fracOf(pr, nowMs) else null,
+                        if (pr?.icon.isNullOrBlank()) null else ch.icon
                     ) {
                         val img = pr?.icon?.ifBlank { null } ?: ch.icon
                         if (img.isNotBlank()) {
