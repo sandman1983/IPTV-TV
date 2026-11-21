@@ -726,7 +726,8 @@ fun App() {
                 }
                 cur != null && full -> PlayerScreen(
                     sources,
-                    cur, exo, shown, epg, all, cfg, exitAsk || reminder != null, weather, miniStart, quietStart, hist, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" }
+                    cur, exo, shown, epg, all, cfg, exitAsk || reminder != null, weather, miniStart, quietStart, hist, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" },
+                    { hist = it; saveHist(ctx, it) }
                 ) {
                     if (fromGuide) screen = "guide" else onRootBack { full = false }
                 }
@@ -1061,7 +1062,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
 @Composable
 fun PlayerScreen(
     sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String, startMini: Boolean, quiet: Boolean, hist: List<Int>,
-    onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onGuide: () -> Unit, onBack: () -> Unit
+    onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onGuide: () -> Unit, onHist: (List<Int>) -> Unit, onBack: () -> Unit
 ) {
     val num = channels.indexOf(c) + 1
     val p = epg.now(c.epgId)
@@ -1198,7 +1199,8 @@ fun PlayerScreen(
             MiniPlayer(
                 channels, c, epg, nowMs, hist,
                 { exo.playWhenReady }, { exo.playWhenReady = !exo.playWhenReady },
-                { onZap(it); mini = false }, { onGuide() }, { miniTick++ }
+                { onZap(it); mini = false }, { onGuide() }, { miniTick++ },
+                { id -> onHist(if (id == null) emptyList() else hist.filter { it != id }) }
             )
         }
         if (panel) {

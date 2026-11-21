@@ -66,14 +66,17 @@ private fun MiniItem(
     frac: Float?,
     logo: String?,
     onFocus: () -> Unit,
+    onLong: (() -> Unit)? = null,
     thumb: @Composable BoxScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
+    val fired = remember { booleanArrayOf(true) }
     val sc by animateFloatAsState(if (f) 1.06f else 1f, label = "miniItem")
     Column(
         Modifier.width(170.dp).graphicsLayer { scaleX = sc; scaleY = sc }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
         // The selection frame is drawn around the picture, so it never hides the progress bar.
@@ -108,8 +111,11 @@ private fun MiniItem(
 fun MiniPlayer(
     channels: List<Channel>, c: Channel, epg: Epg, nowMs: Long, hist: List<Int>,
     isPlaying: () -> Boolean, onToggle: () -> Unit,
-    onPick: (Channel) -> Unit, onGuide: () -> Unit, onKey: () -> Unit
+    onPick: (Channel) -> Unit, onGuide: () -> Unit, onKey: () -> Unit,
+    onClearHist: (Int?) -> Unit = {}
 ) {
+    var clearFor by remember { mutableStateOf<Channel?>(null) }
+    val clr = remember { FocusRequester() }
     val p = epg.now(c.epgId)
     // Always the last 10 channels played (the current one first).
     val recent = remember(hist, channels, c.id) {
@@ -140,10 +146,25 @@ fun MiniPlayer(
             try { btn.requestFocus() } catch (ex: Exception) { }
         }
     }
+    LaunchedEffect(clearFor) {
+        if (clearFor != null) {
+            delay(100)
+            try { clr.requestFocus() } catch (ex: Exception) { }
+        } else if (clearFor == null) {
+            try { gr.requestFocus() } catch (ex: Exception) { }
+        }
+    }
     Box(
         Modifier.fillMaxSize().onPreviewKeyEvent {
             onKey()
-            if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp && !ctrl) {
+            if (clearFor != null) {
+                if (it.key == Key.Back || it.key == Key.Escape) {
+                    if (it.type == KeyEventType.KeyUp) clearFor = null
+                    true
+                } else {
+                    false
+                }
+            } else if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp && !ctrl) {
                 ctrl = true
                 true
             } else {
@@ -223,7 +244,8 @@ fun MiniPlayer(
                         pr?.title ?: ch.name, "$num - ${ch.name.uppercase()}",
                         if (pr != null) fracOf(pr, nowMs) else null,
                         if (pr?.icon.isNullOrBlank()) null else ch.icon,
-                        { focusItem(ri + 1) }
+                        { focusItem(ri + 1) },
+                        { clearFor = ch }
                     ) {
                         val img = pr?.icon?.ifBlank { null } ?: ch.icon
                         if (img.isNotBlank()) {
@@ -233,6 +255,25 @@ fun MiniPlayer(
                             )
                         }
                     }
+                }
+            }
+        }
+        val cf = clearFor
+        if (cf != null) {
+            Column(
+                Modifier.align(Alignment.Center).width(380.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(Color(0xF2151A24)).padding(16.dp)
+            ) {
+                Text("Clear recent channels", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text(cf.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
+                FocusRow({ onClearHist(cf.id); clearFor = null }, Modifier.focusRequester(clr)) {
+                    Text("This channel", color = fcolor(Color.White), fontSize = 16.sp)
+                }
+                FocusRow({ onClearHist(null); clearFor = null }) {
+                    Text("Remove all", color = fcolor(Color.White), fontSize = 16.sp)
+                }
+                FocusRow({ clearFor = null }) {
+                    Text("Cancel", color = fcolor(Color.White), fontSize = 16.sp)
                 }
             }
         }

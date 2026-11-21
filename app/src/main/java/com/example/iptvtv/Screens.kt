@@ -84,7 +84,7 @@ fun FocusRow(
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(corner))
             .background(if (f) Color.White else Color.Transparent)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
-            .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
+            .onPreviewKeyEvent { if (holdGuard(it)) true else if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }.padding(pad),
         verticalAlignment = Alignment.CenterVertically
     ) {
