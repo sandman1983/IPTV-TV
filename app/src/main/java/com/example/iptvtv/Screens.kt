@@ -204,11 +204,11 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF5151515)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
+            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF5151515)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
                 Text("Sources", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
                 LazyColumn {
                     items(srcIds) { sid ->
-                        val nm = sources.firstOrNull { it.id == sid }?.name ?: "Source"
+                        val nm = sources.firstOrNull { it.id == sid || it.name == sid }?.name ?: "Source"
                         FocusRow({ selSrc = sid }, Modifier, {
                             selSrc = sid
                             if (!all.any { it.src == sid && it.cat == selCat }) selCat = all.first { it.src == sid }.cat

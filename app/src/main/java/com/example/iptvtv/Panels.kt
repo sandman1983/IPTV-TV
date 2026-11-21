@@ -917,7 +917,8 @@ fun SettingsHub(
             item { PInput("Guide URL (.xml or .gz)", epgIn, { epgIn = it }, autoFocus = true) }
         }
         "channels" -> PanelShell("Channels", { back() }, actions = { PButton("Done", { back() }) }) {
-            item { PItem("New category", "", { catIn = ""; page = "newcat" }, autoFocus = true) }
+            item { PSwitch("Merge sources", "Same categories from all sources shown together", cfg.merge, { onCfg(cfg.copy(merge = !cfg.merge)) }, autoFocus = true) }
+            item { PItem("New category", "", { catIn = ""; page = "newcat" }) }
             items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)" + if (all.none { it.cat == cat && !it.hidden }) " · hidden" else "", { selCat = cat; page = "chlist" }, onLong = { editCatName = cat }) }
         }
         "newcat" -> PanelShell(

@@ -726,7 +726,8 @@ fun App() {
                     { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false },
                     { screen = "search" }, { settingsPage = ""; screen = "settings" }, { settingsPage = "sources"; screen = "settings" },
                     { editCh = it.id },
-                    { screen = "guide" }
+                    { screen = "guide" },
+                    cfg.merge
                 )
             }
             val ec = editCh
@@ -788,8 +789,12 @@ fun App() {
 class HomeRow(val header: Boolean, val title: String, val chans: List<Channel>)
 
 // Une section par source (si plusieurs), puis une rangée par catégorie.
-fun buildRows(ch: List<Channel>, sources: List<Source>): List<HomeRow> {
+fun buildRows(ch: List<Channel>, sources: List<Source>, merge: Boolean = false): List<HomeRow> {
     val out = ArrayList<HomeRow>()
+    if (merge) {
+        for ((cat, l) in ch.groupBy { it.cat }) out.add(HomeRow(false, cat, l))
+        return out
+    }
     val multi = sources.size > 1
     val bySrc = ch.groupBy { it.src }
     val order = sources.map { it.id } + bySrc.keys.filter { k -> sources.none { it.id == k } }
@@ -818,11 +823,11 @@ fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
 fun Home(
     ch: List<Channel>, sources: List<Source>, epg: Epg, status: String, hist: List<Int>, cur: Channel?,
     onPlay: (Channel) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSources: () -> Unit,
-    onEdit: (Channel) -> Unit, onGuide: () -> Unit
+    onEdit: (Channel) -> Unit, onGuide: () -> Unit, merge: Boolean = false
 ) {
     val cp = cur?.let { epg.now(it.epgId) }
     val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
-    val rows = remember(ch, sources) { buildRows(ch, sources) }
+    val rows = remember(ch, sources, merge) { buildRows(ch, sources, merge) }
     val listState = rememberLazyListState()
     val homeScope = rememberCoroutineScope()
     val baseIdx = (if (status.isNotBlank()) 1 else 0) + (if (recent.isNotEmpty()) 1 else 0)
@@ -1176,7 +1181,8 @@ fun PlayerScreen(
         }
         if (panel) {
             ChannelPanel(
-                channels, sources, c, epg, nowMs, focusId, refocus,
+                if (cfg.merge) channels.map { it.copy(src = "") } else channels, sources,
+                if (cfg.merge) c.copy(src = "") else c, epg, nowMs, focusId, refocus,
                 cfg.showNums, { onZap(it); panel = false }, { editId = it.id }, { editCatP = it }
             )
         }

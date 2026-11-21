@@ -30,7 +30,8 @@ data class Cfg(
     val dvrUri: String = "",
     val recStart: Int = 0,
     val recStop: Int = 0,
-    val remOn: Boolean = true
+    val remOn: Boolean = true,
+    val merge: Boolean = false
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -94,6 +95,7 @@ fun cfgToJson(g: Cfg): JSONObject {
     j.put("rb", g.recStart)
     j.put("ra", g.recStop)
     j.put("rm", g.remOn)
+    j.put("mg", g.merge)
     return j
 }
 
@@ -113,7 +115,7 @@ fun cfgFromJson(j: JSONObject): Cfg {
     return Cfg(
         m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" },
         j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24), j.optBoolean("sn", true),
-        j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true)
+        j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true), j.optBoolean("mg", false)
     )
 }
 

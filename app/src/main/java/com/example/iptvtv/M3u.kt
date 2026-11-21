@@ -88,7 +88,7 @@ fun loadXtream(s: Source): Pair<List<Channel>, String> {
 
 suspend fun loadSource(ctx: Context, s: Source): Pair<List<Channel>, String> = withContext(Dispatchers.IO) {
     val r = if (s.type == "m3u") loadM3u(ctx, s.url, s.id) else loadXtream(s)
-    Pair(r.first.map { it.copy(src = s.name) }, r.second)
+    Pair(r.first.map { it.copy(src = s.id) }, r.second)
 }
 
 
