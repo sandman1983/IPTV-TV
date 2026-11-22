@@ -256,7 +256,7 @@ fun ChannelPanel(
                         FocusRow({ selSrc = sid }, Modifier, {
                             selSrc = sid
                             if (!all.any { it.src == sid && it.cat == selCat }) selCat = all.first { it.src == sid }.cat
-                        }) {
+                        }, tile = true) {
                             Text(nm, color = fcolor(if (sid == selSrc) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
@@ -273,7 +273,8 @@ fun ChannelPanel(
                             },
                             if (cat == selCat) Modifier.focusRequester(catFr) else Modifier,
                             { selCat = cat },
-                            { onEditCat(cat) }
+                            { onEditCat(cat) },
+                            tile = true
                         ) {
                             Text(cat, color = fcolor(if (cat == selCat) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
@@ -283,11 +284,12 @@ fun ChannelPanel(
         }
         Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
             Box(
-                Modifier.fillMaxWidth().background(Color(0x26FFFFFF)).padding(vertical = 5.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(3.dp)).background(Color(0xCC0C0C0C)).padding(vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    selCat, color = CYAN, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                    selCat, color = CYAN, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
@@ -363,19 +365,21 @@ fun ChannelPanel(
                         Row(Modifier.fillMaxWidth()) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "${hm(shownP.start)} - ${hm(shownP.stop)}" + if (upIdx >= 0) "   (up next)" else "",
-                                    color = GRAY, fontSize = 14.sp
-                                )
-                                Text(
-                                    shownP.title, color = TITLE, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                                    shownP.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                                     maxLines = 3, overflow = TextOverflow.Ellipsis
                                 )
-                                if (upIdx < 0) Bar(fracOf(shownP, nowMs), Modifier.padding(vertical = 8.dp).fillMaxWidth())
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                                    Text(
+                                        "${hm(shownP.start)} - ${hm(shownP.stop)}" + if (upIdx >= 0) "   (up next)" else "",
+                                        color = Color(0xFF8FCBF7), fontSize = 13.sp
+                                    )
+                                    if (upIdx < 0) Bar(fracOf(shownP, nowMs), Modifier.padding(start = 10.dp).weight(1f), 8.dp)
+                                }
                                 if (shownP.sub.isNotBlank() && shownP.sub != shownP.desc) {
-                                    Text(shownP.sub, color = CYAN, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(shownP.sub, color = Color(0xFFFFE9A8), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 }
                                 if (shownP.cat.isNotBlank()) {
-                                    Text(shownP.cat, color = GRAY, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
+                                    Text(shownP.cat, color = GRAY, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
                                 }
                             }
                             if (shownP.icon.isNotBlank()) {
@@ -388,7 +392,7 @@ fun ChannelPanel(
                             }
                         }
                         Text(
-                            shownP.desc.ifBlank { shownP.sub }, color = Color(0xFFE0E4EC), fontSize = 14.sp, lineHeight = 20.sp,
+                            shownP.desc.ifBlank { shownP.sub }, color = Color(0xFFD5DAE3), fontSize = 12.sp, lineHeight = 17.sp,
                             maxLines = 12, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         )
