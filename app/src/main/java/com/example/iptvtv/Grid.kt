@@ -174,7 +174,8 @@ fun MiniPlayer(
     isPlaying: () -> Boolean, onToggle: () -> Unit,
     onPick: (Channel) -> Unit, onGuide: () -> Unit, onKey: () -> Unit,
     onClearHist: (Int?) -> Unit = {},
-    onTracks: () -> Unit = {}
+    onTracks: () -> Unit = {},
+    onClose: () -> Unit = {}
 ) {
     var clearFor by remember { mutableStateOf<Channel?>(null) }
     val clr = remember { FocusRequester() }
@@ -210,8 +211,6 @@ fun MiniPlayer(
             try { curReq.requestFocus() } catch (ex: Exception) { try { gr.requestFocus() } catch (e2: Exception) { } }
         }
     }
-    // Retour : cache d'abord les commandes ; un second Retour quitte le lecteur
-    BackHandler(enabled = ctrl && clearFor == null) { ctrl = false }
     LaunchedEffect(clearFor) {
         if (clearFor != null) {
             delay(100)
@@ -243,6 +242,10 @@ fun MiniPlayer(
                     if (down) ctrl = false
                     true
                 } else if (k == Key.DirectionUp) {
+                    true
+                } else if (k == Key.Back || k == Key.Escape) {
+                    // Retour avec les commandes affichées : ferme tout le lecteur d'un coup
+                    if (it.type == KeyEventType.KeyUp) onClose()
                     true
                 } else if (k == Key.DirectionCenter || k == Key.Enter || k == Key.NumPadEnter) {
                     if (it.type == KeyEventType.KeyUp) {

@@ -1267,7 +1267,8 @@ fun PlayerScreen(
                 { exo.playWhenReady }, { exo.playWhenReady = !exo.playWhenReady },
                 { onZap(it); mini = false }, { onGuide() }, { miniTick++ },
                 { id -> onHist(if (id == null) emptyList() else hist.filter { it != id }) },
-                onTracks = { tracksOpen = true; miniTick++ }
+                onTracks = { tracksOpen = true; miniTick++ },
+                onClose = { mini = false }
             )
         }
         if (panel) {
