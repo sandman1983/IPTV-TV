@@ -364,6 +364,49 @@ private fun GBlock(
 }
 
 @Composable
+private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
+    val sp = selProvider()
+        Column(
+            Modifier.width(260.dp).fillMaxHeight().padding(start = 10.dp, top = 5.dp, end = 8.dp, bottom = 5.dp)
+                .clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626)).padding(16.dp)
+        ) {
+            if (sp != null) {
+                val sch = sp.first
+                val pr = sp.second
+                if (pr != null && pr.icon.isNotBlank()) {
+                    AsyncImage(
+                        model = pr.icon, contentDescription = null,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                Text(sch.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1)
+                Text(
+                    pr?.title ?: "No information", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis
+                )
+                if (pr != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color(0xFF8FCBF7), fontSize = 13.sp)
+                        if (pr.start <= nowMs && nowMs < pr.stop) {
+                            Bar(fracOf(pr, nowMs), Modifier.padding(start = 10.dp).weight(1f), 8.dp)
+                        }
+                    }
+                    if (pr.sub.isNotBlank() && pr.sub != pr.desc) {
+                        Text(pr.sub, color = Color(0xFFFFE9A8), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(
+                        pr.desc, color = Color(0xFFD5DAE3), fontSize = 12.sp, lineHeight = 17.sp,
+                        maxLines = 10, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        }
+}
+
+
+@Composable
 fun EpgGrid(
     chans: List<Channel>, epg: Epg, current: Channel?, showNums: Boolean,
     recs: List<Rec>, remOn: Boolean,
@@ -397,18 +440,22 @@ fun EpgGrid(
         mutableStateOf<Pair<Channel, Prog?>?>(if (current != null) Pair(current, epg.now(current.epgId)) else null)
     }
     // Garde toujours 7 chaînes entières : la liste s'aligne sur la chaîne sélectionnée.
-    LaunchedEffect(sel?.first?.id) {
-        val id = sel?.first?.id ?: return@LaunchedEffect
-        val idx = rows.indexOfFirst { it.id == id }
-        if (idx >= 0) {
-            val first = ls.firstVisibleItemIndex
-            val target = when {
-                idx < first -> idx
-                idx > first + 6 -> idx - 6
-                else -> first
-            }
-            if (target != first || ls.firstVisibleItemScrollOffset != 0) {
-                try { ls.animateScrollToItem(target) } catch (ex: Exception) { if (ex is kotlinx.coroutines.CancellationException) throw ex }
+    val rowsNow by rememberUpdatedState(rows)
+    LaunchedEffect(Unit) {
+        snapshotFlow { sel?.first?.id }.collect { id ->
+            if (id != null) {
+                val idx = rowsNow.indexOfFirst { it.id == id }
+                if (idx >= 0) {
+                    val first = ls.firstVisibleItemIndex
+                    val target = when {
+                        idx < first -> idx
+                        idx > first + 6 -> idx - 6
+                        else -> first
+                    }
+                    if (target != first || ls.firstVisibleItemScrollOffset != 0) {
+                        try { ls.scrollToItem(target) } catch (ex: Exception) { if (ex is kotlinx.coroutines.CancellationException) throw ex }
+                    }
+                }
             }
         }
     }
@@ -486,7 +533,8 @@ fun EpgGrid(
                     LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
                         items(rows, key = { it.id }) { ch ->
                             val isCur = ch.id == current?.id
-                            val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
+                            val rawProgs = epg.progs[ch.epgId]
+                            val progs = remember(rawProgs, winStart) { (rawProgs ?: emptyList()).filter { it.stop > winStart && it.start < winEnd } }
                             val rowReq = remember { FocusRequester() }
                             val rr = if (isCur) req else rowReq
                             LaunchedEffect(wrapId) {
@@ -566,44 +614,7 @@ fun EpgGrid(
                     }
                 }
             }
-            val sp = sel
-            Column(
-                Modifier.width(260.dp).fillMaxHeight().padding(start = 10.dp, top = 5.dp, end = 8.dp, bottom = 5.dp)
-                    .clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626)).padding(16.dp)
-            ) {
-                if (sp != null) {
-                    val sch = sp.first
-                    val pr = sp.second
-                    if (pr != null && pr.icon.isNotBlank()) {
-                        AsyncImage(
-                            model = pr.icon, contentDescription = null,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(Modifier.height(10.dp))
-                    }
-                    Text(sch.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1)
-                    Text(
-                        pr?.title ?: "No information", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 3, overflow = TextOverflow.Ellipsis
-                    )
-                    if (pr != null) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                            Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color(0xFF8FCBF7), fontSize = 13.sp)
-                            if (pr.start <= nowMs && nowMs < pr.stop) {
-                                Bar(fracOf(pr, nowMs), Modifier.padding(start = 10.dp).weight(1f), 8.dp)
-                            }
-                        }
-                        if (pr.sub.isNotBlank() && pr.sub != pr.desc) {
-                            Text(pr.sub, color = Color(0xFFFFE9A8), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text(
-                            pr.desc, color = Color(0xFFD5DAE3), fontSize = 12.sp, lineHeight = 17.sp,
-                            maxLines = 10, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                }
-            }
+            DetailPane({ sel }, nowMs)
         }
     }
     val d = dvrFor
