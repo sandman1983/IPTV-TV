@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -91,9 +93,27 @@ fun PanelShell(
                     )
                 }
                 LazyColumn(
-                    Modifier.weight(1f).fillMaxWidth(),
+                    Modifier.weight(1f).fillMaxWidth()
+                        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            // Fondu doux en haut / en bas quand la liste défile : plus d'éléments coupés net
+                            val h = this.size.height
+                            val f = (22.dp.toPx() / h).coerceIn(0.01f, 0.2f)
+                            val topF = if (lstate.canScrollBackward) f else 0f
+                            val botF = if (lstate.canScrollForward) f else 0f
+                            drawRect(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    0f to (if (topF > 0f) Color.Transparent else Color.Black),
+                                    (if (topF > 0f) topF else 0.001f) to Color.Black,
+                                    (1f - (if (botF > 0f) botF else 0.001f)) to Color.Black,
+                                    1f to (if (botF > 0f) Color.Transparent else Color.Black)
+                                ),
+                                blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                            )
+                        },
                     state = lstate,
-                    contentPadding = PaddingValues(bottom = 24.dp)
+                    contentPadding = PaddingValues(top = 6.dp, bottom = 40.dp)
                 ) { content() }
             }
             if (actions != null) {
