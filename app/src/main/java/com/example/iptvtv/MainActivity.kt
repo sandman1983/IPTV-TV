@@ -1402,7 +1402,7 @@ fun BottomInfo(
     val sp: Prog? = ev ?: p
     Column(
         Modifier.fillMaxWidth().background(
-            Brush.verticalGradient(listOf(Color(0x00262626), Color(0xF2262626), Color(0xFF262626)))
+            Brush.verticalGradient(listOf(Color(0x00000000), Color(0xF2000000), Color(0xFF000000)))
         )
     ) {
         Row(
@@ -1435,7 +1435,7 @@ fun BottomInfo(
                     Text("$num", color = LIME, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                     Box(Modifier.size(22.dp, 11.dp).chevron(false, MUTED))
                 }
-                Column(Modifier.weight(1f).height(120.dp)) {
+                Column(Modifier.weight(1f).height(88.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (c.icon.isNotBlank()) {
                             AsyncImage(
@@ -1470,10 +1470,6 @@ fun BottomInfo(
                             if (codec.isNotBlank()) Badge(codec)
                             if (quality.isNotBlank()) Badge(quality)
                         }
-                        Text(
-                            sp.desc.ifBlank { sp.sub }, color = Color(0xFFDDE2EA), fontSize = 14.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp)
-                        )
                     }
                 }
             }
@@ -1484,7 +1480,7 @@ fun BottomInfo(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(c.cat, color = MUTED, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
             Text(
                 "\u2191\u2193  zap     OK  list",
