@@ -9,7 +9,7 @@ import java.util.zip.GZIPOutputStream
 
 // Disk cache for channels and the guide, so the app opens instantly with the last data.
 object GuideCache {
-    private const val VER = 1
+    private const val VER = 2
 
     private fun f(ctx: Context, name: String) = File(ctx.filesDir, name)
 

@@ -145,19 +145,22 @@ fun Section(t: String) {
 @Composable
 fun AutoScrollText(text: String, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.TextUnit = 14.sp, line: androidx.compose.ui.unit.TextUnit = 20.sp) {
     val st = rememberScrollState()
+    val dens = androidx.compose.ui.platform.LocalDensity.current.density
     LaunchedEffect(text) {
         st.scrollTo(0)
-        delay(3000)
+        delay(4000)
         while (true) {
             val max = st.maxValue
             if (max > 0) {
+                // vitesse lente et constante : environ 9 dp par seconde (une ligne toutes les 2 s)
+                val ms = (max / (9f * dens) * 1000f).toInt().coerceAtLeast(3000)
                 try {
-                    st.animateScrollTo(max, tween(durationMillis = (max * 25).coerceIn(2500, 40000), easing = LinearEasing))
+                    st.animateScrollTo(max, tween(durationMillis = ms, easing = LinearEasing))
                 } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
-                delay(2500)
+                delay(4000)
                 st.scrollTo(0)
             }
-            delay(3000)
+            delay(4000)
         }
     }
     Box(modifier.clipToBounds()) {
