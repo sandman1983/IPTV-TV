@@ -300,12 +300,20 @@ private val P_DARK_TXT = Color(0xFF14213D)
 private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
+    val gk by androidx.compose.animation.core.animateFloatAsState(if (f) 1f else 0f, androidx.compose.animation.core.tween(120), label = "chipGrow")
     Box(
         Modifier.zIndex(if (f) 1f else 0f)
-            .graphicsLayer { val k = if (f) 1.06f else 1f; scaleX = k; scaleY = k }
+            .graphicsLayer {
+                if (size.width > 0f && size.height > 0f) {
+                    val g = 5.dp.toPx() * gk
+                    scaleX = (size.width + 2 * g) / size.width
+                    scaleY = (size.height + 2 * g) / size.height
+                }
+            }
             .then(if (f) Modifier.shadow(10.dp) else Modifier)
             .clip(androidx.compose.ui.graphics.RectangleShape)
             .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
+            .then(if (f) Modifier.border(3.dp, ACCENT, androidx.compose.ui.graphics.RectangleShape) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
@@ -480,7 +488,7 @@ fun EpgGrid(
             )
             Spacer(Modifier.width(24.dp))
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
             ) {
                 item { GChip("All", cat.isEmpty()) { cat = "" } }
