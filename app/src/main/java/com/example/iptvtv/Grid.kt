@@ -190,7 +190,7 @@ fun MiniPlayer(
         l.take(10)
     }
     val gr = remember { FocusRequester() }
-    val btn = remember { FocusRequester() }
+    val curReq = remember { FocusRequester() }
     var ctrl by remember { mutableStateOf(false) }
     var sel by remember { mutableStateOf(0) }
     val st = rememberLazyListState()
@@ -205,11 +205,13 @@ fun MiniPlayer(
     }
     LaunchedEffect(ctrl) {
         if (!ctrl && clearFor == null) {
-            // Commandes masquées : le focus revient sur la rangée de chaînes (gauche/droite refonctionnent)
+            // Commandes masquées : la sélection revient sur la chaîne en cours (gauche/droite refonctionnent)
             delay(60)
-            try { gr.requestFocus() } catch (ex: Exception) { }
+            try { curReq.requestFocus() } catch (ex: Exception) { try { gr.requestFocus() } catch (e2: Exception) { } }
         }
     }
+    // Retour : cache d'abord les commandes ; un second Retour quitte le lecteur
+    BackHandler(enabled = ctrl && clearFor == null) { ctrl = false }
     LaunchedEffect(clearFor) {
         if (clearFor != null) {
             delay(100)
@@ -321,7 +323,7 @@ fun MiniPlayer(
                     val pr = epg.now(ch.epgId)
                     val num = channels.indexOfFirst { it.id == ch.id } + 1
                     MiniItem(
-                        { onPick(ch) }, null,
+                        { onPick(ch) }, if (ri == 0) curReq else null,
                         pr?.title ?: ch.name, "$num - ${ch.name.uppercase()}",
                         if (pr != null) fracOf(pr, nowMs) else null,
                         if (pr?.icon.isNullOrBlank()) null else ch.icon,
