@@ -1402,7 +1402,7 @@ fun BottomInfo(
     val sp: Prog? = ev ?: p
     Column(
         Modifier.fillMaxWidth().background(
-            Brush.verticalGradient(listOf(Color(0x00000000), Color(0xE6000000), Color(0xF5000000)))
+            Brush.verticalGradient(listOf(Color(0x00262626), Color(0xF2262626), Color(0xFF262626)))
         )
     ) {
         Row(
@@ -1435,7 +1435,7 @@ fun BottomInfo(
                     Text("$num", color = LIME, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                     Box(Modifier.size(22.dp, 11.dp).chevron(false, MUTED))
                 }
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).height(120.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (c.icon.isNotBlank()) {
                             AsyncImage(
@@ -1450,23 +1450,18 @@ fun BottomInfo(
                         Text("No guide information", color = MUTED, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
                     } else {
                         Text(
-                            sp.title, color = SOFT, fontSize = 21.sp, fontWeight = FontWeight.Bold,
+                            sp.title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                             if (ev == null) {
-                                Text("Now ${hm(nowMs)}", color = LIME, fontSize = 14.sp)
+                                Text("Now ${hm(nowMs)}", color = Color(0xFF8FCBF7), fontSize = 14.sp)
                                 Text("  |  ", color = MUTED, fontSize = 15.sp)
-                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFFDDE2EA), fontSize = 15.sp)
-                                Box(Modifier.padding(horizontal = 14.dp).width(120.dp).height(4.dp).background(Color(0x66FFFFFF))) {
-                                    Box(
-                                        Modifier.fillMaxWidth(fracOf(sp, nowMs)).fillMaxHeight()
-                                            .background(Color(0xFF2F7FC1))
-                                    )
-                                }
-                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color(0xFFDDE2EA), fontSize = 14.sp, maxLines = 1, softWrap = false)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFF8FCBF7), fontSize = 15.sp)
+                                Bar(fracOf(sp, nowMs), Modifier.padding(horizontal = 14.dp).width(150.dp), 8.dp)
+                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color(0xFF8FCBF7), fontSize = 14.sp, maxLines = 1, softWrap = false)
                             } else {
-                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFFDDE2EA), fontSize = 15.sp)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFF8FCBF7), fontSize = 15.sp)
                                 Text("   in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 15.sp)
                             }
                             Spacer(Modifier.width(6.dp))
@@ -1491,7 +1486,6 @@ fun BottomInfo(
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(c.cat, color = MUTED, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(res, color = Color(0xFF2EE05A), fontSize = 13.sp)
             Text(
                 "\u2191\u2193  zap     OK  list",
                 color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
