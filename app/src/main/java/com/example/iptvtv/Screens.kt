@@ -339,6 +339,13 @@ fun ChannelPanel(
                             if (pr != null) {
                                 Bar(fracOf(pr, nowMs), Modifier.padding(start = 8.dp, end = 6.dp).width(54.dp), 10.dp)
                             }
+                            if (c.id == current.id) {
+                                // Repère de la chaîne en cours de lecture
+                                Box(
+                                    Modifier.padding(start = 6.dp).width(6.dp).fillMaxHeight(0.8f)
+                                        .clip(RoundedCornerShape(3.dp)).background(Color(0xFF4C9AFF))
+                                )
+                            }
                         }
                     }
                 }
