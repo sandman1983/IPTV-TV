@@ -377,7 +377,9 @@ fun App() {
         val load = androidx.media3.exoplayer.DefaultLoadControl.Builder()
             .setBufferDurationsMs(20000, 60000, 3000, 6000)
             .build()
-        ExoPlayer.Builder(ctx)
+        val renderers = androidx.media3.exoplayer.DefaultRenderersFactory(ctx)
+            .setEnableDecoderFallback(true)
+        ExoPlayer.Builder(ctx, renderers)
             .setLoadControl(load)
             .setMediaSourceFactory(
                 DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, http), extractors)
@@ -391,6 +393,15 @@ fun App() {
         val l = object : Player.Listener {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 playErr = friendlyError(error)
+                if ((error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED
+                ) && retries[0] >= 1
+                ) {
+                    // Deux échecs de suite : la sortie 5.1 est refusée, on passe en stéréo (le 5.1 / passthrough reste essayé en premier)
+                    exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
+                        .setMaxAudioChannelCount(2)
+                        .build()
+                }
                 val code = (error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode ?: 0
                 if (code in 400..499 || retries[0] >= 3) return
                 retries[0]++
@@ -1459,6 +1470,9 @@ fun friendlyError(e: androidx.media3.common.PlaybackException): String {
         androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
         androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
             "Invalid stream\nThe channel sends data the player cannot read"
+        androidx.media3.common.PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED,
+        androidx.media3.common.PlaybackException.ERROR_CODE_AUDIO_TRACK_WRITE_FAILED ->
+            "Audio problem\nThe TV could not start the sound of this channel (retrying)"
         androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
         androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED ->
             "Video format not supported by this TV"
