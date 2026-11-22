@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -1244,15 +1245,12 @@ fun PlayerScreen(
             }
         }
     ) {
-        SlideIn(show && !panel && !mini, true, Modifier.align(Alignment.TopCenter)) {
-            TopInfo(
-                c, num, weather, codec, quality,
+        SlideIn(show && !panel && !mini, false, Modifier.align(Alignment.BottomCenter)) {
+            BottomInfo(
+                c, num, p, ups, evIdx, dir, nowMs, res, weather, codec, quality,
                 tracks.groups.count { it.type == C.TRACK_TYPE_AUDIO },
                 tracks.groups.count { it.type == C.TRACK_TYPE_TEXT }
             )
-        }
-        SlideIn(show && !panel && !mini, false, Modifier.align(Alignment.BottomCenter)) {
-            BottomInfo(c, p, ups, evIdx, dir, nowMs, res)
         }
         if (mini && !panel) {
             MiniPlayer(
@@ -1370,10 +1368,24 @@ fun TopInfo(c: Channel, num: Int, weather: String, codec: String, quality: Strin
     }
 }
 
-// Bandeau du bas : horloge, vignette, heure + progression, titre, description, logo.
-// Droite = événements suivants (glissement animé), gauche = retour.
+// Petit chevron dessiné (haut / bas) pour le numéro de chaîne.
+private fun Modifier.chevron(up: Boolean, col: Color): Modifier = this.drawBehind {
+    val w = size.width
+    val h = size.height
+    val st = 2.5.dp.toPx()
+    val y1 = if (up) h else 0f
+    val y2 = if (up) 0f else h
+    drawLine(col, androidx.compose.ui.geometry.Offset(0f, y1), androidx.compose.ui.geometry.Offset(w / 2f, y2), st, androidx.compose.ui.graphics.StrokeCap.Round)
+    drawLine(col, androidx.compose.ui.geometry.Offset(w / 2f, y2), androidx.compose.ui.geometry.Offset(w, y1), st, androidx.compose.ui.graphics.StrokeCap.Round)
+}
+
+// Bandeau du bas (style "zapping" TV) : vignette à gauche, numéro + flèches, nom de chaîne,
+// titre, heure + progression + badges. Droite = événements suivants, gauche = audio / sous-titres.
 @Composable
-fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowMs: Long, res: String) {
+fun BottomInfo(
+    c: Channel, num: Int, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowMs: Long, res: String,
+    weather: String, codec: String, quality: String, audioN: Int, subN: Int
+) {
     val slide = remember { Animatable(0f) }
     val first = remember { BooleanArray(1) { true } }
     LaunchedEffect(evIdx, c.id) {
@@ -1413,16 +1425,10 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
             }
         }
         Row(
-            Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().padding(end = 28.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(Modifier.width(190.dp)) {
-                Text(hm(nowMs), color = LIME, fontSize = 44.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    SimpleDateFormat("EEEE dd MMMM", Locale.ENGLISH).format(Date(nowMs)),
-                    color = LIME, fontSize = 14.sp
-                )
-            }
+            // Vignette collée au bord gauche + numéro + texte (glissent quand on change d'événement)
             Row(
                 Modifier.weight(1f).graphicsLayer {
                     translationX = slide.value * dir * 90.dp.toPx()
@@ -1430,7 +1436,7 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
                 },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.width(190.dp).height(107.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1B2230))) {
+                Box(Modifier.width(232.dp).height(131.dp).background(Color(0xFF1B2230))) {
                     if (sp != null && sp.icon.isNotBlank()) {
                         AsyncImage(
                             model = sp.icon, contentDescription = null,
@@ -1439,58 +1445,76 @@ fun BottomInfo(c: Channel, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowM
                     } else if (c.icon.isNotBlank()) {
                         AsyncImage(
                             model = c.icon, contentDescription = null,
-                            modifier = Modifier.fillMaxSize().padding(12.dp), contentScale = ContentScale.Fit
+                            modifier = Modifier.fillMaxSize().padding(20.dp), contentScale = ContentScale.Fit
                         )
                     }
                 }
-                Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Column(Modifier.width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(22.dp, 11.dp).chevron(true, MUTED))
+                    Text("$num", color = LIME, fontSize = 40.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                    Box(Modifier.size(22.dp, 11.dp).chevron(false, MUTED))
+                }
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (c.icon.isNotBlank()) {
+                            AsyncImage(
+                                model = c.icon, contentDescription = null,
+                                modifier = Modifier.height(24.dp).widthIn(max = 56.dp).padding(end = 8.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        Text(c.name, color = MUTED, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                     if (sp == null) {
-                        Text("No guide information", color = MUTED, fontSize = 16.sp)
+                        Text("No guide information", color = MUTED, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
                     } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            sp.title, color = SOFT, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                             if (ev == null) {
-                                Text(hm(sp.start), color = Color.White, fontSize = 16.sp)
-                                Box(Modifier.padding(horizontal = 12.dp).weight(1f).height(4.dp).background(Color.White)) {
+                                Text("Now ${hm(nowMs)}", color = LIME, fontSize = 15.sp)
+                                Text("  |  ", color = MUTED, fontSize = 15.sp)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFFDDE2EA), fontSize = 15.sp)
+                                Box(Modifier.padding(horizontal = 14.dp).width(220.dp).height(4.dp).background(Color(0x66FFFFFF))) {
                                     Box(
                                         Modifier.fillMaxWidth(fracOf(sp, nowMs)).fillMaxHeight()
                                             .background(Color(0xFF2F7FC1))
                                     )
                                 }
-                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color.White, fontSize = 16.sp)
+                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color(0xFFDDE2EA), fontSize = 15.sp)
                             } else {
-                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color.White, fontSize = 16.sp)
-                                Spacer(Modifier.weight(1f))
-                                Text("in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 14.sp)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFFDDE2EA), fontSize = 15.sp)
+                                Text("   in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 15.sp)
                             }
+                            Spacer(Modifier.width(6.dp))
+                            if (subN > 0) Badge("SUB")
+                            if (audioN > 1) Badge("AUDIO $audioN")
+                            if (codec.isNotBlank()) Badge(codec)
+                            if (quality.isNotBlank()) Badge(quality)
                         }
                         Text(
-                            sp.title, color = SOFT, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
                             sp.desc.ifBlank { sp.sub }, color = Color(0xFFDDE2EA), fontSize = 14.sp,
-                            maxLines = 3, overflow = TextOverflow.Ellipsis
+                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }
             }
-            Box(Modifier.width(170.dp).height(70.dp), contentAlignment = Alignment.Center) {
-                if (c.icon.isNotBlank()) {
-                    AsyncImage(
-                        model = c.icon, contentDescription = null,
-                        modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit
-                    )
-                } else {
-                    Text(c.name, color = Color.White, fontSize = 18.sp, maxLines = 2, textAlign = TextAlign.Center)
+            if (ups.isNotEmpty()) {
+                Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("\u203A", color = MUTED, fontSize = 34.sp)
+                    Text("  Up next", color = MUTED, fontSize = 18.sp)
                 }
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(c.cat, color = MUTED, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(weather, color = MUTED, fontSize = 13.sp, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.weight(1.4f))
             Text(res, color = Color(0xFF2EE05A), fontSize = 13.sp)
             Text(
-                "←  audio / subtitles     →  up next     ↑↓  zap     OK  list",
-                color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
+                "\u2190  audio / subtitles     \u2192  up next     \u2191\u2193  zap     OK  list",
+                color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1.6f)
             )
         }
     }
