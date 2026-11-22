@@ -453,7 +453,7 @@ fun ChannelPanel(
             val remId = "${dch.id}_${dp.start}_rem"
             val hasRec = recs.any { it.id == recId && (it.state == "scheduled" || it.state == "recording") }
             val hasRem = recs.any { it.id == remId && it.state == "scheduled" }
-            val closeDvr = { dvrFor = null; goList++ }
+            val closeDvr: () -> Unit = { dvrFor = null; goList += 1 }
             PanelDialog(dp.title, closeDvr, actions = { PButton("Close", closeDvr) }) {
                 item { PInfo(dch.name + "  ·  " + hm(dp.start) + " - " + hm(dp.stop)) }
                 item {
