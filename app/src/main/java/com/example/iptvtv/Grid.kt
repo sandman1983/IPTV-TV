@@ -210,8 +210,6 @@ fun MiniPlayer(
             try { gr.requestFocus() } catch (ex: Exception) { }
         }
     }
-    // Retour : cache d'abord les commandes (au lieu de tout fermer)
-    BackHandler(enabled = ctrl && clearFor == null) { ctrl = false }
     LaunchedEffect(clearFor) {
         if (clearFor != null) {
             delay(100)
