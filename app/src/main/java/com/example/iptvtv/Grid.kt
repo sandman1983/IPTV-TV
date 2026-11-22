@@ -387,6 +387,22 @@ fun EpgGrid(
     var sel by remember {
         mutableStateOf<Pair<Channel, Prog?>?>(if (current != null) Pair(current, epg.now(current.epgId)) else null)
     }
+    // Garde toujours 7 chaînes entières : la liste s'aligne sur la chaîne sélectionnée.
+    LaunchedEffect(sel?.first?.id) {
+        val id = sel?.first?.id ?: return@LaunchedEffect
+        val idx = rows.indexOfFirst { it.id == id }
+        if (idx >= 0) {
+            val first = ls.firstVisibleItemIndex
+            val target = when {
+                idx < first -> idx
+                idx > first + 6 -> idx - 6
+                else -> first
+            }
+            if (target != first || ls.firstVisibleItemScrollOffset != 0) {
+                try { ls.animateScrollToItem(target) } catch (ex: Exception) { if (ex is kotlinx.coroutines.CancellationException) throw ex }
+            }
+        }
+    }
     val req = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         delay(350)
@@ -416,7 +432,7 @@ fun EpgGrid(
         }
         Row(Modifier.fillMaxWidth().height(26.dp)) {
             Spacer(Modifier.width(LW))
-            Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width - with(density) { 250.dp.toPx().toInt() } }.horizontalScroll(hs, enabled = false)) {
+            Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width - with(density) { 260.dp.toPx().toInt() } }.horizontalScroll(hs, enabled = false)) {
                 Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
                     Text(
                         "ON NOW", color = ACCENT, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
@@ -440,8 +456,8 @@ fun EpgGrid(
         Row(Modifier.weight(1f).fillMaxWidth()) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val rowH = (maxHeight - 16.dp) / 7
-                    LazyColumn(state = ls, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+                    val rowH = maxHeight / 7
+                    LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
                         items(rows, key = { it.id }) { ch ->
                             val isCur = ch.id == current?.id
                             val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
@@ -451,7 +467,8 @@ fun EpgGrid(
                             Row(Modifier.fillMaxWidth().height(rowH)) {
                                 Box(
                                     Modifier.width(LW).fillMaxHeight().padding(5.dp)
-                                        .clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626)),
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(Brush.verticalGradient(listOf(Color(0xFF4B5568), Color(0xFF333B49)))),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (ch.icon.isNotBlank()) {
@@ -518,7 +535,8 @@ fun EpgGrid(
             }
             val sp = sel
             Column(
-                Modifier.width(250.dp).fillMaxHeight().background(Color(0xF5171717)).padding(16.dp)
+                Modifier.width(260.dp).fillMaxHeight().padding(start = 10.dp, top = 5.dp, end = 8.dp, bottom = 5.dp)
+                    .clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626)).padding(16.dp)
             ) {
                 if (sp != null) {
                     val sch = sp.first
