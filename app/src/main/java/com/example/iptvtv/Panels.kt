@@ -77,10 +77,10 @@ fun PanelShell(
         initialFirstVisibleItemIndex = (scrollTo - 2).coerceAtLeast(0)
     )
     Row(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(0.40f).fillMaxHeight().background(Color(0x80000000)))
+        Box(Modifier.weight(0.50f).fillMaxHeight().background(Color(0x80000000)))
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
         Row(
-            Modifier.weight(0.60f).fillMaxHeight().background(Color(0xF5171717))
+            Modifier.weight(0.50f).fillMaxHeight().background(Color(0xF5171717))
         ) {
             Column(Modifier.weight(1f).fillMaxHeight().padding(start = 24.dp, end = 16.dp, top = 28.dp)) {
                 if (title.isNotEmpty()) {
@@ -98,7 +98,7 @@ fun PanelShell(
             }
             if (actions != null) {
                 Column(
-                    Modifier.width(150.dp).fillMaxHeight().background(Color(0xF5191919))
+                    Modifier.width(130.dp).fillMaxHeight().background(Color(0xF5191919))
                         .padding(start = 8.dp, end = 8.dp, top = 70.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) { actions() }
