@@ -256,7 +256,7 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
+        Column(Modifier.width(600.dp).fillMaxHeight().background(Color(0xF5171717))) {
             Box(
                 Modifier.fillMaxWidth().background(Color(0x26FFFFFF)).padding(vertical = 5.dp),
                 contentAlignment = Alignment.Center
@@ -268,10 +268,12 @@ fun ChannelPanel(
             }
             Spacer(Modifier.height(6.dp))
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                val rowH = maxHeight / 9
+                val rowH = maxHeight / 10
                 LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
                     items(list, key = { it.id }) { c ->
                         val pr = epg.now(c.epgId)
+                        val isFoc = focused.id == c.id
+                        Column(Modifier.fillMaxWidth()) {
                         FocusRow(
                             { onPick(c) },
                             (if (c.id == wrapTo) Modifier.focusRequester(wrapReq) else if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
@@ -283,35 +285,89 @@ fun ChannelPanel(
                                 Text(
                                     "${all.indexOf(c) + 1}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold, maxLines = 1,
-                                    modifier = Modifier.width(36.dp).padding(start = 4.dp)
+                                    modifier = Modifier.width(40.dp).padding(start = 6.dp)
                                 )
                             }
-                            Box(Modifier.size(52.dp, 32.dp)) {
+                            Box(
+                                Modifier.size(54.dp, 34.dp).clip(RoundedCornerShape(5.dp)).background(Color(0x22FFFFFF)),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 if (c.icon.isNotBlank()) {
                                     AsyncImage(
                                         model = c.icon, contentDescription = null,
-                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+                                        modifier = Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit
                                     )
                                 }
                             }
                             val rf = LocalRowFocused.current
-                            Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                            Column(Modifier.padding(start = 12.dp).weight(1f)) {
                                 Text(
-                                    c.name, color = fcolor(Color.White), fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold,
+                                    c.name, color = fcolor(if (isFoc) Color.White else Color(0xFFD0D5DE)), fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold,
                                     maxLines = 1, softWrap = false,
                                     overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                     modifier = if (rf) Modifier.basicMarquee() else Modifier
                                 )
                                 Text(
-                                    pr?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 13.sp, lineHeight = 17.sp,
+                                    if (rf && pr != null) "Now ${hm(pr.start)} - ${hm(pr.stop)}" else (pr?.title ?: ""),
+                                    color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 13.sp, lineHeight = 17.sp,
                                     maxLines = 1, softWrap = false,
-                                    overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
-                                    modifier = if (rf) Modifier.basicMarquee() else Modifier
+                                    overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis
                                 )
                             }
-                            if (pr != null) {
-                                Bar(fracOf(pr, nowMs), Modifier.padding(start = 8.dp, end = 6.dp).width(54.dp), 10.dp)
+                            if (pr != null && !rf) {
+                                Bar(fracOf(pr, nowMs), Modifier.padding(start = 8.dp, end = 10.dp).width(70.dp), 6.dp)
                             }
+                        }
+                        if (isFoc) {
+                            val cards = listOfNotNull(pr) + ups
+                            val cState = rememberLazyListState()
+                            LaunchedEffect(upIdx) {
+                                try { cState.animateScrollToItem((upIdx + 1).coerceIn(0, (cards.size - 1).coerceAtLeast(0))) } catch (ex: Exception) { }
+                            }
+                            if (cards.isNotEmpty()) {
+                                LazyRow(
+                                    state = cState,
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    itemsIndexed(cards) { ci, u ->
+                                        val on = ci == upIdx + 1
+                                        val sc by animateFloatAsState(if (on) 1.04f else 1f, label = "card")
+                                        Column(
+                                            Modifier.width(168.dp).graphicsLayer { scaleX = sc; scaleY = sc }
+                                        ) {
+                                            Box(
+                                                Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                                                    .clip(RoundedCornerShape(8.dp)).background(Color(0xFF1B2230))
+                                                    .then(if (on) Modifier.border(2.dp, Color.White, RoundedCornerShape(8.dp)) else Modifier)
+                                            ) {
+                                                if (u.icon.isNotBlank()) {
+                                                    AsyncImage(
+                                                        model = u.icon, contentDescription = null,
+                                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                                                    )
+                                                }
+                                                Box(
+                                                    Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color(0xB3000000))
+                                                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                                                ) {
+                                                    Text(u.title, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                }
+                                                if (ci == 0 && pr != null) {
+                                                    Box(Modifier.align(Alignment.BottomStart).padding(bottom = 22.dp).fillMaxWidth(fracOf(u, nowMs)).height(3.dp).background(Color(0xFFE5484D)))
+                                                }
+                                            }
+                                            Text(
+                                                (if (ci == 0 && pr != null) "Now" else hm(u.start)),
+                                                color = if (on) Color.White else GRAY, fontSize = 12.sp, maxLines = 1,
+                                                modifier = Modifier.padding(top = 3.dp, start = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         }
                     }
                 }
@@ -320,14 +376,18 @@ fun ChannelPanel(
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
         if (!cols) Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xE6000000))) {
             Column(Modifier.fillMaxSize().padding(24.dp)) {
-            if (fc.icon.isNotBlank()) {
-                AsyncImage(
-                    model = fc.icon, contentDescription = null,
-                    modifier = Modifier.size(110.dp, 64.dp), contentScale = ContentScale.Fit,
-                    alignment = Alignment.CenterStart
-                )
-            } else {
-                Text(fc.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (fc.icon.isNotBlank()) {
+                    Box(Modifier.size(52.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x22FFFFFF)), contentAlignment = Alignment.Center) {
+                        AsyncImage(
+                            model = fc.icon, contentDescription = null,
+                            modifier = Modifier.fillMaxSize().padding(5.dp), contentScale = ContentScale.Fit
+                        )
+                    }
+                    Spacer(Modifier.width(14.dp))
+                }
+                Text(fc.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
+                Text("  LIVE", color = GRAY, fontSize = 13.sp, maxLines = 1)
             }
             Spacer(Modifier.height(12.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -367,52 +427,6 @@ fun ChannelPanel(
                             maxLines = 12, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         )
-                    }
-                }
-            }
-            if (ups.isNotEmpty()) {
-                val browsing = upIdx >= 0
-                val boxScale by animateFloatAsState(if (browsing) 1.03f else 1f, label = "upBox")
-                Column(
-                    Modifier.fillMaxWidth().graphicsLayer { scaleX = boxScale; scaleY = boxScale }
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (browsing) Color(0xF2101010) else Color(0xCC0C0C0C))
-                        .then(if (browsing) Modifier.border(1.5.dp, Color(0x99FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
-                        .padding(12.dp)
-                ) {
-                    Text("Up next", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ups.forEachIndexed { i, u ->
-                            val sel = i == upIdx
-                            val chipScale by animateFloatAsState(if (sel) 1.07f else 1f, label = "chip")
-                            Column(
-                                Modifier.weight(1f).graphicsLayer { scaleX = chipScale; scaleY = chipScale }
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (sel) Color.White else Color.Transparent).padding(4.dp)
-                            ) {
-                                Box(
-                                    Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF1B2230))
-                                ) {
-                                    if (u.icon.isNotBlank()) {
-                                        AsyncImage(
-                                            model = u.icon, contentDescription = null,
-                                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
-                                        )
-                                    }
-                                }
-                                Text(
-                                    hm(u.start), color = if (sel) Color.Black else Color.White,
-                                    fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1
-                                )
-                                Text(
-                                    u.title, color = if (sel) Color(0xFF222222) else GRAY, fontSize = 13.sp, lineHeight = 17.sp,
-                                    minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        repeat(4 - ups.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
             }
