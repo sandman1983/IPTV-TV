@@ -1403,29 +1403,8 @@ fun BottomInfo(
             Brush.verticalGradient(listOf(Color(0x00000000), Color(0xE6000000), Color(0xF5000000)))
         )
     ) {
-        SlideIn(ev != null, false, Modifier) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ups.forEachIndexed { i, u ->
-                    val sel = i == evIdx
-                    Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                            .background(if (sel) Color.White else Color(0x66000000)).padding(8.dp)
-                    ) {
-                        Text(hm(u.start), color = if (sel) Color.Black else LIME, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            u.title, color = if (sel) Color(0xFF222222) else Color.White, fontSize = 13.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                repeat(4 - ups.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
         Row(
-            Modifier.fillMaxWidth().padding(end = 28.dp, top = 6.dp),
+            Modifier.fillMaxWidth().padding(end = 28.dp, top = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Vignette collée au bord gauche + numéro + texte (glissent quand on change d'événement)
@@ -1436,7 +1415,7 @@ fun BottomInfo(
                 },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.width(232.dp).height(131.dp).background(Color(0xFF1B2230))) {
+                Box(Modifier.padding(start = 24.dp).width(150.dp).height(84.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1B2230))) {
                     if (sp != null && sp.icon.isNotBlank()) {
                         AsyncImage(
                             model = sp.icon, contentDescription = null,
@@ -1445,13 +1424,13 @@ fun BottomInfo(
                     } else if (c.icon.isNotBlank()) {
                         AsyncImage(
                             model = c.icon, contentDescription = null,
-                            modifier = Modifier.fillMaxSize().padding(20.dp), contentScale = ContentScale.Fit
+                            modifier = Modifier.fillMaxSize().padding(12.dp), contentScale = ContentScale.Fit
                         )
                     }
                 }
-                Column(Modifier.width(120.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.width(96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(22.dp, 11.dp).chevron(true, MUTED))
-                    Text("$num", color = LIME, fontSize = 40.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                    Text("$num", color = LIME, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                     Box(Modifier.size(22.dp, 11.dp).chevron(false, MUTED))
                 }
                 Column(Modifier.weight(1f)) {
@@ -1459,31 +1438,31 @@ fun BottomInfo(
                         if (c.icon.isNotBlank()) {
                             AsyncImage(
                                 model = c.icon, contentDescription = null,
-                                modifier = Modifier.height(24.dp).widthIn(max = 56.dp).padding(end = 8.dp),
+                                modifier = Modifier.height(20.dp).widthIn(max = 48.dp).padding(end = 8.dp),
                                 contentScale = ContentScale.Fit
                             )
                         }
-                        Text(c.name, color = MUTED, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(c.name, color = MUTED, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (sp == null) {
                         Text("No guide information", color = MUTED, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
                     } else {
                         Text(
-                            sp.title, color = SOFT, fontSize = 26.sp, fontWeight = FontWeight.Bold,
+                            sp.title, color = SOFT, fontSize = 21.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                             if (ev == null) {
-                                Text("Now ${hm(nowMs)}", color = LIME, fontSize = 15.sp)
+                                Text("Now ${hm(nowMs)}", color = LIME, fontSize = 14.sp)
                                 Text("  |  ", color = MUTED, fontSize = 15.sp)
                                 Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFFDDE2EA), fontSize = 15.sp)
-                                Box(Modifier.padding(horizontal = 14.dp).width(220.dp).height(4.dp).background(Color(0x66FFFFFF))) {
+                                Box(Modifier.padding(horizontal = 14.dp).width(170.dp).height(4.dp).background(Color(0x66FFFFFF))) {
                                     Box(
                                         Modifier.fillMaxWidth(fracOf(sp, nowMs)).fillMaxHeight()
                                             .background(Color(0xFF2F7FC1))
                                     )
                                 }
-                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color(0xFFDDE2EA), fontSize = 15.sp)
+                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color(0xFFDDE2EA), fontSize = 14.sp, maxLines = 1, softWrap = false)
                             } else {
                                 Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFFDDE2EA), fontSize = 15.sp)
                                 Text("   in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 15.sp)
@@ -1496,15 +1475,15 @@ fun BottomInfo(
                         }
                         Text(
                             sp.desc.ifBlank { sp.sub }, color = Color(0xFFDDE2EA), fontSize = 14.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)
+                            maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp)
                         )
                     }
                 }
             }
             if (ups.isNotEmpty()) {
                 Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("\u203A", color = MUTED, fontSize = 34.sp)
-                    Text("  Up next", color = MUTED, fontSize = 18.sp)
+                    Text("\u203A", color = MUTED, fontSize = 30.sp)
+                    Text("  Up next", color = MUTED, fontSize = 16.sp, maxLines = 1, softWrap = false)
                 }
             }
         }
