@@ -16,6 +16,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
@@ -143,7 +144,11 @@ fun Section(t: String) {
 // ---------------------------------------------------------------------------
 // Texte long : défile automatiquement de haut en bas, puis revient au début.
 @Composable
-fun AutoScrollText(text: String, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.TextUnit = 14.sp, line: androidx.compose.ui.unit.TextUnit = 20.sp) {
+fun AutoScrollText(
+    text: String, modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.TextUnit = 14.sp, line: androidx.compose.ui.unit.TextUnit = 20.sp,
+    speed: Float = 9f
+) {
     val st = rememberScrollState()
     val dens = androidx.compose.ui.platform.LocalDensity.current.density
     LaunchedEffect(text) {
@@ -152,8 +157,8 @@ fun AutoScrollText(text: String, modifier: Modifier = Modifier, size: androidx.c
         while (true) {
             val max = st.maxValue
             if (max > 0) {
-                // vitesse lente et constante : environ 9 dp par seconde (une ligne toutes les 2 s)
-                val ms = (max / (9f * dens) * 1000f).toInt().coerceAtLeast(3000)
+                // vitesse lente et constante (dp par seconde)
+                val ms = (max / (speed * dens) * 1000f).toInt().coerceAtLeast(3000)
                 try {
                     st.animateScrollTo(max, tween(durationMillis = ms, easing = LinearEasing))
                 } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
@@ -163,10 +168,28 @@ fun AutoScrollText(text: String, modifier: Modifier = Modifier, size: androidx.c
             delay(4000)
         }
     }
-    Box(modifier.clipToBounds()) {
+    Box(
+        modifier.clipToBounds()
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawContent()
+                // Fondu en haut (si le texte a défilé) et en bas : plus de demi-ligne coupée
+                val f = (14.dp.toPx() / size.height).coerceIn(0.02f, 0.3f)
+                val top = if (st.value > 0) f else 0f
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to (if (top > 0f) Color.Transparent else Color.Black),
+                        (if (top > 0f) top else 0.001f) to Color.Black,
+                        1f - f to Color.Black,
+                        1f to Color.Transparent
+                    ),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                )
+            }
+    ) {
         Text(
             text, color = Color(0xFFD5DAE3), fontSize = size, lineHeight = line,
-            modifier = Modifier.fillMaxWidth().verticalScroll(st)
+            modifier = Modifier.fillMaxWidth().verticalScroll(st).padding(bottom = 6.dp)
         )
     }
 }
