@@ -263,6 +263,22 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Cache des logos : mémoire + disque (200 Mo), en ignorant les en-têtes "no-cache" des serveurs
+        try {
+            coil.Coil.setImageLoader(
+                coil.ImageLoader.Builder(applicationContext)
+                    .memoryCache { coil.memory.MemoryCache.Builder(applicationContext).maxSizePercent(0.25).build() }
+                    .diskCache {
+                        coil.disk.DiskCache.Builder()
+                            .directory(applicationContext.filesDir.resolve("img_cache"))
+                            .maxSizeBytes(200L * 1024 * 1024)
+                            .build()
+                    }
+                    .respectCacheHeaders(false)
+                    .crossfade(false)
+                    .build()
+            )
+        } catch (e: Exception) { }
         setContent { App() }
     }
 
