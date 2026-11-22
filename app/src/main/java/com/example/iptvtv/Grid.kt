@@ -317,11 +317,11 @@ private fun GBlock(
     val live = p != null && p.start <= nowMs && nowMs < p.stop
     val past = p != null && p.stop <= nowMs
     Box(
-        Modifier.offset(x = x).width(w).fillMaxHeight().padding(3.dp)
+        Modifier.offset(x = x).width(w).fillMaxHeight().padding(5.dp)
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer {
                 if (f && size.width > 0f && size.height > 0f) {
-                    val grow = 8.dp.toPx()
+                    val grow = 10.dp.toPx()
                     scaleX = (size.width + grow) / size.width
                     scaleY = (size.height + grow) / size.height
                 }
@@ -344,7 +344,7 @@ private fun GBlock(
                 overflow = if (f && w >= 160.dp) TextOverflow.Clip else TextOverflow.Ellipsis,
                 modifier = if (f && w >= 160.dp) Modifier.basicMarquee() else Modifier
             )
-            if (p != null) {
+            if (p != null && w >= 110.dp) {
                 Text(
                     hm(p.start) + " - " + hm(p.stop),
                     color = if (f) Color(0xFF333333) else M_GRAY,
@@ -395,7 +395,7 @@ fun EpgGrid(
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
     Column(
-        Modifier.fillMaxSize().padding(start = 28.dp, top = 36.dp, end = 12.dp, bottom = 12.dp)
+        Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 30.dp)
             .clip(RoundedCornerShape(10.dp)).background(Color(0xE0141414))
     ) {
         Row(
@@ -441,7 +441,7 @@ fun EpgGrid(
                     }
                 }
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val rowH = maxHeight / 9
+                    val rowH = maxHeight / 7
                     LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
                         items(rows, key = { it.id }) { ch ->
                             val isCur = ch.id == current?.id
@@ -451,14 +451,15 @@ fun EpgGrid(
                             val tgt = progs.indexOfFirst { it.start <= nowMs && nowMs < it.stop }.coerceAtLeast(0)
                             Row(Modifier.fillMaxWidth().height(rowH)) {
                                 Box(
-                                    Modifier.width(LW).fillMaxHeight().padding(3.dp)
+                                    Modifier.width(LW).fillMaxHeight().padding(5.dp)
                                         .clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (ch.icon.isNotBlank()) {
                                         AsyncImage(
                                             model = ch.icon, contentDescription = null,
-                                            modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit
+                                            modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit,
+                                            alignment = Alignment.Center
                                         )
                                     } else {
                                         Text(
