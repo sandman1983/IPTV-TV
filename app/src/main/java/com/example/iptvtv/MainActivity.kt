@@ -1131,6 +1131,7 @@ fun PlayerScreen(
     var dir by remember { mutableStateOf(1) }
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
+    var fromPanel by remember { mutableStateOf(false) }
     var mini by remember { mutableStateOf(startMini && !quiet) }
     var miniTick by remember { mutableStateOf(0) }
     val firstC = remember { booleanArrayOf(true) }
@@ -1198,7 +1199,13 @@ fun PlayerScreen(
         l.onVideoSizeChanged(exo.videoSize)
         onDispose { exo.removeListener(l) }
     }
-    BackHandler { if (panel) panel = false else if (mini) mini = false else if (evIdx >= 0) evIdx = -1 else onBack() }
+    BackHandler {
+        if (panel) panel = false
+        else if (mini) mini = false
+        else if (evIdx >= 0) evIdx = -1
+        else if (fromPanel) { fromPanel = false; focusId = c.id; panel = true }
+        else onBack()
+    }
 
     Box(
         Modifier.fillMaxSize().focusRequester(fr).focusable().onPreviewKeyEvent {
@@ -1266,7 +1273,7 @@ fun PlayerScreen(
             ChannelPanel(
                 if (cfg.merge) channels.map { it.copy(src = "") } else channels, sources,
                 if (cfg.merge) c.copy(src = "") else c, epg, nowMs, focusId, refocus,
-                cfg.showNums, { onZap(it); panel = false }, { editId = it.id }, { editCatP = it },
+                cfg.showNums, { onZap(it); panel = false; fromPanel = true }, { editId = it.id }, { editCatP = it },
                 recs = recs, remOn = cfg.remOn, onDvr = onDvr,
                 onClose = { panel = false }
             )
