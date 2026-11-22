@@ -434,8 +434,11 @@ fun EpgGrid(
     val slot = 30 * 60000L
     val winStart = remember { (System.currentTimeMillis() / 60000L) * 60000L }
     val winEnd = winStart + TOTAL_MIN * 60000L
-    var cat by remember { mutableStateOf(GuideState.cat) }
-    LaunchedEffect(cat) { GuideState.cat = cat }
+    // La catégorie n'est mémorisée que si on lance une chaîne depuis le guide ; sinon on revient sur la chaîne en cours.
+    var cat by remember {
+        mutableStateOf(GuideState.cat.takeIf { c -> c.isEmpty() || chans.any { it.cat == c && it.id == current?.id } } ?: "")
+    }
+    val play: (Channel) -> Unit = { ch -> GuideState.cat = cat; onPlay(ch) }
     val cats = remember(chans) { chans.map { it.cat }.distinct() }
     if (cat.isNotEmpty() && cat !in cats) cat = ""
     val rows = remember(chans, cat) { if (cat.isEmpty()) chans else chans.filter { it.cat == cat } }
@@ -627,7 +630,7 @@ fun EpgGrid(
                                         if (progs.isEmpty()) {
                                             GBlock(
                                                 null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, rr, "",
-                                                { sel = Pair(ch, null); mids[0] = -1f; mids[1] = -1f; mids[2] = 0f }, { onPlay(ch) }, { onEdit(ch) }
+                                                { sel = Pair(ch, null); mids[0] = -1f; mids[1] = -1f; mids[2] = 0f }, { play(ch) }, { onEdit(ch) }
                                             )
                                         }
                                         for ((pi, p) in progs.withIndex()) {
@@ -655,7 +658,7 @@ fun EpgGrid(
                                                         scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
                                                     }
                                                 },
-                                                { if (p.start > nowMs) dvrFor = Pair(ch, p) else onPlay(ch) },
+                                                { if (p.start > nowMs) dvrFor = Pair(ch, p) else play(ch) },
                                                 { onEdit(ch) }
                                             )
                                         }
@@ -684,7 +687,7 @@ fun EpgGrid(
         PanelDialog(dp.title, { dvrFor = null }, actions = { PButton("Close", { dvrFor = null }) }) {
             item { PInfo(dch.name + "  ·  " + hm(dp.start) + " - " + hm(dp.stop)) }
             if (live) {
-                item { PItem("Watch now", "", { dvrFor = null; onPlay(dch) }, autoFocus = true) }
+                item { PItem("Watch now", "", { dvrFor = null; play(dch) }, autoFocus = true) }
             }
             item {
                 PItem(
@@ -702,7 +705,7 @@ fun EpgGrid(
                     )
                 }
             }
-            if (!live) item { PItem("Watch channel", "", { dvrFor = null; onPlay(dch) }) }
+            if (!live) item { PItem("Watch channel", "", { dvrFor = null; play(dch) }) }
         }
     }
 }
