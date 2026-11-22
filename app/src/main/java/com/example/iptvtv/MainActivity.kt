@@ -377,8 +377,22 @@ fun App() {
         val load = androidx.media3.exoplayer.DefaultLoadControl.Builder()
             .setBufferDurationsMs(20000, 60000, 3000, 6000)
             .build()
-        val renderers = androidx.media3.exoplayer.DefaultRenderersFactory(ctx)
-            .setEnableDecoderFallback(true)
+        val passthrough = ctx.getSharedPreferences("iptv_audio", android.content.Context.MODE_PRIVATE).getBoolean("pt", false)
+        val renderers = if (passthrough) {
+            androidx.media3.exoplayer.DefaultRenderersFactory(ctx).setEnableDecoderFallback(true)
+        } else {
+            // Mode sûr (par défaut) : son décodé en PCM stéréo, pas de passthrough HDMI
+            object : androidx.media3.exoplayer.DefaultRenderersFactory(ctx) {
+                override fun buildAudioSink(
+                    context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean
+                ): androidx.media3.exoplayer.audio.AudioSink? =
+                    androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context)
+                        .setAudioCapabilities(androidx.media3.exoplayer.audio.AudioCapabilities.DEFAULT_AUDIO_CAPABILITIES)
+                        .setEnableFloatOutput(enableFloatOutput)
+                        .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                        .build()
+            }.setEnableDecoderFallback(true)
+        }
         ExoPlayer.Builder(ctx, renderers)
             .setLoadControl(load)
             .setMediaSourceFactory(

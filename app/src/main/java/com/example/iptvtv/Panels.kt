@@ -932,6 +932,14 @@ fun SettingsHub(
         }
         "channels" -> PanelShell("Channels", { back() }, actions = { PButton("Done", { back() }) }) {
             item { PSwitch("Merge sources", "Same categories from all sources shown together", cfg.merge, { onCfg(cfg.copy(merge = !cfg.merge)) }, autoFocus = true) }
+            item {
+                val ap = remember { ctx.getSharedPreferences("iptv_audio", android.content.Context.MODE_PRIVATE) }
+                var pt by remember { mutableStateOf(ap.getBoolean("pt", false)) }
+                PSwitch("Dolby passthrough (AVR)", "Send 5.1 to the receiver. Restart the app to apply. Off = safe stereo sound", pt, {
+                    pt = !pt
+                    ap.edit().putBoolean("pt", pt).apply()
+                })
+            }
             item { PItem("New category", "", { catIn = ""; page = "newcat" }) }
             items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)" + if (all.none { it.cat == cat && !it.hidden }) " · hidden" else "", { selCat = cat; page = "chlist" }, onLong = { editCatName = cat }) }
         }
