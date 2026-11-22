@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.FocusRequester
@@ -109,12 +110,33 @@ private fun MiniItem(
     }
 }
 
+private fun Modifier.upChevron(col: Color): Modifier = this.drawBehind {
+    val st = 2.5.dp.toPx()
+    drawLine(col, androidx.compose.ui.geometry.Offset(0f, size.height), androidx.compose.ui.geometry.Offset(size.width / 2f, 0f), st, androidx.compose.ui.graphics.StrokeCap.Round)
+    drawLine(col, androidx.compose.ui.geometry.Offset(size.width / 2f, 0f), androidx.compose.ui.geometry.Offset(size.width, size.height), st, androidx.compose.ui.graphics.StrokeCap.Round)
+}
+
+@Composable
+private fun CtrlChip(label: String, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    Box(
+        Modifier.size(84.dp, 40.dp).clip(RoundedCornerShape(20.dp))
+            .background(if (f) Color.White else Color(0x66FFFFFF))
+            .onFocusChanged { f = it.isFocused }
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (f) P_DARK_TXT else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+    }
+}
+
 @Composable
 fun MiniPlayer(
     channels: List<Channel>, c: Channel, epg: Epg, nowMs: Long, hist: List<Int>,
     isPlaying: () -> Boolean, onToggle: () -> Unit,
     onPick: (Channel) -> Unit, onGuide: () -> Unit, onKey: () -> Unit,
-    onClearHist: (Int?) -> Unit = {}
+    onClearHist: (Int?) -> Unit = {},
+    onTracks: () -> Unit = {}
 ) {
     var clearFor by remember { mutableStateOf<Channel?>(null) }
     val clr = remember { FocusRequester() }
@@ -132,6 +154,7 @@ fun MiniPlayer(
     val gr = remember { FocusRequester() }
     val btn = remember { FocusRequester() }
     var ctrl by remember { mutableStateOf(false) }
+    var ctrlHad by remember { mutableStateOf(false) }
     val st = rememberLazyListState()
     val sc = rememberCoroutineScope()
     fun focusItem(idx: Int) {
@@ -146,8 +169,14 @@ fun MiniPlayer(
         if (ctrl) {
             delay(60)
             try { btn.requestFocus() } catch (ex: Exception) { }
+        } else if (clearFor == null) {
+            // Commandes masquées : le focus revient sur la rangée de chaînes (gauche/droite refonctionnent)
+            delay(60)
+            try { gr.requestFocus() } catch (ex: Exception) { }
         }
     }
+    // Retour : cache d'abord les commandes (au lieu de tout fermer)
+    BackHandler(enabled = ctrl && clearFor == null) { ctrl = false }
     LaunchedEffect(clearFor) {
         if (clearFor != null) {
             delay(100)
@@ -185,26 +214,43 @@ fun MiniPlayer(
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             if (ctrl) {
-                var bf by remember { mutableStateOf(false) }
-                Box(
-                    Modifier.padding(top = 10.dp).size(64.dp, 40.dp).clip(RoundedCornerShape(20.dp))
-                        .background(if (bf) Color.White else Color(0x66FFFFFF))
-                        .focusRequester(btn)
-                        .onFocusChanged {
-                            // Leaving the button (Down to the channels) makes it disappear again.
-                            if (bf && !it.isFocused) ctrl = false
-                            bf = it.isFocused
-                        }
-                        .clickable {
-                            onToggle()
-                            playing = isPlaying()
-                        },
-                    contentAlignment = Alignment.Center
+                // Play/pause au centre, audio + sous-titres à droite
+                Row(
+                    Modifier.padding(top = 10.dp).fillMaxWidth().onFocusChanged {
+                        // Quitter la rangée (Bas vers les chaînes) la fait disparaître
+                        if (ctrlHad && !it.hasFocus) ctrl = false
+                        ctrlHad = it.hasFocus
+                    },
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        if (playing) "❚❚" else "▶", color = if (bf) P_DARK_TXT else Color.White,
-                        fontSize = 18.sp, fontWeight = FontWeight.Bold
-                    )
+                    Spacer(Modifier.weight(1f))
+                    var bf by remember { mutableStateOf(false) }
+                    Box(
+                        Modifier.size(64.dp, 40.dp).clip(RoundedCornerShape(20.dp))
+                            .background(if (bf) Color.White else Color(0x66FFFFFF))
+                            .focusRequester(btn)
+                            .onFocusChanged { bf = it.isFocused }
+                            .clickable {
+                                onToggle()
+                                playing = isPlaying()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (playing) "❚❚" else "▶", color = if (bf) P_DARK_TXT else Color.White,
+                            fontSize = 18.sp, fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+                        CtrlChip("AUDIO", onTracks)
+                        Spacer(Modifier.width(12.dp))
+                        CtrlChip("CC", onTracks)
+                    }
+                }
+            } else {
+                // Petite flèche : "Haut" affiche les commandes
+                Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(24.dp, 12.dp).upChevron(M_GRAY))
                 }
             }
             if (p != null) {
