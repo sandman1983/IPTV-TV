@@ -23,6 +23,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -285,7 +287,8 @@ fun MiniPlayer(
 // ---------------------------------------------------------------------------
 private const val DPM = 4
 private const val TOTAL_MIN = 2160
-private val LW = 270.dp
+private val LW = 104.dp
+private val ACCENT = Color(0xFF2D9BE0)
 private val P_DARK_TXT = Color(0xFF14213D)
 
 @Composable
@@ -314,7 +317,10 @@ private fun GBlock(
     val live = p != null && p.start <= nowMs && nowMs < p.stop
     val past = p != null && p.stop <= nowMs
     Box(
-        Modifier.offset(x = x).width(w).fillMaxHeight().padding(1.dp)
+        Modifier.offset(x = x).width(w).fillMaxHeight().padding(2.dp)
+            .zIndex(if (f) 1f else 0f)
+            .graphicsLayer { val s = if (f) 1.05f else 1f; scaleX = s; scaleY = s }
+            .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
             .background(if (f) Color.White else if (live) Color(0xFF2F3B48) else Color(0xFF262626))
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
@@ -326,7 +332,7 @@ private fun GBlock(
     ) {
         Text(
             (if (mark.isNotEmpty()) "$mark " else "") + (p?.title ?: "No information"),
-            color = if (f) P_DARK_TXT else if (past) M_GRAY else Color.White,
+            color = if (f) Color.Black else if (past) M_GRAY else Color.White,
             fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
             overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
             modifier = if (f) Modifier.basicMarquee() else Modifier
@@ -373,7 +379,10 @@ fun EpgGrid(
     }
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
-    Column(Modifier.fillMaxSize().background(Color(0xF2141414))) {
+    Column(
+        Modifier.fillMaxSize().padding(start = 28.dp, top = 36.dp, end = 12.dp, bottom = 12.dp)
+            .clip(RoundedCornerShape(10.dp)).background(Color(0xE0141414))
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -394,7 +403,9 @@ fun EpgGrid(
         Row(Modifier.weight(1f).fillMaxWidth()) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 Row(Modifier.fillMaxWidth().height(26.dp)) {
-                    Spacer(Modifier.width(LW))
+                    Box(Modifier.width(LW).fillMaxHeight().padding(start = 12.dp), contentAlignment = Alignment.CenterStart) {
+                        Text("ON NOW", color = ACCENT, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                    }
                     Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width }.horizontalScroll(hs, enabled = false)) {
                         Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
                             val first = ((winStart + slot - 1) / slot) * slot
@@ -426,24 +437,19 @@ fun EpgGrid(
                                     Modifier.width(LW).fillMaxHeight().padding(start = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (showNums) {
-                                        Text(
-                                            "${numOf[ch.id] ?: ""}", color = M_GRAY, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.width(44.dp), maxLines = 1
-                                        )
-                                    }
-                                    Box(Modifier.size(64.dp, 32.dp)) {
+                                    Box(Modifier.size(80.dp, 40.dp), contentAlignment = Alignment.Center) {
                                         if (ch.icon.isNotBlank()) {
                                             AsyncImage(
                                                 model = ch.icon, contentDescription = null,
                                                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
                                             )
+                                        } else {
+                                            Text(
+                                                ch.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                                            )
                                         }
                                     }
-                                    Text(
-                                        ch.name, color = Color.White, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(start = 10.dp, end = 8.dp).weight(1f)
-                                    )
                                 }
                                 Box(
                                     Modifier.weight(1f).fillMaxHeight()
