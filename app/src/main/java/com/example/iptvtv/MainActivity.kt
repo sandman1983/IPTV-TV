@@ -143,22 +143,22 @@ object HoldGuard {
 }
 
 // Renvoie true si l'événement doit être ignoré (suite d'un appui long déjà traité).
-// Certaines télécommandes / versions d'Android renvoient la touche maintenue à la nouvelle fenêtre comme un
-// "nouvel appui" (repeatCount 0) : on ne considère donc un vrai nouvel appui qu'après 1,2 s.
+// - Les répétitions (touche maintenue) sont toujours ignorées tant que la garde est active.
+// - Quand une nouvelle fenêtre s'ouvre, l'ancienne reçoit un faux "relâchement" : on l'ignore pendant 0,8 s.
+// - Un vrai nouvel appui (repeatCount 0) n'est accepté qu'après 1,2 s.
 fun holdGuard(ev: KeyEvent): Boolean {
     val k = ev.key
     if (k != Key.DirectionCenter && k != Key.Enter && k != Key.NumPadEnter) return false
     if (!HoldGuard.block) return false
     val age = System.currentTimeMillis() - HoldGuard.since
-    if (age > 6000) {
-        HoldGuard.block = false
-        return false
+    if (ev.type == KeyEventType.KeyDown) {
+        if (ev.nativeKeyEvent.repeatCount == 0 && age > 1200) {
+            HoldGuard.block = false
+            return false
+        }
+        return true
     }
-    if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0 && age > 1200) {
-        HoldGuard.block = false
-        return false
-    }
-    if (ev.type == KeyEventType.KeyUp) HoldGuard.block = false
+    if (ev.type == KeyEventType.KeyUp && age > 800) HoldGuard.block = false
     return true
 }
 
