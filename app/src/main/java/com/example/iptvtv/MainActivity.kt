@@ -139,14 +139,22 @@ fun parseDate(f: SimpleDateFormat, s: String?): Long =
 // du nouveau panneau doivent ignorer ses répétitions et son relâchement.
 object HoldGuard {
     @Volatile var block = false
+    @Volatile var since = 0L
 }
 
 // Renvoie true si l'événement doit être ignoré (suite d'un appui long déjà traité).
+// Certaines télécommandes / versions d'Android renvoient la touche maintenue à la nouvelle fenêtre comme un
+// "nouvel appui" (repeatCount 0) : on ne considère donc un vrai nouvel appui qu'après 1,2 s.
 fun holdGuard(ev: KeyEvent): Boolean {
     val k = ev.key
     if (k != Key.DirectionCenter && k != Key.Enter && k != Key.NumPadEnter) return false
     if (!HoldGuard.block) return false
-    if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0) {
+    val age = System.currentTimeMillis() - HoldGuard.since
+    if (age > 6000) {
+        HoldGuard.block = false
+        return false
+    }
+    if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0 && age > 1200) {
         HoldGuard.block = false
         return false
     }
@@ -165,6 +173,7 @@ fun okLong(ev: KeyEvent, fired: BooleanArray, onShort: () -> Unit, onLong: () ->
         } else if (rc == 1 && !fired[0]) {
             fired[0] = true
             HoldGuard.block = true
+            HoldGuard.since = System.currentTimeMillis()
             onLong()
         }
         return true

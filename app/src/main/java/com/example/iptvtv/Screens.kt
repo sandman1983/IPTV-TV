@@ -81,6 +81,7 @@ fun FocusRow(
     pad: androidx.compose.ui.unit.Dp = 10.dp,
     corner: androidx.compose.ui.unit.Dp = 8.dp,
     tile: Boolean = false,
+    tileColor: Color = Color(0xE62A313E),
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
@@ -102,7 +103,7 @@ fun FocusRow(
             }
             .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
-            .background(if (f) Color.White else Color(0xE62A313E))
+            .background(if (f) Color.White else tileColor)
     }
     Row(
         modifier = base
@@ -318,32 +319,15 @@ fun ChannelPanel(
                             (if (c.id == wrapTo) Modifier.focusRequester(wrapReq) else if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
                             { focused = c; upIdx = -1; cols = false },
                             { onEdit(c) },
-                            6.dp, 0.dp, tile = true
+                            6.dp, 0.dp, tile = true,
+                            tileColor = if (c.id == current.id) Color(0xFF1F5FA6) else Color(0xE62A313E)
                         ) {
-                            if (c.id == current.id) {
-                                // Chaîne en cours : bouton lecture rond à la place du numéro
-                                Box(Modifier.width(40.dp).padding(start = 6.dp), contentAlignment = Alignment.Center) {
-                                    Box(
-                                        Modifier.size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFF3B8EEA))
-                                            .drawBehind {
-                                                val p = androidx.compose.ui.graphics.Path().apply {
-                                                    moveTo(size.width * 0.40f, size.height * 0.28f)
-                                                    lineTo(size.width * 0.40f, size.height * 0.72f)
-                                                    lineTo(size.width * 0.74f, size.height * 0.50f)
-                                                    close()
-                                                }
-                                                drawPath(p, Color.White)
-                                            }
-                                    )
-                                }
-                            } else if (showNums) {
+                            if (showNums) {
                                 Text(
                                     "${all.indexOf(c) + 1}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold, maxLines = 1,
                                     modifier = Modifier.width(40.dp).padding(start = 6.dp)
                                 )
-                            } else {
-                                Spacer(Modifier.width(40.dp))
                             }
                             Box(Modifier.size(52.dp, 32.dp)) {
                                 if (c.icon.isNotBlank()) {
