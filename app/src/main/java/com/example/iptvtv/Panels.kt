@@ -269,6 +269,9 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
         }
     }
     var tv by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(value, androidx.compose.ui.text.TextRange(value.length))) }
+    LaunchedEffect(value) {
+        if (tv.text != value) tv = androidx.compose.ui.text.input.TextFieldValue(value, androidx.compose.ui.text.TextRange(value.length))
+    }
     OutlinedTextField(
         tv, { tv = it; onChange(it.text) }, singleLine = true, label = { Text(label) },
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
