@@ -297,7 +297,7 @@ private val ACCENT = Color(0xFF2D9BE0)
 private val P_DARK_TXT = Color(0xFF14213D)
 
 @Composable
-private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null, onClick: () -> Unit) {
+private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null, req: FocusRequester? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     val gk by androidx.compose.animation.core.animateFloatAsState(if (f) 1f else 0f, androidx.compose.animation.core.tween(120), label = "chipGrow")
@@ -315,6 +315,7 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
             .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
             .then(if (f) Modifier.border(1.dp, ACCENT, RoundedCornerShape(3.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 6.dp)
@@ -451,6 +452,8 @@ fun EpgGrid(
     val rowsNow by rememberUpdatedState(rows)
     // [0] = centre (px) of the selected tile, [1] = centre kept while moving Up/Down (-1 = none)
     val mids = remember { floatArrayOf(-1f, -1f) }
+    val chipState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val chipReq = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         snapshotFlow { sel?.first?.id }.collect { id ->
             if (id != null) {
@@ -490,11 +493,12 @@ fun EpgGrid(
             )
             Spacer(Modifier.width(24.dp))
             LazyRow(
+                state = chipState,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
             ) {
-                item { GChip("All", cat.isEmpty()) { cat = "" } }
-                items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }) { cat = c2 } }
+                item { GChip("All", cat.isEmpty(), null, if (cat.isEmpty()) chipReq else null) { cat = "" } }
+                items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }, if (cat == c2) chipReq else null) { cat = c2 } }
             }
         }
         Row(Modifier.fillMaxWidth().height(26.dp)) {
@@ -528,6 +532,16 @@ fun EpgGrid(
                         val id = sel?.first?.id
                         if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionDown || ev.key == Key.DirectionUp) && mids[0] >= 0f) {
                             mids[1] = mids[0].coerceIn(hs.value.toFloat(), (hs.value + vw).toFloat())
+                        }
+                        if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionUp && id != null && rows.isNotEmpty() && id == rows.first().id) {
+                            // Haut sur la première chaîne -> chip de la catégorie choisie (pas "All")
+                            val ci = if (cat.isEmpty()) 0 else (cats.indexOf(cat) + 1).coerceAtLeast(0)
+                            scope.launch {
+                                try { chipState.scrollToItem(ci) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                                delay(60)
+                                try { chipReq.requestFocus() } catch (e: Exception) { }
+                            }
+                            return@onPreviewKeyEvent true
                         }
                         if (ev.type == KeyEventType.KeyDown && rows.size > 1 && id != null &&
                             ev.key == Key.DirectionDown && id == rows.last().id
