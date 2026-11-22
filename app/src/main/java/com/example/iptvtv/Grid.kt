@@ -449,6 +449,8 @@ fun EpgGrid(
     }
     // Garde toujours 7 chaînes entières : la liste s'aligne sur la chaîne sélectionnée.
     val rowsNow by rememberUpdatedState(rows)
+    // [0] = centre (px) of the selected tile, [1] = centre kept while moving Up/Down (-1 = none)
+    val mids = remember { floatArrayOf(-1f, -1f) }
     LaunchedEffect(Unit) {
         snapshotFlow { sel?.first?.id }.collect { id ->
             if (id != null) {
@@ -524,6 +526,9 @@ fun EpgGrid(
                     Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { ev ->
                         // Boucle : Bas sur la dernière chaîne -> première. (Haut sur la première mène aux catégories.)
                         val id = sel?.first?.id
+                        if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionDown || ev.key == Key.DirectionUp) && mids[0] >= 0f) {
+                            mids[1] = mids[0].coerceIn(hs.value.toFloat(), (hs.value + vw).toFloat())
+                        }
                         if (ev.type == KeyEventType.KeyDown && rows.size > 1 && id != null &&
                             ev.key == Key.DirectionDown && id == rows.last().id
                         ) {
@@ -553,6 +558,7 @@ fun EpgGrid(
                                 }
                             }
                             val tgt = progs.indexOfFirst { it.start <= nowMs && nowMs < it.stop }.coerceAtLeast(0)
+                            val preqs = remember(progs.size) { List(progs.size) { FocusRequester() } }
                             Row(Modifier.fillMaxWidth().height(rowH)) {
                                 Box(
                                     Modifier.width(LW).fillMaxHeight().padding(5.dp)
@@ -575,7 +581,26 @@ fun EpgGrid(
                                 }
                                 Box(
                                     Modifier.weight(1f).fillMaxHeight()
-                                        .focusProperties { enter = { rr } }
+                                        .focusProperties {
+                                            enter = {
+                                                val c = mids[1]
+                                                if (c < 0f || progs.isEmpty()) {
+                                                    rr
+                                                } else {
+                                                    var best = tgt
+                                                    var bd = Float.MAX_VALUE
+                                                    for ((qi, q) in progs.withIndex()) {
+                                                        val qs = maxOf(q.start, winStart)
+                                                        val qe = minOf(q.stop, winEnd)
+                                                        val x0 = with(density) { ((qs - winStart) / 60000f * DPM).dp.toPx() }
+                                                        val x1 = with(density) { ((qe - winStart) / 60000f * DPM).dp.toPx() }.coerceAtLeast(x0 + 1f)
+                                                        val d0 = if (c < x0) x0 - c else if (c > x1) c - x1 else 0f
+                                                        if (d0 < bd) { bd = d0; best = qi }
+                                                    }
+                                                    if (best == tgt) rr else preqs[best]
+                                                }
+                                            }
+                                        }
                                         .focusGroup()
                                         .horizontalScroll(hs)
                                 ) {
@@ -583,7 +608,7 @@ fun EpgGrid(
                                         if (progs.isEmpty()) {
                                             GBlock(
                                                 null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, rr, "",
-                                                { sel = Pair(ch, null) }, { onPlay(ch) }, { onEdit(ch) }
+                                                { sel = Pair(ch, null); mids[0] = -1f; mids[1] = -1f }, { onPlay(ch) }, { onEdit(ch) }
                                             )
                                         }
                                         for ((pi, p) in progs.withIndex()) {
@@ -600,9 +625,11 @@ fun EpgGrid(
                                                     (it.state == "scheduled" || it.state == "recording")
                                             }?.let { if (it.kind == "rec") "●" else "⏰" } ?: ""
                                             GBlock(
-                                                p, x, w, nowMs, if (useReq) rr else null, mk,
+                                                p, x, w, nowMs, if (useReq) rr else preqs[pi], mk,
                                                 {
                                                     sel = Pair(ch, p)
+                                                    mids[0] = (xPx + ePx) / 2f
+                                                    mids[1] = -1f
                                                     val vs = hs.value
                                                     if (xPx < vs || xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
                                                         scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
