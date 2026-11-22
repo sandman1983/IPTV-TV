@@ -54,6 +54,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 private val GRAY = Color(0xFFB0B8C8)
@@ -131,6 +132,9 @@ fun ChannelPanel(
     if (selCat !in srcCats && srcCats.isNotEmpty()) selCat = srcCats.first()
     val list = all.filter { it.src == selSrc && it.cat == selCat }
     var focused by remember { mutableStateOf(current) }
+    var wrapTo by remember { mutableStateOf<Int?>(null) }
+    val wrapReq = remember { FocusRequester() }
+    val wrapScope = rememberCoroutineScope()
     var upIdx by remember { mutableStateOf(-1) }
     val fr = remember { FocusRequester() }
     val idx = list.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
@@ -143,6 +147,13 @@ fun ChannelPanel(
     LaunchedEffect(refocus) {
         delay(150)
         try { fr.requestFocus() } catch (ex: Exception) { }
+    }
+    LaunchedEffect(wrapTo) {
+        if (wrapTo != null) {
+            delay(80)
+            try { wrapReq.requestFocus() } catch (ex: Exception) { }
+            wrapTo = null
+        }
     }
     LaunchedEffect(goList) {
         if (goList > 0) {
@@ -159,6 +170,17 @@ fun ChannelPanel(
             val rc = ev.nativeKeyEvent.repeatCount
             if (ev.key == Key.Back || ev.key == Key.Escape) {
                 if (ev.type == KeyEventType.KeyUp) onClose()
+                true
+            } else if (ev.type == KeyEventType.KeyDown && !cols && upIdx < 0 && list.size > 1 &&
+                ((ev.key == Key.DirectionUp && focused.id == list.first().id) ||
+                    (ev.key == Key.DirectionDown && focused.id == list.last().id))
+            ) {
+                // Boucle : première chaîne -> dernière, et inversement.
+                val toLast = ev.key == Key.DirectionUp
+                wrapScope.launch {
+                    try { ls.scrollToItem(if (toLast) (list.size - 9).coerceAtLeast(0) else 0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                    wrapTo = if (toLast) list.last().id else list.first().id
+                }
                 true
             } else if (upIdx >= 0 && (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter)) {
                 true
@@ -252,7 +274,7 @@ fun ChannelPanel(
                         val pr = epg.now(c.epgId)
                         FocusRow(
                             { onPick(c) },
-                            (if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
+                            (if (c.id == wrapTo) Modifier.focusRequester(wrapReq) else if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
                             { focused = c; upIdx = -1; cols = false },
                             { onEdit(c) },
                             2.dp, 0.dp

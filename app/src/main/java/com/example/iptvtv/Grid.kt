@@ -406,6 +406,7 @@ fun EpgGrid(
             }
         }
     }
+    var wrapId by remember { mutableStateOf<Int?>(null) }
     val req = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         delay(350)
@@ -458,7 +459,23 @@ fun EpgGrid(
         }
         Row(Modifier.weight(1f).fillMaxWidth()) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                BoxWithConstraints(
+                    Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { ev ->
+                        // Boucle : Bas sur la dernière chaîne -> première. (Haut sur la première mène aux catégories.)
+                        val id = sel?.first?.id
+                        if (ev.type == KeyEventType.KeyDown && rows.size > 1 && id != null &&
+                            ev.key == Key.DirectionDown && id == rows.last().id
+                        ) {
+                            scope.launch {
+                                try { ls.scrollToItem(0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                                wrapId = rows.first().id
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                ) {
                     val rowH = maxHeight / 7
                     LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
                         items(rows, key = { it.id }) { ch ->
@@ -466,6 +483,13 @@ fun EpgGrid(
                             val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
                             val rowReq = remember { FocusRequester() }
                             val rr = if (isCur) req else rowReq
+                            LaunchedEffect(wrapId) {
+                                if (wrapId == ch.id) {
+                                    delay(80)
+                                    try { rr.requestFocus() } catch (ex: Exception) { }
+                                    wrapId = null
+                                }
+                            }
                             val tgt = progs.indexOfFirst { it.start <= nowMs && nowMs < it.stop }.coerceAtLeast(0)
                             Row(Modifier.fillMaxWidth().height(rowH)) {
                                 Box(
