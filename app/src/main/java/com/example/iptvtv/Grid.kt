@@ -116,17 +116,73 @@ private fun Modifier.upChevron(col: Color): Modifier = this.drawBehind {
     drawLine(col, androidx.compose.ui.geometry.Offset(size.width / 2f, 0f), androidx.compose.ui.geometry.Offset(size.width, size.height), st, androidx.compose.ui.graphics.StrokeCap.Round)
 }
 
+// Icônes dessinées : 0 pause, 1 lecture, 2 audio (haut-parleur), 3 sous-titres (CC)
 @Composable
-private fun CtrlChip(label: String, onClick: () -> Unit) {
+private fun CtrlIcon(kind: Int, col: Color, modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Canvas(modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val sw = 1.8.dp.toPx()
+        val O = { x: Float, y: Float -> androidx.compose.ui.geometry.Offset(x, y) }
+        val S = { x: Float, y: Float -> androidx.compose.ui.geometry.Size(x, y) }
+        when (kind) {
+            0 -> {
+                drawRect(col, O(w * 0.18f, h * 0.1f), S(w * 0.24f, h * 0.8f))
+                drawRect(col, O(w * 0.58f, h * 0.1f), S(w * 0.24f, h * 0.8f))
+            }
+            1 -> {
+                val p = androidx.compose.ui.graphics.Path()
+                p.moveTo(w * 0.22f, h * 0.08f); p.lineTo(w * 0.92f, h * 0.5f); p.lineTo(w * 0.22f, h * 0.92f); p.close()
+                drawPath(p, col)
+            }
+            2 -> {
+                val p = androidx.compose.ui.graphics.Path()
+                p.moveTo(0f, h * 0.38f); p.lineTo(w * 0.22f, h * 0.38f); p.lineTo(w * 0.48f, h * 0.14f)
+                p.lineTo(w * 0.48f, h * 0.86f); p.lineTo(w * 0.22f, h * 0.62f); p.lineTo(0f, h * 0.62f); p.close()
+                drawPath(p, col)
+                val st = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawArc(col, -45f, 90f, false, O(w * 0.34f, h * 0.28f), S(w * 0.4f, h * 0.44f), style = st)
+                drawArc(col, -50f, 100f, false, O(w * 0.26f, h * 0.1f), S(w * 0.68f, h * 0.8f), style = st)
+            }
+            else -> {
+                val st = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                drawRoundRect(col, O(sw / 2, h * 0.14f), S(w - sw, h * 0.72f), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()), style = st)
+                drawArc(col, 40f, 280f, false, O(w * 0.2f, h * 0.34f), S(w * 0.26f, h * 0.32f), style = st)
+                drawArc(col, 40f, 280f, false, O(w * 0.56f, h * 0.34f), S(w * 0.26f, h * 0.32f), style = st)
+            }
+        }
+    }
+}
+
+// Bouton rond-rectangle avec icône ; Gauche/Droite gérés à la main pour être sûr d'atteindre chaque bouton.
+@Composable
+private fun CtrlBtn(
+    kind: Int, req: FocusRequester, onClick: () -> Unit,
+    left: FocusRequester?, right: FocusRequester?
+) {
     var f by remember { mutableStateOf(false) }
     Box(
-        Modifier.size(84.dp, 40.dp).clip(RoundedCornerShape(20.dp))
+        Modifier.size(52.dp, 34.dp).clip(RoundedCornerShape(17.dp))
             .background(if (f) Color.White else Color(0x66FFFFFF))
+            .focusRequester(req)
             .onFocusChanged { f = it.isFocused }
+            .onPreviewKeyEvent {
+                if (it.type != KeyEventType.KeyDown) {
+                    false
+                } else if (it.key == Key.DirectionLeft) {
+                    try { left?.requestFocus() } catch (ex: Exception) { }
+                    true
+                } else if (it.key == Key.DirectionRight) {
+                    try { right?.requestFocus() } catch (ex: Exception) { }
+                    true
+                } else {
+                    false
+                }
+            }
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = if (f) P_DARK_TXT else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        CtrlIcon(kind, if (f) P_DARK_TXT else Color.White)
     }
 }
 
@@ -153,6 +209,8 @@ fun MiniPlayer(
     }
     val gr = remember { FocusRequester() }
     val btn = remember { FocusRequester() }
+    val audReq = remember { FocusRequester() }
+    val ccReq = remember { FocusRequester() }
     var ctrl by remember { mutableStateOf(false) }
     var ctrlHad by remember { mutableStateOf(false) }
     val st = rememberLazyListState()
@@ -224,27 +282,14 @@ fun MiniPlayer(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Spacer(Modifier.weight(1f))
-                    var bf by remember { mutableStateOf(false) }
-                    Box(
-                        Modifier.size(64.dp, 40.dp).clip(RoundedCornerShape(20.dp))
-                            .background(if (bf) Color.White else Color(0x66FFFFFF))
-                            .focusRequester(btn)
-                            .onFocusChanged { bf = it.isFocused }
-                            .clickable {
-                                onToggle()
-                                playing = isPlaying()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            if (playing) "❚❚" else "▶", color = if (bf) P_DARK_TXT else Color.White,
-                            fontSize = 18.sp, fontWeight = FontWeight.Bold
-                        )
-                    }
+                    CtrlBtn(if (playing) 0 else 1, btn, {
+                        onToggle()
+                        playing = isPlaying()
+                    }, null, audReq)
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
-                        CtrlChip("AUDIO", onTracks)
-                        Spacer(Modifier.width(12.dp))
-                        CtrlChip("CC", onTracks)
+                        CtrlBtn(2, audReq, onTracks, btn, ccReq)
+                        Spacer(Modifier.width(10.dp))
+                        CtrlBtn(3, ccReq, onTracks, audReq, null)
                     }
                 }
             } else {
