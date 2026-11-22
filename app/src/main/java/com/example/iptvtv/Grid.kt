@@ -285,6 +285,11 @@ fun MiniPlayer(
 // ---------------------------------------------------------------------------
 // Guide graphique (grille horaire)
 // ---------------------------------------------------------------------------
+// Catégorie choisie dans le guide : conservée quand on revient du lecteur.
+object GuideState {
+    var cat: String = ""
+}
+
 private const val DPM = 4
 private const val TOTAL_MIN = 2160
 private val LW = 104.dp
@@ -297,7 +302,7 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
     val fired = remember { booleanArrayOf(true) }
     Box(
         Modifier.zIndex(if (f) 1f else 0f)
-            .graphicsLayer { val k = if (f) 1.12f else 1f; scaleX = k; scaleY = k }
+            .graphicsLayer { val k = if (f) 1.06f else 1f; scaleX = k; scaleY = k }
             .then(if (f) Modifier.shadow(10.dp) else Modifier)
             .clip(androidx.compose.ui.graphics.RectangleShape)
             .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
@@ -378,7 +383,8 @@ fun EpgGrid(
     val slot = 30 * 60000L
     val winStart = remember { (System.currentTimeMillis() / 60000L) * 60000L }
     val winEnd = winStart + TOTAL_MIN * 60000L
-    var cat by remember { mutableStateOf("") }
+    var cat by remember { mutableStateOf(GuideState.cat) }
+    LaunchedEffect(cat) { GuideState.cat = cat }
     val cats = remember(chans) { chans.map { it.cat }.distinct() }
     if (cat.isNotEmpty() && cat !in cats) cat = ""
     val rows = remember(chans, cat) { if (cat.isEmpty()) chans else chans.filter { it.cat == cat } }
@@ -427,8 +433,8 @@ fun EpgGrid(
             )
             Spacer(Modifier.width(24.dp))
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 10.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
             ) {
                 item { GChip("All", cat.isEmpty()) { cat = "" } }
                 items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }) { cat = c2 } }
