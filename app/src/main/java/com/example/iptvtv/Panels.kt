@@ -30,6 +30,10 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -256,6 +260,8 @@ fun PInfo(text: String, error: Boolean = false) {
 @Composable
 fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: Boolean = false) {
     val fr = remember { FocusRequester() }
+    val kb = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val fm = androidx.compose.ui.platform.LocalFocusManager.current
     if (autoFocus) {
         LaunchedEffect(Unit) {
             delay(150)
@@ -264,8 +270,21 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
     }
     OutlinedTextField(
         value, onChange, singleLine = true, label = { Text(label) },
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
+            kb?.hide()
+            fm.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
+        }),
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
+            .onFocusChanged { if (!it.isFocused) kb?.hide() }
+            .onPreviewKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionDown || ev.key == Key.DirectionUp)) {
+                    kb?.hide()
+                    fm.moveFocus(if (ev.key == Key.DirectionDown) androidx.compose.ui.focus.FocusDirection.Down else androidx.compose.ui.focus.FocusDirection.Up)
+                    true
+                } else false
+            }
     )
 }
 
