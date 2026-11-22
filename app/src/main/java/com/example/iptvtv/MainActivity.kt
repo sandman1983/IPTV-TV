@@ -1225,7 +1225,9 @@ fun PlayerScreen(
                 show = true
                 tick++
                 true
-            } else if (it.key == Key.DirectionLeft || it.key == Key.Menu) {
+            } else if (it.key == Key.DirectionLeft) {
+                true
+            } else if (it.key == Key.Menu) {
                 tracksOpen = true
                 true
             } else {
@@ -1337,7 +1339,7 @@ fun SlideIn(visible: Boolean, fromTop: Boolean, modifier: Modifier, content: @Co
 @Composable
 fun Badge(t: String) {
     Text(
-        t, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+        t, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
         modifier = Modifier.padding(start = 8.dp).border(1.dp, Color(0xAAFFFFFF), RoundedCornerShape(4.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
@@ -1456,7 +1458,7 @@ fun BottomInfo(
                                 Text("Now ${hm(nowMs)}", color = LIME, fontSize = 14.sp)
                                 Text("  |  ", color = MUTED, fontSize = 15.sp)
                                 Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFFDDE2EA), fontSize = 15.sp)
-                                Box(Modifier.padding(horizontal = 14.dp).width(170.dp).height(4.dp).background(Color(0x66FFFFFF))) {
+                                Box(Modifier.padding(horizontal = 14.dp).width(120.dp).height(4.dp).background(Color(0x66FFFFFF))) {
                                     Box(
                                         Modifier.fillMaxWidth(fracOf(sp, nowMs)).fillMaxHeight()
                                             .background(Color(0xFF2F7FC1))
@@ -1489,11 +1491,10 @@ fun BottomInfo(
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(c.cat, color = MUTED, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(weather, color = MUTED, fontSize = 13.sp, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.weight(1.4f))
             Text(res, color = Color(0xFF2EE05A), fontSize = 13.sp)
             Text(
-                "\u2190  audio / subtitles     \u2192  up next     \u2191\u2193  zap     OK  list",
-                color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1.6f)
+                "\u2191\u2193  zap     OK  list",
+                color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
             )
         }
     }
