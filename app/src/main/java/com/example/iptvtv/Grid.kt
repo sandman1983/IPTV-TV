@@ -206,9 +206,9 @@ fun MiniPlayer(
     }
     LaunchedEffect(ctrl) {
         if (!ctrl && clearFor == null) {
-            // Commandes masquées : la sélection revient sur la chaîne en cours (gauche/droite refonctionnent)
+            // Commandes masquées : la sélection revient sur le carré "Program guide"
             delay(60)
-            try { curReq.requestFocus() } catch (ex: Exception) { try { gr.requestFocus() } catch (e2: Exception) { } }
+            try { gr.requestFocus() } catch (ex: Exception) { }
         }
     }
     LaunchedEffect(clearFor) {
@@ -229,6 +229,10 @@ fun MiniPlayer(
                 } else {
                     false
                 }
+            } else if (it.key == Key.Back || it.key == Key.Escape) {
+                // Un seul Retour ferme tout le lecteur (commandes affichées ou rangée de chaînes)
+                if (it.type == KeyEventType.KeyUp) onClose()
+                true
             } else if (ctrl) {
                 val down = it.type == KeyEventType.KeyDown
                 val k = it.key
@@ -242,10 +246,6 @@ fun MiniPlayer(
                     if (down) ctrl = false
                     true
                 } else if (k == Key.DirectionUp) {
-                    true
-                } else if (k == Key.Back || k == Key.Escape) {
-                    // Retour avec les commandes affichées : ferme tout le lecteur d'un coup
-                    if (it.type == KeyEventType.KeyUp) onClose()
                     true
                 } else if (k == Key.DirectionCenter || k == Key.Enter || k == Key.NumPadEnter) {
                     if (it.type == KeyEventType.KeyUp) {
