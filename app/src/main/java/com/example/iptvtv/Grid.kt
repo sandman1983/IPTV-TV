@@ -405,10 +405,7 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
                     if (pr.sub.isNotBlank() && pr.sub != pr.desc) {
                         Text(pr.sub, color = Color(0xFFFFE9A8), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    Text(
-                        pr.desc, color = Color(0xFFD5DAE3), fontSize = 12.sp, lineHeight = 17.sp,
-                        maxLines = 10, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp)
-                    )
+                    AutoScrollText(pr.desc, Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp), 13.sp, 18.sp)
                 }
             }
         }

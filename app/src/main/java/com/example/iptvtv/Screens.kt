@@ -13,6 +13,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
@@ -138,6 +141,33 @@ fun Section(t: String) {
 // ---------------------------------------------------------------------------
 // Panneau latéral ouvert avec OK pendant la lecture
 // ---------------------------------------------------------------------------
+// Texte long : défile automatiquement de haut en bas, puis revient au début.
+@Composable
+fun AutoScrollText(text: String, modifier: Modifier = Modifier, size: androidx.compose.ui.unit.TextUnit = 14.sp, line: androidx.compose.ui.unit.TextUnit = 20.sp) {
+    val st = rememberScrollState()
+    LaunchedEffect(text) {
+        st.scrollTo(0)
+        delay(3000)
+        while (true) {
+            val max = st.maxValue
+            if (max > 0) {
+                try {
+                    st.animateScrollTo(max, tween(durationMillis = (max * 25).coerceIn(2500, 40000), easing = LinearEasing))
+                } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                delay(2500)
+                st.scrollTo(0)
+            }
+            delay(3000)
+        }
+    }
+    Box(modifier.clipToBounds()) {
+        Text(
+            text, color = Color(0xFFD5DAE3), fontSize = size, lineHeight = line,
+            modifier = Modifier.fillMaxWidth().verticalScroll(st)
+        )
+    }
+}
+
 @Composable
 fun PanelHeader(t: String) {
     Box(
@@ -407,10 +437,9 @@ fun ChannelPanel(
                                 )
                             }
                         }
-                        Text(
-                            shownP.desc.ifBlank { shownP.sub }, color = Color(0xFFD5DAE3), fontSize = 12.sp, lineHeight = 17.sp,
-                            maxLines = 12, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        AutoScrollText(
+                            shownP.desc.ifBlank { shownP.sub },
+                            Modifier.fillMaxWidth().weight(1f).padding(top = 10.dp)
                         )
                     }
                 }

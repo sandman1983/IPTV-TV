@@ -258,7 +258,7 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
             } else if (n == "programme") {
                 inProg = false
                 if (sp > now - 3 * 3600000L && st < now + 36 * 3600000L) {
-                    progs.getOrPut(ch) { ArrayList() }.add(Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc.take(400)))
+                    progs.getOrPut(ch) { ArrayList() }.add(Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc.take(1500)))
                 }
             }
         }
