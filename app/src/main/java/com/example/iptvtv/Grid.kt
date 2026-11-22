@@ -305,15 +305,15 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
         Modifier.zIndex(if (f) 1f else 0f)
             .graphicsLayer {
                 if (size.width > 0f && size.height > 0f) {
-                    val g = 5.dp.toPx() * gk
+                    val g = 4.dp.toPx() * gk
                     scaleX = (size.width + 2 * g) / size.width
                     scaleY = (size.height + 2 * g) / size.height
                 }
             }
-            .then(if (f) Modifier.shadow(10.dp) else Modifier)
-            .clip(androidx.compose.ui.graphics.RectangleShape)
+            .then(if (f) Modifier.shadow(10.dp, RoundedCornerShape(3.dp)) else Modifier)
+            .clip(RoundedCornerShape(3.dp))
             .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
-            .then(if (f) Modifier.border(3.dp, ACCENT, androidx.compose.ui.graphics.RectangleShape) else Modifier)
+            .then(if (f) Modifier.border(1.dp, ACCENT, RoundedCornerShape(3.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
@@ -488,7 +488,7 @@ fun EpgGrid(
             )
             Spacer(Modifier.width(24.dp))
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
             ) {
                 item { GChip("All", cat.isEmpty()) { cat = "" } }
