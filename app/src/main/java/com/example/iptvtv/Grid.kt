@@ -395,8 +395,7 @@ fun EpgGrid(
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 30.dp)
-            .clip(RoundedCornerShape(10.dp)).background(Color(0xE0141414))
+        Modifier.fillMaxSize().background(Color(0xE0141414))
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
@@ -415,34 +414,34 @@ fun EpgGrid(
                 items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }) { cat = c2 } }
             }
         }
-        Row(Modifier.weight(1f).fillMaxWidth()) {
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                Row(Modifier.fillMaxWidth().height(26.dp)) {
-                    Spacer(Modifier.width(LW))
-                    Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width }.horizontalScroll(hs, enabled = false)) {
-                        Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
+        Row(Modifier.fillMaxWidth().height(26.dp)) {
+            Spacer(Modifier.width(LW))
+            Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width - with(density) { 250.dp.toPx().toInt() } }.horizontalScroll(hs, enabled = false)) {
+                Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
+                    Text(
+                        "ON NOW", color = ACCENT, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)
+                    )
+                    val first = ((winStart + slot - 1) / slot) * slot
+                    for (k in 0 until TOTAL_MIN / 30) {
+                        val t = first + k * slot
+                        if (t < winEnd && t - winStart >= 22 * 60000L) {
                             Text(
-                                "ON NOW", color = ACCENT, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
-                                modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)
+                                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(t)),
+                                color = M_GRAY, fontSize = 13.sp,
+                                modifier = Modifier.align(Alignment.CenterStart)
+                                    .offset(x = ((t - winStart) / 60000f * DPM).dp)
                             )
-                            val first = ((winStart + slot - 1) / slot) * slot
-                            for (k in 0 until TOTAL_MIN / 30) {
-                                val t = first + k * slot
-                                if (t < winEnd && t - winStart >= 22 * 60000L) {
-                                    Text(
-                                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(t)),
-                                        color = M_GRAY, fontSize = 13.sp,
-                                        modifier = Modifier.align(Alignment.CenterStart)
-                                            .offset(x = ((t - winStart) / 60000f * DPM).dp)
-                                    )
-                                }
-                            }
                         }
                     }
                 }
+            }
+        }
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val rowH = maxHeight / 7
-                    LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
+                    val rowH = (maxHeight - 16.dp) / 7
+                    LazyColumn(state = ls, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
                         items(rows, key = { it.id }) { ch ->
                             val isCur = ch.id == current?.id
                             val progs = (epg.progs[ch.epgId] ?: emptyList()).filter { it.stop > winStart && it.start < winEnd }
