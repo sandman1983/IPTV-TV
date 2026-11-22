@@ -146,7 +146,7 @@ fun Section(t: String) {
 @Composable
 fun AutoScrollText(
     text: String, modifier: Modifier = Modifier,
-    size: androidx.compose.ui.unit.TextUnit = 14.sp, line: androidx.compose.ui.unit.TextUnit = 20.sp,
+    fontSz: androidx.compose.ui.unit.TextUnit = 14.sp, line: androidx.compose.ui.unit.TextUnit = 20.sp,
     speed: Float = 9f
 ) {
     val st = rememberScrollState()
@@ -188,7 +188,7 @@ fun AutoScrollText(
             }
     ) {
         Text(
-            text, color = Color(0xFFD5DAE3), fontSize = size, lineHeight = line,
+            text, color = Color(0xFFD5DAE3), fontSize = fontSz, lineHeight = line,
             modifier = Modifier.fillMaxWidth().verticalScroll(st).padding(bottom = 6.dp)
         )
     }
