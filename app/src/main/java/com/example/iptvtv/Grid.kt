@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -119,7 +120,7 @@ private fun Modifier.upChevron(col: Color): Modifier = this.drawBehind {
 // Icônes dessinées : 0 pause, 1 lecture, 2 audio (haut-parleur), 3 sous-titres (CC)
 @Composable
 private fun CtrlIcon(kind: Int, col: Color, modifier: Modifier = Modifier) {
-    androidx.compose.foundation.Canvas(modifier.size(20.dp)) {
+    androidx.compose.foundation.Canvas(modifier.size(16.dp)) {
         val w = size.width
         val h = size.height
         val sw = 1.8.dp.toPx()
@@ -154,35 +155,16 @@ private fun CtrlIcon(kind: Int, col: Color, modifier: Modifier = Modifier) {
     }
 }
 
-// Bouton rond-rectangle avec icône ; Gauche/Droite gérés à la main pour être sûr d'atteindre chaque bouton.
+// Bouton rond avec icône ; la sélection est pilotée par le clavier (état "sel"), pas par le focus Compose.
 @Composable
-private fun CtrlBtn(
-    kind: Int, req: FocusRequester, onClick: () -> Unit,
-    left: FocusRequester?, right: FocusRequester?
-) {
-    var f by remember { mutableStateOf(false) }
+private fun CtrlCircle(kind: Int, selected: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.size(52.dp, 34.dp).clip(RoundedCornerShape(17.dp))
-            .background(if (f) Color.White else Color(0x66FFFFFF))
-            .focusRequester(req)
-            .onFocusChanged { f = it.isFocused }
-            .onPreviewKeyEvent {
-                if (it.type != KeyEventType.KeyDown) {
-                    false
-                } else if (it.key == Key.DirectionLeft) {
-                    try { left?.requestFocus() } catch (ex: Exception) { }
-                    true
-                } else if (it.key == Key.DirectionRight) {
-                    try { right?.requestFocus() } catch (ex: Exception) { }
-                    true
-                } else {
-                    false
-                }
-            }
+        Modifier.size(36.dp).clip(CircleShape)
+            .background(if (selected) Color.White else Color(0x66FFFFFF))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        CtrlIcon(kind, if (f) P_DARK_TXT else Color.White)
+        CtrlIcon(kind, if (selected) P_DARK_TXT else Color.White)
     }
 }
 
@@ -209,10 +191,8 @@ fun MiniPlayer(
     }
     val gr = remember { FocusRequester() }
     val btn = remember { FocusRequester() }
-    val audReq = remember { FocusRequester() }
-    val ccReq = remember { FocusRequester() }
     var ctrl by remember { mutableStateOf(false) }
-    var ctrlHad by remember { mutableStateOf(false) }
+    var sel by remember { mutableStateOf(0) }
     val st = rememberLazyListState()
     val sc = rememberCoroutineScope()
     fun focusItem(idx: Int) {
@@ -224,10 +204,7 @@ fun MiniPlayer(
         try { gr.requestFocus() } catch (ex: Exception) { }
     }
     LaunchedEffect(ctrl) {
-        if (ctrl) {
-            delay(60)
-            try { btn.requestFocus() } catch (ex: Exception) { }
-        } else if (clearFor == null) {
+        if (!ctrl && clearFor == null) {
             // Commandes masquées : le focus revient sur la rangée de chaînes (gauche/droite refonctionnent)
             delay(60)
             try { gr.requestFocus() } catch (ex: Exception) { }
@@ -253,7 +230,30 @@ fun MiniPlayer(
                 } else {
                     false
                 }
-            } else if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp && !ctrl) {
+            } else if (ctrl) {
+                val down = it.type == KeyEventType.KeyDown
+                val k = it.key
+                if (k == Key.DirectionLeft) {
+                    if (down) sel = (sel - 1).coerceAtLeast(0)
+                    true
+                } else if (k == Key.DirectionRight) {
+                    if (down) sel = (sel + 1).coerceAtMost(2)
+                    true
+                } else if (k == Key.DirectionDown) {
+                    if (down) ctrl = false
+                    true
+                } else if (k == Key.DirectionUp) {
+                    true
+                } else if (k == Key.DirectionCenter || k == Key.Enter || k == Key.NumPadEnter) {
+                    if (it.type == KeyEventType.KeyUp) {
+                        if (sel == 0) { onToggle(); playing = isPlaying() } else onTracks()
+                    }
+                    true
+                } else {
+                    false
+                }
+            } else if (it.type == KeyEventType.KeyDown && it.key == Key.DirectionUp) {
+                sel = 0
                 ctrl = true
                 true
             } else {
@@ -273,23 +273,13 @@ fun MiniPlayer(
             )
             if (ctrl) {
                 // Play/pause au centre, audio + sous-titres à droite
-                Row(
-                    Modifier.padding(top = 10.dp).fillMaxWidth().onFocusChanged {
-                        // Quitter la rangée (Bas vers les chaînes) la fait disparaître
-                        if (ctrlHad && !it.hasFocus) ctrl = false
-                        ctrlHad = it.hasFocus
-                    },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(Modifier.padding(top = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Spacer(Modifier.weight(1f))
-                    CtrlBtn(if (playing) 0 else 1, btn, {
-                        onToggle()
-                        playing = isPlaying()
-                    }, null, audReq)
+                    CtrlCircle(if (playing) 0 else 1, sel == 0) { onToggle(); playing = isPlaying() }
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
-                        CtrlBtn(2, audReq, onTracks, btn, ccReq)
+                        CtrlCircle(2, sel == 1, onTracks)
                         Spacer(Modifier.width(10.dp))
-                        CtrlBtn(3, ccReq, onTracks, audReq, null)
+                        CtrlCircle(3, sel == 2, onTracks)
                     }
                 }
             } else {
