@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -137,6 +138,17 @@ fun Section(t: String) {
 // Panneau latéral ouvert avec OK pendant la lecture
 // ---------------------------------------------------------------------------
 @Composable
+fun PanelHeader(t: String) {
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(3.dp)).background(Color(0xCC0C0C0C)).padding(vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(t, color = CYAN, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
 fun ChannelPanel(
     all: List<Channel>, sources: List<Source>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
     showNums: Boolean, onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit,
@@ -192,7 +204,9 @@ fun ChannelPanel(
     Row(
         Modifier.fillMaxSize().onPreviewKeyEvent { ev ->
             val rc = ev.nativeKeyEvent.repeatCount
-            if (ev.key == Key.Back || ev.key == Key.Escape) {
+            if (holdGuard(ev)) {
+                true
+            } else if (ev.key == Key.Back || ev.key == Key.Escape) {
                 if (ev.type == KeyEventType.KeyUp) onClose()
                 true
             } else if (ev.type == KeyEventType.KeyDown && !cols && upIdx < 0 && list.size > 1 &&
@@ -248,51 +262,51 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF5151515)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
-                Text("Sources", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
-                LazyColumn {
-                    items(srcIds) { sid ->
-                        val nm = sources.firstOrNull { it.id == sid || it.name == sid }?.name ?: "Source"
-                        FocusRow({ selSrc = sid }, Modifier, {
-                            selSrc = sid
-                            if (!all.any { it.src == sid && it.cat == selCat }) selCat = all.first { it.src == sid }.cat
-                        }, tile = true) {
-                            Text(nm, color = fcolor(if (sid == selSrc) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF5151515))) {
+                PanelHeader("Sources")
+                Spacer(Modifier.height(6.dp))
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val rowH2 = maxHeight / 9
+                    LazyColumn(Modifier.fillMaxSize()) {
+                        items(srcIds) { sid ->
+                            val nm = sources.firstOrNull { it.id == sid || it.name == sid }?.name ?: "Source"
+                            FocusRow({ selSrc = sid }, Modifier.height(rowH2), {
+                                selSrc = sid
+                                if (!all.any { it.src == sid && it.cat == selCat }) selCat = all.first { it.src == sid }.cat
+                            }, tile = true) {
+                                Text(nm, color = fcolor(if (sid == selSrc) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
             }
-            Column(Modifier.width(230.dp).fillMaxHeight().background(Color(0xF5191919)).padding(top = 60.dp, start = 8.dp, end = 8.dp)) {
-                Text("Categories", color = CYAN, fontSize = 14.sp, modifier = Modifier.padding(8.dp))
-                LazyColumn {
-                    items(srcCats) { cat ->
-                        FocusRow(
-                            {
-                                cols = false
-                                goList++
-                            },
-                            if (cat == selCat) Modifier.focusRequester(catFr) else Modifier,
-                            { selCat = cat },
-                            { onEditCat(cat) },
-                            tile = true
-                        ) {
-                            Text(cat, color = fcolor(if (cat == selCat) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.width(260.dp).fillMaxHeight().background(Color(0xF5191919))) {
+                PanelHeader("Categories")
+                Spacer(Modifier.height(6.dp))
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val rowH2 = maxHeight / 9
+                    val catState = rememberLazyListState(initialFirstVisibleItemIndex = (srcCats.indexOf(selCat) - 3).coerceAtLeast(0))
+                    LazyColumn(state = catState, modifier = Modifier.fillMaxSize()) {
+                        items(srcCats) { cat ->
+                            FocusRow(
+                                {
+                                    cols = false
+                                    goList++
+                                },
+                                (if (cat == selCat) Modifier.focusRequester(catFr) else Modifier).height(rowH2),
+                                { selCat = cat },
+                                { onEditCat(cat) },
+                                tile = true
+                            ) {
+                                Text(cat, color = fcolor(if (cat == selCat) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
             }
         }
         Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
-            Box(
-                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(3.dp)).background(Color(0xCC0C0C0C)).padding(vertical = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    selCat, color = CYAN, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-            }
+            PanelHeader(selCat)
             Spacer(Modifier.height(6.dp))
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val rowH = maxHeight / 9
@@ -306,12 +320,30 @@ fun ChannelPanel(
                             { onEdit(c) },
                             6.dp, 0.dp, tile = true
                         ) {
-                            if (showNums) {
+                            if (c.id == current.id) {
+                                // Chaîne en cours : bouton lecture rond à la place du numéro
+                                Box(Modifier.width(40.dp).padding(start = 6.dp), contentAlignment = Alignment.Center) {
+                                    Box(
+                                        Modifier.size(26.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFF3B8EEA))
+                                            .drawBehind {
+                                                val p = androidx.compose.ui.graphics.Path().apply {
+                                                    moveTo(size.width * 0.40f, size.height * 0.28f)
+                                                    lineTo(size.width * 0.40f, size.height * 0.72f)
+                                                    lineTo(size.width * 0.74f, size.height * 0.50f)
+                                                    close()
+                                                }
+                                                drawPath(p, Color.White)
+                                            }
+                                    )
+                                }
+                            } else if (showNums) {
                                 Text(
                                     "${all.indexOf(c) + 1}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold, maxLines = 1,
-                                    modifier = Modifier.width(36.dp).padding(start = 4.dp)
+                                    modifier = Modifier.width(40.dp).padding(start = 6.dp)
                                 )
+                            } else {
+                                Spacer(Modifier.width(40.dp))
                             }
                             Box(Modifier.size(52.dp, 32.dp)) {
                                 if (c.icon.isNotBlank()) {
@@ -338,13 +370,6 @@ fun ChannelPanel(
                             }
                             if (pr != null) {
                                 Bar(fracOf(pr, nowMs), Modifier.padding(start = 8.dp, end = 6.dp).width(54.dp), 10.dp)
-                            }
-                            if (c.id == current.id) {
-                                // Repère de la chaîne en cours de lecture
-                                Box(
-                                    Modifier.padding(start = 6.dp).width(6.dp).fillMaxHeight(0.8f)
-                                        .clip(RoundedCornerShape(3.dp)).background(Color(0xFF4C9AFF))
-                                )
                             }
                         }
                     }
