@@ -268,13 +268,11 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
             try { fr.requestFocus() } catch (ex: Exception) { }
         }
     }
+    var tv by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(value, androidx.compose.ui.text.TextRange(value.length))) }
     OutlinedTextField(
-        value, onChange, singleLine = true, label = { Text(label) },
+        tv, { tv = it; onChange(it.text) }, singleLine = true, label = { Text(label) },
         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
-        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
-            kb?.hide()
-            fm.moveFocus(androidx.compose.ui.focus.FocusDirection.Down)
-        }),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { kb?.hide() }),
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
             .onFocusChanged { if (!it.isFocused) kb?.hide() }
