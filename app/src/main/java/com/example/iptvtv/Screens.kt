@@ -14,6 +14,8 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -77,13 +79,32 @@ fun FocusRow(
     onLong: (() -> Unit)? = null,
     pad: androidx.compose.ui.unit.Dp = 10.dp,
     corner: androidx.compose.ui.unit.Dp = 8.dp,
+    tile: Boolean = false,
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
-    Row(
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(corner))
+    val gk by animateFloatAsState(if (tile && f) 1f else 0f, label = "tileGrow")
+    val base = if (!tile) {
+        modifier.fillMaxWidth().clip(RoundedCornerShape(corner))
             .background(if (f) Color.White else Color.Transparent)
+    } else {
+        modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
+            .zIndex(if (f) 1f else 0f)
+            .graphicsLayer {
+                if (size.width > 0f && size.height > 0f) {
+                    val gx = 6.dp.toPx() * gk
+                    val gy = 3.dp.toPx() * gk
+                    scaleX = (size.width + 2 * gx) / size.width
+                    scaleY = (size.height + 2 * gy) / size.height
+                }
+            }
+            .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(3.dp)) else Modifier)
+            .clip(RoundedCornerShape(3.dp))
+            .background(if (f) Color.White else Color(0xE62A313E))
+    }
+    Row(
+        modifier = base
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { if (holdGuard(it)) true else if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }.padding(pad),
@@ -120,8 +141,11 @@ fun ChannelPanel(
     all: List<Channel>, sources: List<Source>, current: Channel, epg: Epg, nowMs: Long, focusId: Int, refocus: Int,
     showNums: Boolean, onPick: (Channel) -> Unit, onEdit: (Channel) -> Unit,
     onEditCat: (String) -> Unit = {},
+    recs: List<Rec> = emptyList(), remOn: Boolean = false,
+    onDvr: (Channel, Prog, String) -> Unit = { _, _, _ -> },
     onClose: () -> Unit = {}
 ) {
+    var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
     var selSrc by remember { mutableStateOf(current.src) }
     var selCat by remember { mutableStateOf(current.cat) }
     var cols by remember { mutableStateOf(false) }
@@ -183,6 +207,7 @@ fun ChannelPanel(
                 }
                 true
             } else if (upIdx >= 0 && (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter)) {
+                if (ev.type == KeyEventType.KeyUp && upIdx in ups.indices) dvrFor = Pair(fc, ups[upIdx])
                 true
             } else if (ev.type != KeyEventType.KeyDown) {
                 false
@@ -277,7 +302,7 @@ fun ChannelPanel(
                             (if (c.id == wrapTo) Modifier.focusRequester(wrapReq) else if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
                             { focused = c; upIdx = -1; cols = false },
                             { onEdit(c) },
-                            2.dp, 0.dp
+                            6.dp, 0.dp, tile = true
                         ) {
                             if (showNums) {
                                 Text(
@@ -419,6 +444,36 @@ fun ChannelPanel(
         }
             Text(hm(nowMs), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 16.dp))
+        }
+        val dv = dvrFor
+        if (dv != null) {
+            val dch = dv.first
+            val dp = dv.second
+            val recId = "${dch.id}_${dp.start}_rec"
+            val remId = "${dch.id}_${dp.start}_rem"
+            val hasRec = recs.any { it.id == recId && (it.state == "scheduled" || it.state == "recording") }
+            val hasRem = recs.any { it.id == remId && it.state == "scheduled" }
+            val closeDvr = { dvrFor = null; goList++ }
+            PanelDialog(dp.title, closeDvr, actions = { PButton("Close", closeDvr) }) {
+                item { PInfo(dch.name + "  ·  " + hm(dp.start) + " - " + hm(dp.stop)) }
+                item {
+                    PItem(
+                        if (hasRec) "Cancel recording" else "Record",
+                        if (hasRec) "" else "Recorded automatically at start time",
+                        { onDvr(dch, dp, if (hasRec) "unrec" else "rec"); closeDvr() },
+                        autoFocus = true
+                    )
+                }
+                if (remOn) {
+                    item {
+                        PItem(
+                            if (hasRem) "Remove reminder" else "Set reminder", "A notice appears when it starts",
+                            { onDvr(dch, dp, if (hasRem) "unrem" else "rem"); closeDvr() }
+                        )
+                    }
+                }
+                item { PItem("Watch channel", "", { dvrFor = null; onPick(dch) }) }
+            }
         }
     }
 }

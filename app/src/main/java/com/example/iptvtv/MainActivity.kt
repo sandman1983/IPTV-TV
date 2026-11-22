@@ -766,6 +766,14 @@ fun App() {
                     screen = ""
                 }
                 cur != null && full -> PlayerScreen(
+                    recs, { ch, p, act ->
+                        when (act) {
+                            "rec" -> Dvr.schedule(ctx, ch, p, "rec")
+                            "rem" -> Dvr.schedule(ctx, ch, p, "rem")
+                            "unrec" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rec")
+                            "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
+                        }
+                    },
                     sources,
                     cur, exo, shown, epg, all, cfg, exitAsk || reminder != null, weather, miniStart, quietStart, hist, { cfg = it; saveCfg(ctx, it) }, { play(it) }, { screen = "guide" },
                     { hist = it; saveHist(ctx, it) }
@@ -1102,6 +1110,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
 @OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(
+    recs: List<Rec>, onDvr: (Channel, Prog, String) -> Unit,
     sources: List<Source>, c: Channel, exo: ExoPlayer, channels: List<Channel>, epg: Epg, all: List<Channel>, cfg: Cfg, exitAsk: Boolean, weather: String, startMini: Boolean, quiet: Boolean, hist: List<Int>,
     onCfg: (Cfg) -> Unit, onZap: (Channel) -> Unit, onGuide: () -> Unit, onHist: (List<Int>) -> Unit, onBack: () -> Unit
 ) {
@@ -1249,6 +1258,7 @@ fun PlayerScreen(
                 if (cfg.merge) channels.map { it.copy(src = "") } else channels, sources,
                 if (cfg.merge) c.copy(src = "") else c, epg, nowMs, focusId, refocus,
                 cfg.showNums, { onZap(it); panel = false }, { editId = it.id }, { editCatP = it },
+                recs = recs, remOn = cfg.remOn, onDvr = onDvr,
                 onClose = { panel = false }
             )
         }
