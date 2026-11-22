@@ -449,6 +449,11 @@ fun EpgGrid(
     }
     // Garde toujours 7 chaînes entières : la liste s'aligne sur la chaîne sélectionnée.
     val rowsNow by rememberUpdatedState(rows)
+    // Changement de catégorie : la liste repart toujours de la première chaîne
+    var catFirst by remember { mutableStateOf(true) }
+    LaunchedEffect(cat) {
+        if (catFirst) catFirst = false else try { ls.scrollToItem(0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+    }
     // [0] = centre (px) of the selected tile, [1] = centre kept while moving Up/Down (-1 = none)
     val mids = remember { floatArrayOf(-1f, -1f, 0f) }
     val chipState = androidx.compose.foundation.lazy.rememberLazyListState()

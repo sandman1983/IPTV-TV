@@ -168,29 +168,35 @@ fun AutoScrollText(
             delay(4000)
         }
     }
-    Box(
-        modifier.clipToBounds()
-            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawContent()
-                // Fondu en haut (si le texte a défilé) et en bas : plus de demi-ligne coupée
-                val f = (14.dp.toPx() / size.height).coerceIn(0.02f, 0.3f)
-                val top = if (st.value > 0) f else 0f
-                drawRect(
-                    Brush.verticalGradient(
-                        0f to (if (top > 0f) Color.Transparent else Color.Black),
-                        (if (top > 0f) top else 0.001f) to Color.Black,
-                        1f - f to Color.Black,
-                        1f to Color.Transparent
-                    ),
-                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
-                )
-            }
-    ) {
-        Text(
-            text, color = Color(0xFFD5DAE3), fontSize = fontSz, lineHeight = line,
-            modifier = Modifier.fillMaxWidth().verticalScroll(st).padding(bottom = 6.dp)
-        )
+    // On n'affiche que des lignes entières : plus de ligne coupée au bord de la zone.
+    BoxWithConstraints(modifier) {
+        val lineDp = with(androidx.compose.ui.platform.LocalDensity.current) { line.toDp() }
+        val n = (maxHeight.value / lineDp.value).toInt()
+        val h = if (n >= 1) lineDp * n else maxHeight
+        Box(
+            Modifier.fillMaxWidth().height(h).clipToBounds()
+                .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    // Petit fondu pendant le défilement
+                    val f = (8.dp.toPx() / this.size.height).coerceIn(0.01f, 0.3f)
+                    val top = if (st.value > 0) f else 0f
+                    drawRect(
+                        Brush.verticalGradient(
+                            0f to (if (top > 0f) Color.Transparent else Color.Black),
+                            (if (top > 0f) top else 0.001f) to Color.Black,
+                            (1f - f) to Color.Black,
+                            1f to (if (st.value < st.maxValue) Color.Transparent else Color.Black)
+                        ),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                    )
+                }
+        ) {
+            Text(
+                text, color = Color(0xFFD5DAE3), fontSize = fontSz, lineHeight = line,
+                modifier = Modifier.fillMaxWidth().verticalScroll(st)
+            )
+        }
     }
 }
 
