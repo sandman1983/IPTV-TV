@@ -260,6 +260,20 @@ fun ChannelPanel(
             try { fr.requestFocus() } catch (ex: Exception) { }
         }
     }
+    // La barre de sélection reste vers le milieu (5e ligne) et c'est la liste qui défile ;
+    // elle ne descend jusqu'en bas que pour les dernières chaînes.
+    val listNow by rememberUpdatedState(list)
+    LaunchedEffect(Unit) {
+        snapshotFlow { focused.id }.collect { id ->
+            val i = listNow.indexOfFirst { it.id == id }
+            if (i >= 0) {
+                val target = (i - 4).coerceIn(0, (listNow.size - 9).coerceAtLeast(0))
+                if (target != ls.firstVisibleItemIndex || ls.firstVisibleItemScrollOffset != 0) {
+                    try { ls.scrollToItem(target) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                }
+            }
+        }
+    }
     var firstSel by remember { mutableStateOf(true) }
     LaunchedEffect(selSrc, selCat) {
         if (firstSel) firstSel = false else ls.scrollToItem(0)

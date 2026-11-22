@@ -475,11 +475,9 @@ fun EpgGrid(
                 val idx = rowsNow.indexOfFirst { it.id == id }
                 if (idx >= 0) {
                     val first = ls.firstVisibleItemIndex
-                    val target = when {
-                        idx < first -> idx
-                        idx > first + 6 -> idx - 6
-                        else -> first
-                    }
+                    // La barre reste vers le milieu (3e ligne) et c'est la liste qui défile ; la barre ne descend
+                    // jusqu'en bas que pour les dernières chaînes.
+                    val target = (idx - 3).coerceIn(0, (rowsNow.size - 7).coerceAtLeast(0))
                     if (target != first || ls.firstVisibleItemScrollOffset != 0) {
                         try { ls.scrollToItem(target) } catch (ex: Exception) { if (ex is kotlinx.coroutines.CancellationException) throw ex }
                     }
