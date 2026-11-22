@@ -296,7 +296,10 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     Box(
-        Modifier.clip(androidx.compose.ui.graphics.RectangleShape)
+        Modifier.zIndex(if (f) 1f else 0f)
+            .graphicsLayer { val k = if (f) 1.12f else 1f; scaleX = k; scaleY = k }
+            .then(if (f) Modifier.shadow(10.dp) else Modifier)
+            .clip(androidx.compose.ui.graphics.RectangleShape)
             .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
@@ -424,7 +427,7 @@ fun EpgGrid(
             Spacer(Modifier.width(24.dp))
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)
+                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 10.dp)
             ) {
                 item { GChip("All", cat.isEmpty()) { cat = "" } }
                 items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }) { cat = c2 } }
