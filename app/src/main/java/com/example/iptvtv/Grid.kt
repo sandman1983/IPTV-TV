@@ -421,7 +421,6 @@ fun EpgGrid(
     recs: List<Rec>, remOn: Boolean,
     onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onEdit: (Channel) -> Unit, onEditCat: (String) -> Unit, onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
     var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -451,9 +450,20 @@ fun EpgGrid(
     // Garde toujours 7 chaînes entières : la liste s'aligne sur la chaîne sélectionnée.
     val rowsNow by rememberUpdatedState(rows)
     // [0] = centre (px) of the selected tile, [1] = centre kept while moving Up/Down (-1 = none)
-    val mids = remember { floatArrayOf(-1f, -1f) }
+    val mids = remember { floatArrayOf(-1f, -1f, 0f) }
     val chipState = androidx.compose.foundation.lazy.rememberLazyListState()
     val chipReq = remember { FocusRequester() }
+    var gridFocus by remember { mutableStateOf(false) }
+    fun focusChips() {
+        val ci = if (cat.isEmpty()) 0 else (cats.indexOf(cat) + 1).coerceAtLeast(0)
+        scope.launch {
+            try { chipState.scrollToItem(ci) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+            delay(60)
+            try { chipReq.requestFocus() } catch (e: Exception) { }
+        }
+    }
+    // Retour : d'abord vers les catégories (si on est dans la grille), puis ferme le guide
+    BackHandler { if (gridFocus) focusChips() else onBack() }
     LaunchedEffect(Unit) {
         snapshotFlow { sel?.first?.id }.collect { id ->
             if (id != null) {
@@ -527,20 +537,15 @@ fun EpgGrid(
         Row(Modifier.weight(1f).fillMaxWidth()) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 BoxWithConstraints(
-                    Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { ev ->
+                    Modifier.weight(1f).fillMaxWidth().onFocusChanged { gridFocus = it.hasFocus }.onPreviewKeyEvent { ev ->
                         // Boucle : Bas sur la dernière chaîne -> première. (Haut sur la première mène aux catégories.)
                         val id = sel?.first?.id
                         if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionDown || ev.key == Key.DirectionUp) && mids[0] >= 0f) {
-                            mids[1] = mids[0].coerceIn(hs.value.toFloat(), (hs.value + vw).toFloat())
+                            // Sur le programme en cours : Haut/Bas restent sur "maintenant" ; ailleurs : tuile voisine
+                            mids[1] = if (mids[2] > 0f) -1f else mids[0].coerceIn(hs.value.toFloat(), (hs.value + vw).toFloat())
                         }
                         if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionUp && id != null && rows.isNotEmpty() && id == rows.first().id) {
-                            // Haut sur la première chaîne -> chip de la catégorie choisie (pas "All")
-                            val ci = if (cat.isEmpty()) 0 else (cats.indexOf(cat) + 1).coerceAtLeast(0)
-                            scope.launch {
-                                try { chipState.scrollToItem(ci) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
-                                delay(60)
-                                try { chipReq.requestFocus() } catch (e: Exception) { }
-                            }
+                            focusChips()
                             return@onPreviewKeyEvent true
                         }
                         if (ev.type == KeyEventType.KeyDown && rows.size > 1 && id != null &&
@@ -622,7 +627,7 @@ fun EpgGrid(
                                         if (progs.isEmpty()) {
                                             GBlock(
                                                 null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, rr, "",
-                                                { sel = Pair(ch, null); mids[0] = -1f; mids[1] = -1f }, { onPlay(ch) }, { onEdit(ch) }
+                                                { sel = Pair(ch, null); mids[0] = -1f; mids[1] = -1f; mids[2] = 0f }, { onPlay(ch) }, { onEdit(ch) }
                                             )
                                         }
                                         for ((pi, p) in progs.withIndex()) {
@@ -643,6 +648,7 @@ fun EpgGrid(
                                                 {
                                                     sel = Pair(ch, p)
                                                     mids[0] = (xPx + ePx) / 2f
+                                                    mids[2] = if (live) 1f else 0f
                                                     mids[1] = -1f
                                                     val vs = hs.value
                                                     if (xPx < vs || xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
