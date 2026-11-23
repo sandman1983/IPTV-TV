@@ -485,6 +485,24 @@ fun App() {
         saveHist(ctx, hist)
     }
 
+    fun recAct(act: String, id: String) {
+                        val r = recs.firstOrNull { it.id == id }
+                        if (r != null) {
+                            when (act) {
+                                "play" -> {
+                                    play(Channel(-Math.abs(r.id.hashCode()) - 1, r.title, "", "", "Recordings", false, r.path, ""))
+                                    full = true; quietStart = false
+                                    miniStart = false
+                                    screen = ""
+                                }
+                                "stop" -> Dvr.stop(r.id)
+                                "cancel" -> Dvr.remove(ctx, r.id)
+                                "delete" -> Dvr.delete(ctx, r)
+                            }
+                        }
+                    
+    }
+
     LaunchedEffect(Unit) { Dvr.cleanup(ctx) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -733,28 +751,15 @@ fun App() {
                 sources.isEmpty() || screen == "settings" -> SettingsHub(
                     if (sources.isEmpty()) "src_type" else settingsPage,
                     sources, cfg, all, epg.chans, report, lastSync, recs,
-                    { act, id ->
-                        val r = recs.firstOrNull { it.id == id }
-                        if (r != null) {
-                            when (act) {
-                                "play" -> {
-                                    play(Channel(-Math.abs(r.id.hashCode()) - 1, r.title, "", "", "Recordings", false, r.path, ""))
-                                    full = true; quietStart = false
-                                    miniStart = false
-                                    screen = ""
-                                }
-                                "stop" -> Dvr.stop(r.id)
-                                "cancel" -> Dvr.remove(ctx, r.id)
-                                "delete" -> Dvr.delete(ctx, r)
-                            }
-                        }
-                    },
+                    { a, i -> recAct(a, i) },
                     { l -> saveSources(ctx, l); sources = l },
                     { cfg = it; saveCfg(ctx, it) },
                     { reload++ },
                     sources.isNotEmpty(),
                     { screen = "" }
                 )
+                screen == "recs" -> Solid { RecordingsScreen(recs, { a, i -> recAct(a, i) }) { screen = "" } }
+                screen == "multi" -> MultiviewScreen(exo, shown, epg, cur) { screen = "" }
                 screen == "search" -> Solid {
                     SearchScreen(shown, epg, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }) { screen = "" }
                 }
@@ -796,6 +801,7 @@ fun App() {
                     { screen = "search" }, { settingsPage = ""; screen = "settings" }, { settingsPage = "sources"; screen = "settings" },
                     { editCh = it.id },
                     { screen = "guide" },
+                    { screen = "recs" }, { screen = "multi" },
                     cfg.merge
                 )
             }
@@ -887,17 +893,75 @@ fun buildRows(ch: List<Channel>, sources: List<Source>, merge: Boolean = false):
     return out
 }
 
+// Onglet de l'en-tête : le carré blanc (sans coins arrondis) grandit quand il est sélectionné.
 @Composable
-fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
-    Column(Modifier.width(w)) {
-        FocusRow(onClick, pad = 5.dp, corner = 8.dp) {
-            Text(
-                label, color = fcolor(if (selected) Color.White else MUTED), fontSize = 15.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal, maxLines = 1,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-            )
+fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val sc by animateFloatAsState(if (f) 1.12f else 1f, label = "tab")
+    Box(
+        Modifier.padding(horizontal = 4.dp).zIndex(if (f) 1f else 0f)
+            .graphicsLayer { scaleX = sc; scaleY = sc }
+            .background(if (f) Color.White else Color.Transparent)
+            .onFocusChanged { f = it.isFocused }
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label, color = if (f) Color(0xFF14213D) else if (selected) Color.White else MUTED, fontSize = 15.sp,
+            fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Normal, maxLines = 1
+        )
+    }
+}
+
+// Boutons ronds de l'en-tête : 0 = recherche, 1 = réglages.
+@Composable
+fun HeaderIcon(kind: Int, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val sc by animateFloatAsState(if (f) 1.15f else 1f, label = "hicon")
+    val col = if (f) Color(0xFF14213D) else Color.White
+    Box(
+        Modifier.size(38.dp).zIndex(if (f) 1f else 0f)
+            .graphicsLayer { scaleX = sc; scaleY = sc }
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(if (f) Color.White else Color(0xFF1F2733))
+            .onFocusChanged { f = it.isFocused }
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.size(18.dp)) {
+            val w = size.width
+            val st = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            if (kind == 0) {
+                drawCircle(col, w * 0.34f, androidx.compose.ui.geometry.Offset(w * 0.42f, w * 0.42f), style = st)
+                drawLine(col, androidx.compose.ui.geometry.Offset(w * 0.68f, w * 0.68f), androidx.compose.ui.geometry.Offset(w * 0.94f, w * 0.94f), 1.8.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round)
+            } else {
+                val c0 = androidx.compose.ui.geometry.Offset(w / 2f, w / 2f)
+                drawCircle(col, w * 0.2f, c0, style = st)
+                for (k in 0 until 8) {
+                    val ang = Math.PI * k / 4.0
+                    val ca = Math.cos(ang).toFloat()
+                    val sa = Math.sin(ang).toFloat()
+                    drawLine(
+                        col,
+                        androidx.compose.ui.geometry.Offset(c0.x + ca * w * 0.32f, c0.y + sa * w * 0.32f),
+                        androidx.compose.ui.geometry.Offset(c0.x + ca * w * 0.46f, c0.y + sa * w * 0.46f),
+                        2.6.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                }
+            }
         }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) ACCENT else Color.Transparent))
+    }
+}
+
+// Heure et date en haut à droite (son propre état, pour ne pas redessiner tout l'accueil chaque seconde).
+@Composable
+fun HeaderClock() {
+    var t by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { t = System.currentTimeMillis(); delay(1000) } }
+    Column(horizontalAlignment = Alignment.End) {
+        Text(hm(t), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date(t)), color = MUTED, fontSize = 12.sp)
     }
 }
 
@@ -905,7 +969,7 @@ fun TopTab(label: String, selected: Boolean, w: Dp, onClick: () -> Unit) {
 fun Home(
     ch: List<Channel>, sources: List<Source>, epg: Epg, status: String, hist: List<Int>, cur: Channel?,
     onPlay: (Channel) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSources: () -> Unit,
-    onEdit: (Channel) -> Unit, onGuide: () -> Unit, merge: Boolean = false
+    onEdit: (Channel) -> Unit, onGuide: () -> Unit, onRecs: () -> Unit, onMulti: () -> Unit, merge: Boolean = false
 ) {
     val cp = cur?.let { epg.now(it.epgId) }
     val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
@@ -939,19 +1003,25 @@ fun Home(
         )
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 2.dp),
+                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "IPTV", color = ACCENT, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 28.dp)
                 )
-                TopTab("My TV", true, 130.dp) { }
-                TopTab("Guide", false, 110.dp) { onGuide() }
-                TopTab("Search", false, 150.dp) { onSearch() }
-                TopTab("Settings", false, 150.dp) { onSettings() }
+                TopTab("Home", true) { }
+                TopTab("Guide", false) { onGuide() }
+                TopTab("Recordings", false) { onRecs() }
+                TopTab("Multiview", false) { onMulti() }
+                Spacer(Modifier.weight(1f))
+                HeaderIcon(0) { onSearch() }
+                Spacer(Modifier.width(10.dp))
+                HeaderIcon(1) { onSettings() }
+                Spacer(Modifier.width(20.dp))
+                HeaderClock()
             }
-            Box(Modifier.weight(0.38f).fillMaxWidth()) {
+            Box(Modifier.weight(0.42f).fillMaxWidth()) {
                 Column(Modifier.align(Alignment.BottomStart).padding(start = 32.dp, bottom = 8.dp)) {
                     if (cur != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -963,18 +1033,35 @@ fun Home(
                                 )
                             }
                             Text(cur.name, color = MUTED, fontSize = 16.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Box(Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0xFFE5484D)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                                Text("LIVE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                         Text(
                             cp?.title ?: "", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
-                        if (cp != null) Text("${hm(cp.start)} - ${hm(cp.stop)}", color = MUTED, fontSize = 14.sp)
+                        if (cp != null) {
+                            Row(Modifier.width(520.dp).padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(hm(cp.start), color = MUTED, fontSize = 14.sp)
+                                Bar(fracOf(cp, System.currentTimeMillis()), Modifier.weight(1f).padding(horizontal = 12.dp), 8.dp)
+                                Text("+${((cp.stop - System.currentTimeMillis()) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 14.sp, maxLines = 1, softWrap = false)
+                            }
+                            val dsc = cp.desc.ifBlank { cp.sub }
+                            if (dsc.isNotBlank()) {
+                                Text(
+                                    dsc, color = Color(0xFFDDE2EA), fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.width(640.dp).padding(top = 4.dp)
+                                )
+                            }
+                        }
                     } else {
                         Text("Pick a channel to start", color = MUTED, fontSize = 20.sp)
                     }
                 }
             }
-            BoxWithConstraints(Modifier.weight(0.62f).fillMaxWidth()) {
+            BoxWithConstraints(Modifier.weight(0.58f).fillMaxWidth()) {
             val rowH = maxHeight / 1.6f
             LazyColumn(
                 Modifier.fillMaxSize(), state = listState,
@@ -988,7 +1075,7 @@ fun Home(
                         Column(Modifier.heightIn(min = rowH)) {
                             Text(
                                 "CONTINUE WATCHING", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 6.dp)
+                                modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 6.dp)
                             )
                             CardRow(recent, epg, onPlay, onEdit) { rowFocus(baseIdx - 1) }
                         }
@@ -1005,7 +1092,7 @@ fun Home(
                         Column(Modifier.heightIn(min = rowH)) {
                             Text(
                                 r.title.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 14.dp, bottom = 6.dp)
+                                modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 6.dp)
                             )
                             CardRow(r.chans, epg, onPlay, onEdit) { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }
                         }
@@ -1038,7 +1125,7 @@ fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (C
                 hadFocus = it.hasFocus
             },
         horizontalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(start = 20.dp, end = 70.dp, top = 14.dp, bottom = 30.dp)
+        contentPadding = PaddingValues(start = 8.dp, end = 70.dp, top = 14.dp, bottom = 30.dp)
     ) {
         itemsIndexed(list, key = { i, c -> "${c.id}_$i" }) { i, c ->
             if (i == 0) {
