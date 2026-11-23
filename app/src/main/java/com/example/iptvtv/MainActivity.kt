@@ -1060,12 +1060,22 @@ fun Home(
                             }
                             Text(cur.name, color = MUTED, fontSize = 16.sp)
                             Spacer(Modifier.width(10.dp))
-                            Box(Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0xFFE5484D)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                            val blink by androidx.compose.animation.core.rememberInfiniteTransition(label = "live").animateFloat(
+                                1f, 0.25f,
+                                androidx.compose.animation.core.infiniteRepeatable(
+                                    androidx.compose.animation.core.tween(800), androidx.compose.animation.core.RepeatMode.Reverse
+                                ),
+                                label = "liveAlpha"
+                            )
+                            Box(
+                                Modifier.graphicsLayer { alpha = blink }.clip(RoundedCornerShape(3.dp))
+                                    .background(Color(0xFFE5484D)).padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) {
                                 Text("LIVE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         Text(
-                            cp?.title ?: "", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                            cp?.title ?: "", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         if (cp != null) {
