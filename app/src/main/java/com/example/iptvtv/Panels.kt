@@ -568,6 +568,18 @@ fun CategoryEditor(
                 item { PItem("Move", "Several categories at once", { picked.clear(); picked.add(cur); page = "move" }, autoFocus = true) }
                 item { PItem("Edit category", "Rename, restore", { page = "edit" }) }
                 item { PItem("Show / Hide", "Choose from a list", { page = "vis" }) }
+                item { PItem("Delete category", "Remove it from the lists", { page = "del" }) }
+            }
+            "del" -> PanelShell("Delete this category?", { page = "menu" }, false, actions = { PButton("Cancel", { page = "menu" }) }) {
+                item { PInfo("The category and its channels disappear from your lists. You can bring it back later with Show / Hide.") }
+                item {
+                    PItem("Yes, delete", "", {
+                        var ov = cfg.ov
+                        for (c in all) if (c.cat == cur) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = true))
+                        onCfg(cfg.copy(ov = ov, cats = cfg.cats.filter { it != cur }))
+                        onClose()
+                    }, autoFocus = true)
+                }
             }
             "edit" -> PanelShell("Edit category", { back() }, false, actions = { PButton("Back", { page = "menu" }) }) {
                 item { PItem("Rename", cur, { text = cur; page = "rename" }, autoFocus = true) }
