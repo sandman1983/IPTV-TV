@@ -385,6 +385,18 @@ fun App() {
     var fromGuide by remember { mutableStateOf(false) }
     var quietStart by remember { mutableStateOf(false) }
     var playErr by remember { mutableStateOf("") }
+    var errShow by remember { mutableStateOf(false) }
+    // Le message d'erreur n'apparaît que si le problème dure (les coupures brèves se rétablissent seules),
+    // puis il disparaît tout seul au bout de quelques secondes.
+    LaunchedEffect(playErr) {
+        errShow = false
+        if (playErr.isNotEmpty()) {
+            delay(6000)
+            errShow = true
+            delay(10000)
+            errShow = false
+        }
+    }
     var reminder by remember { mutableStateOf<Rec?>(null) }
     val recs = remember(Dvr.tick) { loadRecs(ctx) }
     val cfgNow by rememberUpdatedState(cfg)
@@ -833,7 +845,7 @@ fun App() {
                     }
                 }
             }
-            if (playErr.isNotEmpty() && screen != "settings" && !exitAsk) {
+            if (playErr.isNotEmpty() && errShow && screen != "settings" && !exitAsk) {
                 val parts = playErr.split("\n")
                 Column(
                     Modifier.align(Alignment.TopEnd).padding(24.dp).width(440.dp)
@@ -1043,16 +1055,16 @@ fun Home(
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         if (cp != null) {
-                            Row(Modifier.width(520.dp).padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.width(380.dp).padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(hm(cp.start), color = MUTED, fontSize = 14.sp)
-                                Bar(fracOf(cp, System.currentTimeMillis()), Modifier.weight(1f).padding(horizontal = 12.dp), 8.dp)
+                                Bar(fracOf(cp, System.currentTimeMillis()), Modifier.weight(1f).padding(horizontal = 10.dp), 5.dp)
                                 Text("+${((cp.stop - System.currentTimeMillis()) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 14.sp, maxLines = 1, softWrap = false)
                             }
                             val dsc = cp.desc.ifBlank { cp.sub }
                             if (dsc.isNotBlank()) {
                                 Text(
                                     dsc, color = Color(0xFFDDE2EA), fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.width(640.dp).padding(top = 4.dp)
+                                    modifier = Modifier.width(380.dp).padding(top = 4.dp)
                                 )
                             }
                         }
