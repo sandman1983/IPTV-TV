@@ -288,19 +288,32 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
             try { fr.requestFocus() } catch (ex: Exception) { }
         }
     }
-    OutlinedTextField(
-        value, onChange, singleLine = true, label = { Text(label) },
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
-            .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
-            .onFocusChanged { if (!it.isFocused) kb?.hide() }
-            .onPreviewKeyEvent { ev ->
-                if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionDown || ev.key == Key.DirectionUp)) {
-                    kb?.hide()
-                    fm.moveFocus(if (ev.key == Key.DirectionDown) androidx.compose.ui.focus.FocusDirection.Down else androidx.compose.ui.focus.FocusDirection.Up)
-                    true
-                } else false
+    var foc by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(label, color = if (foc) Color.White else P_SUB, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
+        androidx.compose.foundation.text.BasicTextField(
+            value = value, onValueChange = onChange, singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 15.sp),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+            modifier = Modifier.fillMaxWidth()
+                .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
+                .onFocusChanged { foc = it.isFocused; if (!it.isFocused) kb?.hide() }
+                .onPreviewKeyEvent { ev ->
+                    if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionDown || ev.key == Key.DirectionUp)) {
+                        kb?.hide()
+                        fm.moveFocus(if (ev.key == Key.DirectionDown) androidx.compose.ui.focus.FocusDirection.Down else androidx.compose.ui.focus.FocusDirection.Up)
+                        true
+                    } else false
+                },
+            decorationBox = { inner ->
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
+                        .border(if (foc) 2.dp else 1.dp, if (foc) Color.White else Color(0xFF6F7A8C), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) { inner() }
             }
-    )
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------
