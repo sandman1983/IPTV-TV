@@ -267,7 +267,7 @@ fun ChannelPanel(
         snapshotFlow { focused.id }.collect { id ->
             val i = listNow.indexOfFirst { it.id == id }
             if (i >= 0) {
-                val target = (i - 4).coerceIn(0, (listNow.size - 9).coerceAtLeast(0))
+                val target = (i - 3).coerceIn(0, (listNow.size - 8).coerceAtLeast(0))
                 if (target != ls.firstVisibleItemIndex || ls.firstVisibleItemScrollOffset != 0) {
                     try { ls.scrollToItem(target) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
                 }
@@ -293,7 +293,7 @@ fun ChannelPanel(
                 // Boucle : première chaîne -> dernière, et inversement.
                 val toLast = ev.key == Key.DirectionUp
                 wrapScope.launch {
-                    try { ls.scrollToItem(if (toLast) (list.size - 9).coerceAtLeast(0) else 0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                    try { ls.scrollToItem(if (toLast) (list.size - 8).coerceAtLeast(0) else 0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
                     wrapTo = if (toLast) list.last().id else list.first().id
                 }
                 true
@@ -343,7 +343,7 @@ fun ChannelPanel(
                 PanelHeader("Sources")
                 Spacer(Modifier.height(6.dp))
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val rowH2 = maxHeight / 9
+                    val rowH2 = maxHeight / 8
                     LazyColumn(Modifier.fillMaxSize()) {
                         items(srcIds) { sid ->
                             val nm = sources.firstOrNull { it.id == sid || it.name == sid }?.name ?: "Source"
@@ -361,7 +361,7 @@ fun ChannelPanel(
                 PanelHeader("Categories")
                 Spacer(Modifier.height(6.dp))
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val rowH2 = maxHeight / 9
+                    val rowH2 = maxHeight / 8
                     val catState = rememberLazyListState(initialFirstVisibleItemIndex = (srcCats.indexOf(selCat) - 3).coerceAtLeast(0))
                     LazyColumn(state = catState, modifier = Modifier.fillMaxSize()) {
                         items(srcCats) { cat ->
@@ -386,7 +386,7 @@ fun ChannelPanel(
             PanelHeader(selCat)
             Spacer(Modifier.height(6.dp))
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                val rowH = maxHeight / 9
+                val rowH = maxHeight / 8
                 LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
                     items(list, key = { it.id }) { c ->
                         val pr = epg.now(c.epgId)
@@ -416,13 +416,13 @@ fun ChannelPanel(
                             val rf = LocalRowFocused.current
                             Column(Modifier.padding(start = 10.dp).weight(1f)) {
                                 Text(
-                                    c.name, color = fcolor(Color.White), fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold,
+                                    c.name, color = fcolor(Color.White), fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold,
                                     maxLines = 1, softWrap = false,
                                     overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                     modifier = if (rf) Modifier.basicMarquee() else Modifier
                                 )
                                 Text(
-                                    pr?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 13.sp, lineHeight = 17.sp,
+                                    pr?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 13.sp, lineHeight = 21.sp,
                                     maxLines = 1, softWrap = false,
                                     overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                     modifier = if (rf) Modifier.basicMarquee() else Modifier
