@@ -365,6 +365,11 @@ fun App() {
     var channels by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var epg by remember { mutableStateOf(Epg(emptyMap())) }
     var status by remember { mutableStateOf("") }
+    var splash by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) { delay(4000); splash = false }
+    LaunchedEffect(channels.size, sources.size) {
+        if (channels.isNotEmpty() || sources.isEmpty()) { delay(300); splash = false }
+    }
     var report by remember { mutableStateOf<List<String>>(emptyList()) }
     var reload by remember { mutableStateOf(0) }
     var bg by remember { mutableStateOf<Channel?>(null) }
@@ -503,6 +508,7 @@ fun App() {
         bg = c
         hist = pushHist(hist, c.id)
         saveHist(ctx, hist)
+        if (c.id >= 0) ctx.getSharedPreferences("last", 0).edit().putString("url", c.url).apply()
     }
 
     fun recAct(act: String, id: String) {
@@ -600,6 +606,17 @@ fun App() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
+    // Démarrage rapide : on relance tout de suite le dernier flux, sans attendre le chargement des chaînes.
+    LaunchedEffect(Unit) {
+        val u = ctx.getSharedPreferences("last", 0).getString("url", "") ?: ""
+        if (u.isNotBlank() && hist.isNotEmpty() && exo.mediaItemCount == 0) {
+            try {
+                exo.setMediaItem(MediaItem.fromUri(u))
+                exo.prepare()
+                exo.playWhenReady = true
+            } catch (e: Exception) { }
+        }
+    }
     // Au démarrage : la dernière chaîne regardée joue en fond de l'accueil.
     LaunchedEffect(all) {
         if (bg == null) {
@@ -610,12 +627,16 @@ fun App() {
     LaunchedEffect(bg?.id, resumeTick) {
         val c = bg
         if (c != null) {
-            resetTracks(exo)
+            val same = resumeTick == 0 && exo.playbackState != androidx.media3.common.Player.STATE_IDLE &&
+                exo.currentMediaItem?.localConfiguration?.uri?.toString() == c.url
+            if (!same) resetTracks(exo)
             retries[0] = 0
             playErr = ""
             try {
-                exo.setMediaItem(MediaItem.fromUri(c.url))
-                exo.prepare()
+                if (!same) {
+                    exo.setMediaItem(MediaItem.fromUri(c.url))
+                    exo.prepare()
+                }
                 exo.playWhenReady = true
             } catch (e: IllegalStateException) {
                 // e.g. a DASH (.mpd) stream: this player build cannot open it. Do not crash.
@@ -896,6 +917,11 @@ fun App() {
                     { reminder = null }
                 )
             }
+            if (splash && screen != "settings") {
+                Box(Modifier.fillMaxSize().background(Color(0xFF0B0F14)), contentAlignment = Alignment.Center) {
+                    Text("IPTV", color = Color(0xFF4FE3D4), fontSize = 56.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
@@ -1083,7 +1109,6 @@ fun Home(
                             }
                         }
                     } else {
-                        Text("Pick a channel to start", color = MUTED, fontSize = 20.sp)
                     }
                 }
             }
