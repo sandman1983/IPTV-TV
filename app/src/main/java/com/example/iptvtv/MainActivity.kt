@@ -365,11 +365,6 @@ fun App() {
     var channels by remember { mutableStateOf<List<Channel>>(emptyList()) }
     var epg by remember { mutableStateOf(Epg(emptyMap())) }
     var status by remember { mutableStateOf("") }
-    var splash by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) { delay(4000); splash = false }
-    LaunchedEffect(channels.size, sources.size) {
-        if (channels.isNotEmpty() || sources.isEmpty()) { delay(300); splash = false }
-    }
     var report by remember { mutableStateOf<List<String>>(emptyList()) }
     var reload by remember { mutableStateOf(0) }
     var bg by remember { mutableStateOf<Channel?>(null) }
@@ -916,11 +911,6 @@ fun App() {
                     },
                     { reminder = null }
                 )
-            }
-            if (splash && screen != "settings") {
-                Box(Modifier.fillMaxSize().background(Color(0xFF0B0F14)), contentAlignment = Alignment.Center) {
-                    Text("IPTV", color = Color(0xFF4FE3D4), fontSize = 56.sp, fontWeight = FontWeight.Bold)
-                }
             }
         }
     }
