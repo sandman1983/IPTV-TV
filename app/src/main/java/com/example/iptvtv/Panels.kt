@@ -952,14 +952,6 @@ fun SettingsHub(
         }
         "channels" -> PanelShell("Channels", { back() }, actions = { PButton("Done", { back() }) }) {
             item { PSwitch("Merge sources", "Same categories from all sources shown together", cfg.merge, { onCfg(cfg.copy(merge = !cfg.merge)) }, autoFocus = true) }
-            item {
-                val ap = remember { ctx.getSharedPreferences("iptv_audio", android.content.Context.MODE_PRIVATE) }
-                var pt by remember { mutableStateOf(ap.getBoolean("pt", false)) }
-                PSwitch("Dolby passthrough (AVR)", "Send 5.1 to the receiver. Restart the app to apply. Off = safe stereo sound", pt, {
-                    pt = !pt
-                    ap.edit().putBoolean("pt", pt).apply()
-                })
-            }
             item { PItem("New category", "", { catIn = ""; page = "newcat" }) }
             items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)" + if (all.none { it.cat == cat && !it.hidden }) " · hidden" else "", { selCat = cat; page = "chlist" }, onLong = { editCatName = cat }) }
         }
@@ -1001,8 +993,39 @@ fun SettingsHub(
                     { onCfg(cfg.copy(bgSound = !cfg.bgSound)) }, autoFocus = true
                 )
             }
+            item { PHeader("Video") }
+            item { PrefCycle("Video decoder", "vdec", listOf("hw" to "Hardware", "sw" to "Software"), "hw", "  (restart the app to apply)") }
+            item { PrefCycle("Playback buffer", "buf", listOf("5" to "5 Seconds", "10" to "10 Seconds", "20" to "20 Seconds", "30" to "30 Seconds", "60" to "60 Seconds"), "20", "  (restart the app to apply)") }
+            item { PrefSwitch("Auto frame rate", "Enable to match display refresh rate to frame rate", "afr", true) }
+            item { PHeader("Audio") }
             item {
-                PInfo("While watching: Up/Down = zap, OK = channel list, Right = up next, Left = audio and subtitles.")
+                val ap = remember { ctx.getSharedPreferences("iptv_audio", android.content.Context.MODE_PRIVATE) }
+                var pt by remember { mutableStateOf(ap.getBoolean("pt", false)) }
+                PSwitch("Audio passthrough", "Send Dolby 5.1 to the receiver. Restart the app to apply. Off = safe stereo sound", pt, {
+                    pt = !pt
+                    ap.edit().putBoolean("pt", pt).apply()
+                })
+            }
+            item { PrefCycle("Audio decoder", "adec", listOf("hw" to "Hardware", "sw" to "Software"), "hw", "  (restart the app to apply)") }
+            item {
+                PrefCycle(
+                    "Preferred audio language", "alang",
+                    listOf("" to "Not set", "en" to "English", "fr" to "French", "es" to "Spanish", "ar" to "Arabic", "de" to "German", "it" to "Italian", "pt" to "Portuguese"),
+                    ""
+                )
+            }
+            item { PHeader("Text") }
+            item {
+                PrefCycle(
+                    "Subtitle language", "tlang",
+                    listOf("" to "Not set", "en" to "English", "fr" to "French", "es" to "Spanish", "ar" to "Arabic", "de" to "German", "it" to "Italian", "pt" to "Portuguese"),
+                    ""
+                )
+            }
+            item { PHeader("Advanced") }
+            item { PrefSwitch("Allow insecure streams", "Skip verification of SSL certificates", "insecure", false) }
+            item {
+                PInfo("While watching: Up/Down = zap, OK = channel list, Right = up next.")
             }
         }
         "dvr" -> PanelShell("DVR", { back() }, actions = { PButton("Done", { back() }) }) {

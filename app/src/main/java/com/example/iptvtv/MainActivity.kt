@@ -413,7 +413,10 @@ fun App() {
                     androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
             )
         val load = androidx.media3.exoplayer.DefaultLoadControl.Builder()
-            .setBufferDurationsMs(20000, 60000, 3000, 6000)
+            .setBufferDurationsMs(
+                PlayerPrefs.bufferSec(ctx) * 1000, PlayerPrefs.bufferSec(ctx) * 3000,
+                3000.coerceAtMost(PlayerPrefs.bufferSec(ctx) * 1000), 6000.coerceAtMost(PlayerPrefs.bufferSec(ctx) * 1000)
+            )
             .build()
         val passthrough = ctx.getSharedPreferences("iptv_audio", android.content.Context.MODE_PRIVATE).getBoolean("pt", false)
         val renderers = if (passthrough) {
@@ -431,6 +434,7 @@ fun App() {
                         .build()
             }.setEnableDecoderFallback(true)
         }
+        PlayerPrefs.applyCodecs(ctx, renderers)
         ExoPlayer.Builder(ctx, renderers)
             .setLoadControl(load)
             .setMediaSourceFactory(
@@ -486,6 +490,8 @@ fun App() {
         }
     }
     DisposableEffect(exo) { onDispose { exo.release() } }
+    // Réglages du lecteur appliqués au démarrage et à chaque retour des réglages
+    LaunchedEffect(screen) { applyPlayerPrefs(ctx, exo) }
 
     val all = remember(channels, cfg, epg.chans) { applyCfg(channels, cfg, epg.icons) }
     val shown = remember(all) { all.filter { !it.hidden } }
