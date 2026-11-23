@@ -624,13 +624,14 @@ fun CategoryEditor(
 // ---------------------------------------------------------------------------
 // Réglages : Sources, Guides, Chaînes, Lecteur, Affichage, À propos
 // ---------------------------------------------------------------------------
-private val SYNC_OPTIONS = listOf(1, 3, 6, 12, 24, 48)
+private val SYNC_OPTIONS = listOf(0, 3, 6, 12, 24, 72, 168)
 
 private fun hoursLabel(h: Int): String = when (h) {
-    1 -> "1 heure"
-    24 -> "1 jour"
-    48 -> "2 jours"
-    else -> "$h heures"
+    0 -> "Disabled"
+    24 -> "1 day"
+    72 -> "3 days"
+    168 -> "7 days"
+    else -> "$h hours"
 }
 
 @Composable
@@ -652,6 +653,10 @@ fun SettingsHub(
     var fPass by remember { mutableStateOf("") }
     var fUrl by remember { mutableStateOf("") }
     var fEpg by remember { mutableStateOf("") }
+    var fOut by remember { mutableStateOf("m3u8") }
+    var fInsecure by remember { mutableStateOf(false) }
+    var fUa by remember { mutableStateOf("") }
+    var fAuth by remember { mutableStateOf(false) }
     var selCat by remember { mutableStateOf("") }
     var editCatName by remember { mutableStateOf<String?>(null) }
     var accTxt by remember { mutableStateOf("") }
@@ -712,9 +717,10 @@ fun SettingsHub(
         msg = ""
         when (page) {
             "" -> onExit()
-            "src_menu" -> page = "sources"
+            "sync", "setup" -> page = "sources"
+            "src_menu" -> page = "setup"
             "src_cats", "src_acc" -> page = "src_menu"
-            "src_type" -> if (canExit) page = "sources"
+            "src_type" -> if (canExit) page = "setup"
             "src_form" -> page = if (editingId != null) "src_menu" else "src_type"
             "guide_menu", "guide_add" -> page = "guides"
             "chlist", "newcat" -> page = "channels"
@@ -733,34 +739,48 @@ fun SettingsHub(
         fPass = s?.pass ?: ""
         fUrl = s?.url ?: ""
         fEpg = s?.epg ?: ""
+        fOut = s?.output ?: "m3u8"
+        fInsecure = s?.insecure ?: false
+        fUa = s?.userAgent ?: ""
+        fAuth = s?.useAuth ?: false
         msg = ""
         page = "src_form"
     }
     fun saveForm() {
         val id = editingId ?: "s${System.currentTimeMillis()}"
+        val old = sources.firstOrNull { it.id == id }
         val s: Source? = if (type == "m3u") {
             val t = fUrl.trim()
             if (t.isEmpty()) {
-                msg = "Renseigne un lien ou choisis un fichier."
+                msg = "Enter a link or choose a file."
                 null
             } else {
                 val src = if (t.startsWith("http") || t.startsWith("content://") || t.startsWith("file://")) t else "http://$t"
-                Source(id, fName.trim().ifBlank { "Playlist M3U" }, "m3u", url = src, epg = fEpg.trim())
+                Source(
+                    id, fName.trim().ifBlank { "Playlist M3U" }, "m3u",
+                    user = if (fAuth) fUser.trim() else "", pass = if (fAuth) fPass.trim() else "",
+                    url = src, epg = fEpg.trim(), enabled = old?.enabled ?: true,
+                    insecure = fInsecure, userAgent = fUa.trim(), useAuth = fAuth
+                )
             }
         } else {
             if (fHost.isBlank()) {
-                msg = "Renseigne l'adresse du serveur."
+                msg = "Enter the server address."
                 null
             } else {
                 val host = norm(fHost)
-                Source(id, fName.trim().ifBlank { host }, "xtream", host, fUser.trim(), fPass.trim(), epg = fEpg.trim())
+                Source(
+                    id, fName.trim().ifBlank { host }, "xtream", host, fUser.trim(), fPass.trim(),
+                    epg = fEpg.trim(), enabled = old?.enabled ?: true, insecure = fInsecure,
+                    userAgent = fUa.trim(), output = fOut
+                )
             }
         }
         if (s != null) {
             val first = sources.isEmpty()
             onSources(if (editingId != null) sources.map { if (it.id == s.id) s else it } else sources + s)
             msg = ""
-            page = if (first) "" else "sources"
+            page = if (first) "" else "setup"
         }
     }
 
@@ -779,23 +799,57 @@ fun SettingsHub(
         "sources" -> PanelShell("Sources", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
                 PItem(
-                    "Time between synchronizations", hoursLabel(cfg.syncHours) + "  (guide refresh)",
-                    { onCfg(cfg.copy(syncHours = SYNC_OPTIONS[(SYNC_OPTIONS.indexOf(cfg.syncHours) + 1) % SYNC_OPTIONS.size])) },
-                    autoFocus = true
+                    "Time between synchronization", hoursLabel(cfg.syncHours),
+                    { page = "sync" }, autoFocus = true
                 )
             }
             item {
+                PSwitch(
+                    "Update on app start", "Refresh channels and guide every time the app opens",
+                    cfg.updateOnStart, { onCfg(cfg.copy(updateOnStart = !cfg.updateOnStart)) }
+                )
+            }
+            item { PItem("Setup", "${sources.size} source(s) · add, enable, edit", { page = "setup" }) }
+            item {
                 PItem(
-                    "Update now",
+                    "Update",
                     "Last run: " + (if (lastSync > 0) SimpleDateFormat("dd MMM, HH:mm", Locale.ENGLISH).format(Date(lastSync)) else "—"),
                     { onReload(); msg = "Update started…" }
                 )
             }
+            if (msg.isNotBlank()) item { PInfo(msg) }
+        }
+        "sync" -> PanelShell("Time between synchronization", { back() }, actions = { PButton("Back", { back() }) }) {
+            items(SYNC_OPTIONS, key = { it }) { h ->
+                PRadio(
+                    hoursLabel(h), "", cfg.syncHours == h,
+                    { onCfg(cfg.copy(syncHours = h)); page = "sources" },
+                    autoFocus = h == cfg.syncHours
+                )
+            }
+        }
+        "setup" -> PanelShell("Setup", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
-                PItem("Add new source", "M3U / M3U8 playlist or Xtream Codes", { editingId = null; type = "xtream"; msg = ""; page = "src_type" })
+                PItem(
+                    "Add new source", "Playlist (M3U / M3U8) or Xtream Codes",
+                    { editingId = null; type = "xtream"; msg = ""; page = "src_type" }, autoFocus = true
+                )
             }
             items(sources, key = { it.id }) { s ->
-                PItem(s.name, if (s.type == "m3u") "M3U · " + s.url else "Xtream · " + s.host, { selSrc = s; page = "src_menu" })
+                PItem(
+                    s.name, (if (s.type == "m3u") "M3U · " + s.url else "Xtream · " + s.host) + "  (hold OK: options)",
+                    { onSources(sources.map { if (it.id == s.id) it.copy(enabled = !it.enabled) else it }) },
+                    onLong = { selSrc = s; page = "src_menu" },
+                    leading = { f ->
+                        val c = if (f) P_DARK else Color.White
+                        Box(
+                            Modifier.size(20.dp).border(2.dp, c, RoundedCornerShape(3.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (s.enabled) Text("✓", color = c, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                )
             }
             item {
                 PItem(
@@ -822,7 +876,7 @@ fun SettingsHub(
                     item { PItem("Edit", "", { openForm(s) }, autoFocus = true) }
                     item { PItem("Account status", "Expiry, connections, login check", { accTxt = "Checking..."; page = "src_acc" }) }
                     item { PItem("Choose categories", "Pick the ones you want to keep", { page = "src_cats" }) }
-                    item { PItem("Delete this source", "", { onSources(sources.filter { it.id != s.id }); page = "sources" }) }
+                    item { PItem("Delete this source", "", { onSources(sources.filter { it.id != s.id }); page = "setup" }) }
                 }
             }
         }
@@ -871,32 +925,47 @@ fun SettingsHub(
                 if (canExit) PButton("Back", { back() })
             }
         ) {
-            item { PRadio("Playlist (M3U / M3U8)", "Link or local file", type == "m3u", { type = "m3u" }, autoFocus = true) }
+            item { PRadio("Playlist (m3u)", "M3U / M3U8 link or local file", type == "m3u", { type = "m3u" }, autoFocus = true) }
             item { PRadio("Xtream Codes", "Server, username and password", type == "xtream", { type = "xtream" }) }
         }
         "src_form" -> PanelShell(
-            if (type == "m3u") "Playlist M3U / M3U8" else "Xtream Codes", { back() },
+            if (type == "m3u") "Playlist (m3u)" else "Xtream Codes", { back() },
             actions = {
-                PButton("Save", { saveForm() })
+                PButton(if (editingId != null) "Save" else "Next", { saveForm() })
                 PButton("Back", { back() })
             }
         ) {
-            item { PInput("Name (optional)", fName, { fName = it }, autoFocus = true) }
             if (type == "m3u") {
-                item { PInput("Link (URL) or M3U / M3U8 file", fUrl, { fUrl = it }) }
+                item { PInput("Playlist address (URL)", fUrl, { fUrl = it }, autoFocus = true) }
                 item {
                     PItem(
-                        "Choose a local file", "",
+                        "Select local playlist", "Pick an M3U / M3U8 file on this device",
                         {
                             try { picker.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "No file browser on this TV: use a link (URL)." }
                         }
                     )
                 }
+                item { PSwitch("Use authentication", "Username and password for the playlist link", fAuth, { fAuth = !fAuth }) }
+                if (fAuth) {
+                    item { PInput("Username", fUser, { fUser = it }) }
+                    item { PInput("Password", fPass, { fPass = it }) }
+                }
             } else {
-                item { PInput("Server (http://host:port)", fHost, { fHost = it }) }
+                item { PInput("Server (http://host:port)", fHost, { fHost = it }, autoFocus = true) }
                 item { PInput("Username", fUser, { fUser = it }) }
                 item { PInput("Password", fPass, { fPass = it }) }
             }
+            item { PSwitch("Allow insecure connection", "Accept invalid or self-signed certificates", fInsecure, { fInsecure = !fInsecure }) }
+            if (type != "m3u") {
+                item {
+                    PItem(
+                        "Output", if (fOut == "ts") "MPEGTS" else "HLS (m3u8)",
+                        { fOut = if (fOut == "ts") "m3u8" else "ts" }
+                    )
+                }
+            }
+            item { PInput("User Agent (optional)", fUa, { fUa = it }) }
+            item { PInput("Name (optional)", fName, { fName = it }) }
             item { PInput("XMLTV guide for this source (optional)", fEpg, { fEpg = it }) }
             if (msg.isNotBlank()) item { PInfo(msg, true) }
         }

@@ -50,6 +50,7 @@ object PlayerPrefs {
     private var origFactory: SSLSocketFactory? = null
     private var origVerifier: HostnameVerifier? = null
     private var origSaved = false
+    @Volatile var srcInsecure = false
 
     // "Allow insecure streams" : ne vérifie plus les certificats SSL (serveurs IPTV mal configurés).
     fun applyInsecure(on: Boolean) {
@@ -94,7 +95,7 @@ fun applyPlayerPrefs(ctx: Context, exo: ExoPlayer) {
             .setPreferredAudioLanguage(if (al.isEmpty()) null else al)
             .build()
     } catch (t: Throwable) { }
-    PlayerPrefs.applyInsecure(PlayerPrefs.bool(ctx, "insecure", false))
+    PlayerPrefs.applyInsecure(PlayerPrefs.bool(ctx, "insecure", false) || PlayerPrefs.srcInsecure)
 }
 
 // Ligne de réglage qui change de valeur à chaque OK (comme les autres réglages de l'app).

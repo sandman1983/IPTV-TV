@@ -122,6 +122,8 @@ fun mergeEpg(a: Epg, b: Epg): Epg {
     return Epg(b.progs + a.progs, a.chans + b.chans.filter { it.id !in ids })
 }
 
+private var startChecked = false
+
 fun norm(h: String): String {
     val t = h.trim().trimEnd('/')
     return if (t.startsWith("http")) t else "http://$t"
@@ -648,10 +650,16 @@ fun App() {
 
     // Chargement des sources et des guides, puis rechargement des guides toutes les 30 minutes.
     LaunchedEffect(sources, cfg.epgs, reload) {
-        val cacheKey = sources.joinToString("|") { "${it.id}${it.type}${it.host}${it.user}${it.url}${it.epg}" } +
+        val sources = sources.filter { it.enabled }
+        val cacheKey = sources.joinToString("|") { "${it.id}${it.type}${it.host}${it.user}${it.pass}${it.url}${it.epg}${it.output}${it.useAuth}" } +
             "#" + cfg.epgs.joinToString("|")
         val force = reload > 0
-        val maxAge = cfg.syncHours.coerceAtLeast(1) * 3600_000L
+        // 0 = synchronisation périodique désactivée
+        val maxAge = if (cfg.syncHours > 0) cfg.syncHours * 3600_000L else Long.MAX_VALUE / 4
+        PlayerPrefs.srcInsecure = sources.any { it.insecure }
+        PlayerPrefs.applyInsecure(PlayerPrefs.bool(ctx, "insecure", false) || PlayerPrefs.srcInsecure)
+        val firstRun = !startChecked
+        startChecked = true
         var haveCache = false
         var fresh = false
         if (!force) {
@@ -662,7 +670,7 @@ fun App() {
                 epg = ce.first
                 lastSync = ce.second
                 haveCache = true
-                fresh = System.currentTimeMillis() - ce.second < maxAge
+                fresh = System.currentTimeMillis() - ce.second < maxAge && !(cfg.updateOnStart && firstRun)
                 status = ""
                 report = listOf("Loaded from cache")
             }
@@ -725,7 +733,7 @@ fun App() {
         } else {
             // Rebuild the guide URL list (needed for later refreshes) without downloading channels again.
             guideUrls = (cfg.epgs + sources.map { it.epg }).filter { it.isNotBlank() }.distinct()
-            delay((maxAge - (System.currentTimeMillis() - lastSync)).coerceAtLeast(60_000L))
+            delay(if (cfg.syncHours > 0) (maxAge - (System.currentTimeMillis() - lastSync)).coerceAtLeast(60_000L) else maxAge)
         }
         while (true) {
             if (guideUrls.isEmpty()) {

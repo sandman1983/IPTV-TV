@@ -8,7 +8,22 @@ import org.json.JSONObject
 data class Source(
     val id: String, val name: String, val type: String,
     val host: String = "", val user: String = "", val pass: String = "",
-    val url: String = "", val epg: String = ""
+    val url: String = "", val epg: String = "",
+    val enabled: Boolean = true, val insecure: Boolean = false, val userAgent: String = "",
+    val output: String = "m3u8", val useAuth: Boolean = false
+)
+
+private fun srcToJson(s: Source): JSONObject =
+    JSONObject().put("i", s.id).put("n", s.name).put("t", s.type).put("h", s.host)
+        .put("u", s.user).put("p", s.pass).put("l", s.url).put("e", s.epg)
+        .put("en", s.enabled).put("in", s.insecure).put("ua", s.userAgent)
+        .put("o", s.output).put("au", s.useAuth)
+
+private fun srcFromJson(x: JSONObject): Source = Source(
+    x.optString("i"), x.optString("n"), x.optString("t"), x.optString("h"),
+    x.optString("u"), x.optString("p"), x.optString("l"), x.optString("e"),
+    x.optBoolean("en", true), x.optBoolean("in", false), x.optString("ua", ""),
+    x.optString("o", "m3u8").ifBlank { "m3u8" }, x.optBoolean("au", false)
 )
 
 // Personnalisation d'une chaîne (vide = valeur d'origine)
@@ -31,7 +46,8 @@ data class Cfg(
     val recStart: Int = 0,
     val recStop: Int = 0,
     val remOn: Boolean = true,
-    val merge: Boolean = false
+    val merge: Boolean = false,
+    val updateOnStart: Boolean = false
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -40,11 +56,7 @@ fun loadSources(c: Context): List<Source> {
         return try {
             val a = JSONArray(s)
             (0 until a.length()).map {
-                val x = a.getJSONObject(it)
-                Source(
-                    x.optString("i"), x.optString("n"), x.optString("t"), x.optString("h"),
-                    x.optString("u"), x.optString("p"), x.optString("l"), x.optString("e")
-                )
+                srcFromJson(a.getJSONObject(it))
             }
         } catch (ex: Exception) {
             emptyList()
@@ -68,10 +80,7 @@ fun loadSources(c: Context): List<Source> {
 fun saveSources(c: Context, l: List<Source>) {
     val a = JSONArray()
     for (s in l) {
-        a.put(
-            JSONObject().put("i", s.id).put("n", s.name).put("t", s.type).put("h", s.host)
-                .put("u", s.user).put("p", s.pass).put("l", s.url).put("e", s.epg)
-        )
+        a.put(srcToJson(s))
     }
     c.getSharedPreferences("src", 0).edit().putString("j", a.toString()).apply()
 }
@@ -96,6 +105,7 @@ fun cfgToJson(g: Cfg): JSONObject {
     j.put("ra", g.recStop)
     j.put("rm", g.remOn)
     j.put("mg", g.merge)
+    j.put("us", g.updateOnStart)
     return j
 }
 
@@ -115,7 +125,8 @@ fun cfgFromJson(j: JSONObject): Cfg {
     return Cfg(
         m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" },
         j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24), j.optBoolean("sn", true),
-        j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true), j.optBoolean("mg", false)
+        j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true), j.optBoolean("mg", false),
+        j.optBoolean("us", false)
     )
 }
 
@@ -136,10 +147,7 @@ fun saveCfg(c: Context, g: Cfg) {
 fun exportConfig(sources: List<Source>, cfg: Cfg): String {
     val a = JSONArray()
     for (s in sources) {
-        a.put(
-            JSONObject().put("i", s.id).put("n", s.name).put("t", s.type).put("h", s.host)
-                .put("u", s.user).put("p", s.pass).put("l", s.url).put("e", s.epg)
-        )
+        a.put(srcToJson(s))
     }
     return JSONObject().put("app", "iptv-tv").put("sources", a).put("cfg", cfgToJson(cfg)).toString(2)
 }
@@ -150,11 +158,7 @@ fun importConfig(text: String): Pair<List<Source>, Cfg>? {
         if (j.optString("app") != "iptv-tv") return null
         val a = j.getJSONArray("sources")
         val list = (0 until a.length()).map {
-            val x = a.getJSONObject(it)
-            Source(
-                x.optString("i"), x.optString("n"), x.optString("t"), x.optString("h"),
-                x.optString("u"), x.optString("p"), x.optString("l"), x.optString("e")
-            )
+            srcFromJson(a.getJSONObject(it))
         }
         Pair(list, cfgFromJson(j.getJSONObject("cfg")))
     } catch (ex: Exception) {

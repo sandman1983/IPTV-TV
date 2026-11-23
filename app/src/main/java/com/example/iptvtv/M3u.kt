@@ -12,12 +12,28 @@ private val ATTR = Regex("([A-Za-z0-9_-]+)=\"([^\"]*)\"")
 private fun m3uAttrs(line: String): Map<String, String> =
     ATTR.findAll(line).associate { it.groupValues[1].lowercase() to it.groupValues[2] }
 
+// Ouvre un lien avec, si besoin, un User-Agent personnalisé et une authentification Basic.
+fun openUrl(url: String, ua: String = "", user: String = "", pass: String = ""): java.io.InputStream {
+    val c = URL(url).openConnection() as java.net.HttpURLConnection
+    c.connectTimeout = 20000
+    c.readTimeout = 60000
+    c.instanceFollowRedirects = true
+    if (ua.isNotBlank()) c.setRequestProperty("User-Agent", ua)
+    if (user.isNotEmpty()) {
+        val tok = android.util.Base64.encodeToString("$user:$pass".toByteArray(), android.util.Base64.NO_WRAP)
+        c.setRequestProperty("Authorization", "Basic $tok")
+    }
+    return c.inputStream
+}
+
 // Lit une liste M3U / M3U8 depuis un lien (http, https) ou un fichier local (content://, file://).
-fun loadM3u(ctx: Context, src: String, sid: String): Pair<List<Channel>, String> {
+fun loadM3u(
+    ctx: Context, src: String, sid: String, ua: String = "", user: String = "", pass: String = ""
+): Pair<List<Channel>, String> {
     val stream = if (src.startsWith("content://") || src.startsWith("file://")) {
         ctx.contentResolver.openInputStream(Uri.parse(src)) ?: throw Exception("Fichier illisible")
     } else {
-        URL(src).openStream()
+        openUrl(src, ua, user, pass)
     }
     val out = ArrayList<Channel>()
     var epgUrl = ""
@@ -68,6 +84,7 @@ fun loadM3u(ctx: Context, src: String, sid: String): Pair<List<Channel>, String>
 // Xtream Codes : chaînes en direct + URL du guide par défaut.
 fun loadXtream(s: Source): Pair<List<Channel>, String> {
     val api = "${s.host}/player_api.php?username=${s.user}&password=${s.pass}"
+    fun get(u: String): String = openUrl(u, s.userAgent).bufferedReader().use { it.readText() }
     val ca = JSONArray(get("$api&action=get_live_categories"))
     val cats = HashMap<String, String>()
     for (i in 0 until ca.length()) {
@@ -80,14 +97,16 @@ fun loadXtream(s: Source): Pair<List<Channel>, String> {
         val n = o.getInt("stream_id")
         Channel(
             "${s.id}:$n".hashCode(), o.str("name"), o.str("stream_icon"), o.str("epg_channel_id"),
-            cats[o.str("category_id")] ?: "Autres", false, "${s.host}/live/${s.user}/${s.pass}/$n.m3u8", s.id
+            cats[o.str("category_id")] ?: "Autres", false, "${s.host}/live/${s.user}/${s.pass}/$n." + (if (s.output == "ts") "ts" else "m3u8"), s.id
         )
     }
     return Pair(list, "${s.host}/xmltv.php?username=${s.user}&password=${s.pass}")
 }
 
 suspend fun loadSource(ctx: Context, s: Source): Pair<List<Channel>, String> = withContext(Dispatchers.IO) {
-    val r = if (s.type == "m3u") loadM3u(ctx, s.url, s.id) else loadXtream(s)
+    val r = if (s.type == "m3u") {
+        loadM3u(ctx, s.url, s.id, s.userAgent, if (s.useAuth) s.user else "", s.pass)
+    } else loadXtream(s)
     Pair(r.first.map { it.copy(src = s.id) }, r.second)
 }
 
