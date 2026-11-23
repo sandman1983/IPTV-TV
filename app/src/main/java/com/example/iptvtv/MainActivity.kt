@@ -67,6 +67,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.zIndex
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
 import androidx.media3.common.C
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
