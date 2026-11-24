@@ -410,9 +410,9 @@ fun ChannelPanel(
         }
         Column(Modifier.width(450.dp).fillMaxHeight().background(Th.panel)) {
             Text(
-                selCat.uppercase(), color = Th.text, fontSize = 22.sp, fontWeight = FontWeight.Medium,
-                letterSpacing = 4.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
+                selCat.uppercase(), color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
             )
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val rowH = maxHeight / 8
@@ -429,7 +429,7 @@ fun ChannelPanel(
                         ) {
                             val rf = LocalRowFocused.current
                             Row(
-                                Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 2.dp),
+                                Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (showNums) {
@@ -448,9 +448,9 @@ fun ChannelPanel(
                                     }
                                 }
                                 Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(Modifier.height(19.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            c.name, color = fcolor(Color.White), fontSize = 17.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold,
+                                            c.name, color = fcolor(Color.White), fontSize = 17.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold,
                                             maxLines = 1, softWrap = false,
                                             overflow = if (rf) TextOverflow.Clip else TextOverflow.Ellipsis,
                                             modifier = (if (rf) Modifier.basicMarquee() else Modifier).weight(1f, fill = false)
@@ -458,8 +458,8 @@ fun ChannelPanel(
                                         if (c.id == current.id) {
                                             Spacer(Modifier.width(8.dp))
                                             Row(
-                                                Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0x33E0B85A))
-                                                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                                                Modifier.height(15.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x33E0B85A))
+                                                    .padding(horizontal = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Row(Modifier.height(9.dp), verticalAlignment = Alignment.Bottom) {
@@ -470,7 +470,7 @@ fun ChannelPanel(
                                                     Box(Modifier.width(2.dp).height(7.dp).background(if (rf) Color(0xFF8A6100) else GOLD))
                                                 }
                                                 Text(
-                                                    " PLAYING", color = if (rf) Color(0xFF8A6100) else GOLD, fontSize = 10.sp,
+                                                    " PLAYING", color = if (rf) Color(0xFF8A6100) else GOLD, fontSize = 10.sp, lineHeight = 12.sp,
                                                     fontWeight = FontWeight.Bold, letterSpacing = 1.sp, maxLines = 1, softWrap = false
                                                 )
                                             }
@@ -483,7 +483,7 @@ fun ChannelPanel(
                                         modifier = if (rf) Modifier.basicMarquee() else Modifier
                                     )
                                     if (pr != null) {
-                                        Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Row(Modifier.fillMaxWidth().height(13.dp).padding(top = 1.dp), verticalAlignment = Alignment.CenterVertically) {
                                             GoldBar(fracOf(pr, nowMs), Modifier.weight(1f), 4.dp)
                                             Text(
                                                 leftText(pr, nowMs), color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 11.sp, lineHeight = 12.sp,
@@ -508,10 +508,6 @@ fun ChannelPanel(
                         alignment = Alignment.CenterStart
                     )
                     Spacer(Modifier.width(14.dp))
-                }
-                Column {
-                    Text(fc.name, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    Text("Channel ${all.indexOf(fc) + 1}", color = GRAY, fontSize = 14.sp, maxLines = 1)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -538,7 +534,7 @@ fun ChannelPanel(
                                     )
                                 }
                                 Text(
-                                    shownP.title, color = Color.White, fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.Bold,
+                                    shownP.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                                     maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp)
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
@@ -631,8 +627,8 @@ fun ChannelPanel(
                 }
             }
         }
-            Text(hm(nowMs), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 24.dp))
+            Text(hm(nowMs), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 12.dp, end = 16.dp))
         }
         val dv = dvrFor
         if (dv != null) {
