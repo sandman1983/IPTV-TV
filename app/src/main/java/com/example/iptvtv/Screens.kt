@@ -173,11 +173,18 @@ fun leftText(p: Prog, nowMs: Long): String {
 
 @Composable
 fun ColTitle(t: String) {
-    Text(
-        t.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-        letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp)
-    )
+    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Box(
+            Modifier.fillMaxWidth().height(32.dp).clip(RoundedCornerShape(16.dp)).background(Th.iconBg),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                t.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 10.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -339,7 +346,15 @@ fun ChannelPanel(
                 if (ev.type == KeyEventType.KeyUp) { if (cols) { cols = false; goList++ } else onClose() }
                 true
             } else if (cols) {
-                false
+                if (ev.key == Key.DirectionRight) {
+                    // Droite : referme les catégories et affiche le panneau description / Up next.
+                    if (ev.type == KeyEventType.KeyDown && rc == 0) {
+                        skipUp[0] = true
+                        cols = false
+                        goList++
+                    }
+                    true
+                } else false
             } else if (ev.type == KeyEventType.KeyDown && upIdx < 0 && list.size > 1 &&
                 ((ev.key == Key.DirectionUp && focused.id == list.first().id) ||
                     (ev.key == Key.DirectionDown && focused.id == list.last().id))
@@ -407,7 +422,7 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight()) {
+            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xE6000000))) {
                 ColTitle("Sources")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
@@ -424,7 +439,7 @@ fun ChannelPanel(
                     }
                 }
             }
-            Column(Modifier.width(280.dp).fillMaxHeight()) {
+            Column(Modifier.width(280.dp).fillMaxHeight().background(Color(0xE6000000))) {
                 ColTitle("Categories")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
@@ -448,7 +463,7 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(450.dp).fillMaxHeight()) {
+        Column(Modifier.width(450.dp).fillMaxHeight().background(Color(0xE6000000))) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Th.iconBg), contentAlignment = Alignment.Center) {
                     Text("‹", color = Th.text, fontSize = 22.sp, lineHeight = 24.sp)
@@ -550,6 +565,26 @@ fun ChannelPanel(
                     }
                 }
             }
+        }
+        // Ligne de séparation dorée, effet brillant / glossy.
+        Row(Modifier.width(4.dp).fillMaxHeight()) {
+            Box(
+                Modifier.width(2.dp).fillMaxHeight().background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to Color(0x00E0B85A), 0.12f to Color(0xFFB8892B), 0.3f to Color(0xFFFFE9A8),
+                        0.45f to Color(0xFFE0B85A), 0.6f to Color(0xFF9C7220), 0.78f to Color(0xFFFFE9A8),
+                        0.9f to Color(0xFFB8892B), 1f to Color(0x00E0B85A)
+                    )
+                )
+            )
+            Box(
+                Modifier.width(1.dp).fillMaxHeight().background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to Color.Transparent, 0.3f to Color(0xAAFFFFFF), 0.5f to Color(0x22FFFFFF),
+                        0.78f to Color(0xAAFFFFFF), 1f to Color.Transparent
+                    )
+                )
+            )
         }
         if (!cols) Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xE6000000))) {
             Column(Modifier.fillMaxSize().padding(24.dp)) {
