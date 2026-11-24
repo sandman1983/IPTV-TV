@@ -567,16 +567,11 @@ fun ChannelPanel(
             }
         }
         // Ligne de séparation dorée opaque, effet métal brillant (reflets en haut et en bas).
-        Box(Modifier.width(6.dp).fillMaxHeight().background(Color(0xFF14110A))) {
+        Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFF14110A))) {
             Row(Modifier.fillMaxSize()) {
-                Box(Modifier.width(3.dp).fillMaxHeight().background(
+                Box(Modifier.width(1.dp).fillMaxHeight().background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
                         0f to Color(0xFF8A6A25), 0.5f to Color(0xFF5E4818), 1f to Color(0xFF8A6A25)
-                    )
-                ))
-                Box(Modifier.width(2.dp).fillMaxHeight().background(
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0f to Color(0xFFD9B65A), 0.5f to Color(0xFF9A7A2E), 1f to Color(0xFFD9B65A)
                     )
                 ))
                 Box(Modifier.width(1.dp).fillMaxHeight().background(
@@ -585,10 +580,10 @@ fun ChannelPanel(
                     )
                 ))
             }
-            Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(90.dp).background(
+            Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(60.dp).background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color(0xFFFFF6D0), 0.25f to Color(0xCCFFE9A8), 1f to Color(0x00FFE9A8))
             ))
-            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(90.dp).background(
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(60.dp).background(
                 androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color(0x00FFE9A8), 0.75f to Color(0xCCFFE9A8), 1f to Color(0xFFFFF6D0))
             ))
         }
