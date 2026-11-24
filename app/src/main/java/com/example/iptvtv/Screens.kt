@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -259,18 +260,33 @@ fun ChannelPanel(
     var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
     var selSrc by remember { mutableStateOf(current.src) }
     var selCat by remember { mutableStateOf(current.cat) }
-    var cols by remember { mutableStateOf(false) }
     var goList by remember { mutableStateOf(0) }
+    var cols by remember { mutableStateOf(false) }
     val catFr = remember { FocusRequester() }
     val srcIds = remember(all) { all.map { it.src }.distinct() }
+    // Toutes les catégories (de toutes les sources) à la suite : gauche / droite pour changer.
+    val pairs = remember(all) { srcIds.flatMap { s -> all.filter { it.src == s }.map { it.cat }.distinct().map { s to it } } }
+    if (pairs.isNotEmpty() && pairs.none { it.first == selSrc && it.second == selCat }) {
+        selSrc = pairs.first().first
+        selCat = pairs.first().second
+    }
     val srcCats = all.filter { it.src == selSrc }.map { it.cat }.distinct()
-    if (selCat !in srcCats && srcCats.isNotEmpty()) selCat = srcCats.first()
     val list = all.filter { it.src == selSrc && it.cat == selCat }
     var focused by remember { mutableStateOf(current) }
     var wrapTo by remember { mutableStateOf<Int?>(null) }
     val wrapReq = remember { FocusRequester() }
     val wrapScope = rememberCoroutineScope()
     var upIdx by remember { mutableStateOf(-1) }
+    val skipUp = remember { booleanArrayOf(false, false) } // [droite, gauche] : ignorer le prochain KeyUp
+    fun cycle(d: Int) {
+        if (pairs.isEmpty()) return
+        val i = pairs.indexOfFirst { it.first == selSrc && it.second == selCat }.coerceAtLeast(0)
+        val n = pairs[(i + d + pairs.size) % pairs.size]
+        selSrc = n.first
+        selCat = n.second
+        upIdx = -1
+        goList++
+    }
     val fr = remember { FocusRequester() }
     val idx = list.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
     val fid = if (list.any { it.id == focusId }) focusId else (list.firstOrNull()?.id ?: -1)
@@ -320,9 +336,11 @@ fun ChannelPanel(
             if (holdGuard(ev)) {
                 true
             } else if (ev.key == Key.Back || ev.key == Key.Escape) {
-                if (ev.type == KeyEventType.KeyUp) onClose()
+                if (ev.type == KeyEventType.KeyUp) { if (cols) { cols = false; goList++ } else onClose() }
                 true
-            } else if (ev.type == KeyEventType.KeyDown && !cols && upIdx < 0 && list.size > 1 &&
+            } else if (cols) {
+                false
+            } else if (ev.type == KeyEventType.KeyDown && upIdx < 0 && list.size > 1 &&
                 ((ev.key == Key.DirectionUp && focused.id == list.first().id) ||
                     (ev.key == Key.DirectionDown && focused.id == list.last().id))
             ) {
@@ -336,6 +354,14 @@ fun ChannelPanel(
             } else if (upIdx >= 0 && (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter)) {
                 if (ev.type == KeyEventType.KeyUp && upIdx in ups.indices) dvrFor = Pair(fc, ups[upIdx])
                 true
+            } else if ((ev.key == Key.DirectionRight || ev.key == Key.DirectionLeft) && ev.type == KeyEventType.KeyUp) {
+                val ix = if (ev.key == Key.DirectionRight) 0 else 1
+                if (skipUp[ix]) {
+                    skipUp[ix] = false
+                } else if (upIdx < 0) {
+                    cycle(if (ix == 0) 1 else -1)
+                }
+                true
             } else if (ev.type != KeyEventType.KeyDown) {
                 false
             } else if (upIdx >= 0) {
@@ -344,10 +370,12 @@ fun ChannelPanel(
                 } else {
                     when (ev.key) {
                         Key.DirectionRight -> {
+                            skipUp[0] = true
                             if (upIdx < ups.size - 1) upIdx++
                             true
                         }
                         Key.DirectionLeft -> {
+                            skipUp[1] = true
                             upIdx--
                             true
                         }
@@ -359,11 +387,15 @@ fun ChannelPanel(
                         else -> false
                     }
                 }
-            } else if (ev.key == Key.DirectionRight && rc == 0 && ups.isNotEmpty() && !cols) {
-                upIdx = 0
+            } else if (ev.key == Key.DirectionRight) {
+                // Appui court : catégorie suivante (au relâchement). Appui long : "Up next".
+                if (rc == 0) skipUp[0] = false
+                else if (!skipUp[0] && ups.isNotEmpty()) { skipUp[0] = true; upIdx = 0 }
                 true
-            } else if (ev.key == Key.DirectionLeft && !cols && rc == 0) {
-                cols = true
+            } else if (ev.key == Key.DirectionLeft) {
+                // Appui court : catégorie précédente (au relâchement). Appui long : liste des catégories.
+                if (rc == 0) skipUp[1] = false
+                else if (!skipUp[1]) { skipUp[1] = true; cols = true }
                 true
             } else {
                 false
@@ -375,7 +407,7 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Th.panel3)) {
+            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight()) {
                 ColTitle("Sources")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
@@ -392,7 +424,7 @@ fun ChannelPanel(
                     }
                 }
             }
-            Column(Modifier.width(260.dp).fillMaxHeight().background(Th.panel2)) {
+            Column(Modifier.width(280.dp).fillMaxHeight()) {
                 ColTitle("Categories")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
@@ -416,12 +448,20 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(450.dp).fillMaxHeight().background(Th.panel)) {
-            Text(
-                selCat.uppercase(), color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
-                letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
-            )
+        Column(Modifier.width(450.dp).fillMaxHeight()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Th.iconBg), contentAlignment = Alignment.Center) {
+                    Text("‹", color = Th.text, fontSize = 22.sp, lineHeight = 24.sp)
+                }
+                Text(
+                    selCat.uppercase(), color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                    letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                )
+                Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Th.iconBg), contentAlignment = Alignment.Center) {
+                    Text("›", color = Th.text, fontSize = 22.sp, lineHeight = 24.sp)
+                }
+            }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val rowH = maxHeight / 8
                 LazyColumn(state = ls, modifier = Modifier.fillMaxSize()) {
@@ -430,7 +470,7 @@ fun ChannelPanel(
                         FocusRow(
                             { onPick(c) },
                             (if (c.id == wrapTo) Modifier.focusRequester(wrapReq) else if (c.id == fid) Modifier.focusRequester(fr) else Modifier).height(rowH),
-                            { focused = c; upIdx = -1; cols = false },
+                            { focused = c; upIdx = -1 },
                             { onEdit(c) },
                             0.dp, 0.dp, tile = true,
                             tileColor = Th.tile, tileCorner = 10.dp, tileBorder = GOLD, tileVPad = 3.dp
@@ -470,12 +510,17 @@ fun ChannelPanel(
                                                     .padding(horizontal = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Row(Modifier.height(9.dp), verticalAlignment = Alignment.Bottom) {
-                                                    Box(Modifier.width(2.dp).height(5.dp).background(if (rf) Color(0xFF8A6100) else GOLD))
+                                                val eq = androidx.compose.animation.core.rememberInfiniteTransition(label = "eq")
+                                                val e1 by eq.animateFloat(3f, 10f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(420), androidx.compose.animation.core.RepeatMode.Reverse), label = "e1")
+                                                val e2 by eq.animateFloat(10f, 4f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(540), androidx.compose.animation.core.RepeatMode.Reverse), label = "e2")
+                                                val e3 by eq.animateFloat(5f, 10f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(340), androidx.compose.animation.core.RepeatMode.Reverse), label = "e3")
+                                                val ec = if (rf) Color(0xFF8A6100) else GOLD
+                                                Row(Modifier.height(10.dp), verticalAlignment = Alignment.Bottom) {
+                                                    Box(Modifier.width(2.dp).height(e1.dp).background(ec))
                                                     Spacer(Modifier.width(1.dp))
-                                                    Box(Modifier.width(2.dp).height(9.dp).background(if (rf) Color(0xFF8A6100) else GOLD))
+                                                    Box(Modifier.width(2.dp).height(e2.dp).background(ec))
                                                     Spacer(Modifier.width(1.dp))
-                                                    Box(Modifier.width(2.dp).height(7.dp).background(if (rf) Color(0xFF8A6100) else GOLD))
+                                                    Box(Modifier.width(2.dp).height(e3.dp).background(ec))
                                                 }
                                                 Text(
                                                     " PLAYING", color = if (rf) Color(0xFF8A6100) else GOLD, fontSize = 10.sp, lineHeight = 12.sp,
