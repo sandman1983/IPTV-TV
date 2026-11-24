@@ -397,25 +397,31 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     val gk by androidx.compose.animation.core.animateFloatAsState(if (f) 1f else 0f, androidx.compose.animation.core.tween(120), label = "chipGrow")
+    // La zone focalisable inclut une marge transparente : le défilement garde donc la place pour l'effet "grow".
     Box(
         Modifier.zIndex(if (f) 1f else 0f)
-            .graphicsLayer {
-                if (size.width > 0f && size.height > 0f) {
-                    val g = 4.dp.toPx() * gk
-                    scaleX = (size.width + 2 * g) / size.width
-                    scaleY = (size.height + 2 * g) / size.height
-                }
-            }
-            .clip(RoundedCornerShape(3.dp))
-            .background(if (f) Th.focusBg else if (selected) Color(0xFF1E6FD9) else Th.chip)
-            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .padding(horizontal = 4.dp, vertical = 5.dp)
     ) {
-        Text(label, color = if (f) P_DARK_TXT else if (selected) Color.White else Th.text, fontSize = 14.sp, maxLines = 1)
+        Box(
+            Modifier
+                .graphicsLayer {
+                    if (size.width > 0f && size.height > 0f) {
+                        val g = 3.dp.toPx() * gk
+                        scaleX = (size.width + 2 * g) / size.width
+                        scaleY = (size.height + 2 * g) / size.height
+                    }
+                }
+                .clip(RoundedCornerShape(3.dp))
+                .background(if (f) Th.focusBg else if (selected) Color(0xFF1E6FD9) else Th.chip)
+                .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
+                .padding(horizontal = 14.dp, vertical = 3.dp)
+        ) {
+            Text(label, color = if (f) P_DARK_TXT else if (selected) Color.White else Th.text, fontSize = 14.sp, maxLines = 1)
+        }
     }
 }
 
@@ -609,12 +615,12 @@ fun EpgGrid(
         ) {
             Text(
                 "Today - " + SimpleDateFormat("EEE, MMM dd", Locale.ENGLISH).format(Date(nowMs)),
-                color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Bold
+                color = Th.sel, fontSize = 16.sp, fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.width(24.dp))
             LazyRow(
                 state = chipState,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
                 contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp, start = 14.dp, end = 30.dp)
             ) {
                 item { GChip("All", cat.isEmpty(), null, if (cat.isEmpty()) chipReq else null) { cat = "" } }
