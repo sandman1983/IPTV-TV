@@ -1273,6 +1273,8 @@ fun PlayerScreen(
     var show by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
     var fromPanel by remember { mutableStateOf(false) }
+    val born = remember { System.currentTimeMillis() }
+    var keepMini by remember { mutableStateOf(false) }
     var mini by remember { mutableStateOf(startMini && !quiet) }
     var miniTick by remember { mutableStateOf(0) }
     val firstC = remember { booleanArrayOf(true) }
@@ -1295,6 +1297,14 @@ fun PlayerScreen(
         if (firstC[0]) {
             firstC[0] = false
             show = !startMini && !quiet
+        } else if (keepMini) {
+            // Chaîne choisie dans le mini lecteur : il reste ouvert (pas de barre d'info).
+            keepMini = false
+            mini = true
+            show = false
+        } else if (startMini && !quiet && System.currentTimeMillis() - born < 2000L) {
+            // Changement de chaîne juste après l'ouverture (clic sur une carte) : on garde le mini lecteur.
+            mini = true
         } else {
             mini = false
             show = true
@@ -1406,7 +1416,7 @@ fun PlayerScreen(
             MiniPlayer(
                 channels, c, epg, nowMs, hist,
                 { exo.playWhenReady }, { exo.playWhenReady = !exo.playWhenReady },
-                { onZap(it); mini = false }, { onGuide() }, { miniTick++ },
+                { if (it.id != c.id) keepMini = true; onZap(it); miniTick++ }, { onGuide() }, { miniTick++ },
                 { id -> onHist(if (id == null) emptyList() else hist.filter { it != id }) },
                 onTracks = { tracksOpen = true; miniTick++ },
                 onClose = { mini = false }

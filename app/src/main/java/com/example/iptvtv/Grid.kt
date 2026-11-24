@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,7 +60,7 @@ import java.util.Locale
 // Mini player : s'affiche au-dessus de la vidéo (programme en cours + rangée de chaînes)
 // ---------------------------------------------------------------------------
 private val M_GRAY: Color get() = Th.sub
-private val M_TILE = Color(0xFF2B2F36)
+private val M_TILE: Color get() = if (Th.black) Color.Black else Color(0xFF2B2F36)
 
 @Composable
 private fun MiniItem(
@@ -74,6 +75,7 @@ private fun MiniItem(
     pv: androidx.media3.exoplayer.ExoPlayer? = null,
     pvReady: Boolean = false,
     onFocusState: (Boolean) -> Unit = {},
+    tileBg: Color? = null,
     thumb: @Composable BoxScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
@@ -91,7 +93,7 @@ private fun MiniItem(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                 .border(3.dp, if (f) Th.sel else Color.Transparent, RoundedCornerShape(10.dp)).padding(3.dp)
         ) {
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(M_TILE)) {
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(tileBg ?: M_TILE)) {
                 thumb()
                 if (pv != null && f) {
                     androidx.compose.ui.viewinterop.AndroidView(
@@ -316,18 +318,25 @@ fun MiniPlayer(
             )
             LazyRow(
                 state = st,
+                // Décalé de 14 dp vers la gauche (compensé par le contentPadding) : le 1er carré s'aligne sous l'heure
+                // de début, et l'effet "grow" garde de la place.
+                modifier = Modifier.layout { m, cs ->
+                    val sh = 14.dp.roundToPx()
+                    val pl = m.measure(cs.copy(maxWidth = cs.maxWidth + sh))
+                    layout(cs.maxWidth, pl.height) { pl.place(-sh, 0) }
+                },
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(start = 14.dp, end = 60.dp, top = 12.dp, bottom = 14.dp)
             ) {
                 item {
-                    MiniItem(onGuide, gr, "Program guide", "", null, null, { focusItem(0) }) {
+                    MiniItem(onGuide, gr, "Program guide", "", null, null, { focusItem(0) }, tileBg = Color.Black) {
                         Column(
                             Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             repeat(4) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Box(Modifier.size(7.dp, 7.dp).background(Th.goldSoft))
-                                    Box(Modifier.size(38.dp, 7.dp).background(Th.goldSoft))
+                                    Box(Modifier.size(7.dp, 7.dp).background(Th.sel))
+                                    Box(Modifier.size(38.dp, 7.dp).background(Th.sel))
                                 }
                             }
                         }
