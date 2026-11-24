@@ -468,11 +468,17 @@ fun ChannelPanel(
                 Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Th.iconBg), contentAlignment = Alignment.Center) {
                     Text("‹", color = Th.text, fontSize = 22.sp, lineHeight = 24.sp)
                 }
-                Text(
-                    selCat.uppercase(), color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
-                    letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-                )
+                Box(
+                    Modifier.weight(1f).padding(horizontal = 8.dp).height(32.dp)
+                        .clip(RoundedCornerShape(16.dp)).background(Th.iconBg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        selCat.uppercase(), color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                        letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                }
                 Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Th.iconBg), contentAlignment = Alignment.Center) {
                     Text("›", color = Th.text, fontSize = 22.sp, lineHeight = 24.sp)
                 }
@@ -664,19 +670,23 @@ fun ChannelPanel(
             }
             if (ups.isNotEmpty()) {
                 val browsing = upIdx >= 0
+                val ltUp = Th.mode == 1
+                val upTxt = if (ltUp) Color(0xFF14213D) else Color.White
+                val upSub = if (ltUp) Color(0xFF45557A) else GRAY
+                val upGold = if (ltUp) Color(0xFF8A6100) else GOLD
                 val boxScale by animateFloatAsState(if (browsing) 1.03f else 1f, label = "upBox")
                 Column(
                     Modifier.fillMaxWidth().graphicsLayer { scaleX = boxScale; scaleY = boxScale }
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (browsing) Color(0xF2101010) else Color(0xCC0C0C0C))
-                        .then(if (browsing) Modifier.border(1.5.dp, Color(0x99FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
+                        .background(if (ltUp) Th.tile else if (browsing) Color(0xF2101010) else Color(0xCC0C0C0C))
+                        .then(if (browsing) Modifier.border(1.5.dp, if (ltUp) GOLD else Color(0x99FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
                         .padding(12.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Up next", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text("Up next", color = upTxt, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
                         Text(
-                            "OK ON A SHOW · REMIND OR RECORD", color = GRAY, fontSize = 10.sp, letterSpacing = 1.sp,
+                            "OK ON A SHOW · REMIND OR RECORD", color = upSub, fontSize = 10.sp, letterSpacing = 1.sp,
                             maxLines = 1, softWrap = false
                         )
                     }
@@ -688,7 +698,7 @@ fun ChannelPanel(
                             Column(
                                 Modifier.weight(1f).graphicsLayer { scaleX = chipScale; scaleY = chipScale }
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (sel) Color.White else Color.Transparent)
+                                    .background(if (sel) Th.focusBg else Color.Transparent)
                                     .then(if (sel) Modifier.border(2.dp, GOLD, RoundedCornerShape(6.dp)) else Modifier).padding(4.dp)
                             ) {
                                 Box(
@@ -703,11 +713,11 @@ fun ChannelPanel(
                                     }
                                 }
                                 Text(
-                                    hm(u.start), color = if (sel) Color.Black else GOLD,
+                                    hm(u.start), color = if (sel) Th.focusText else upGold,
                                     fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1
                                 )
                                 Text(
-                                    u.title, color = if (sel) Color(0xFF222222) else GRAY, fontSize = 13.sp, lineHeight = 17.sp,
+                                    u.title, color = if (sel) Th.focusSub else upSub, fontSize = 13.sp, lineHeight = 17.sp,
                                     minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis
                                 )
                             }
