@@ -829,7 +829,8 @@ fun App() {
                     { editCh = it.id },
                     { screen = "guide" },
                     { screen = "recs" }, { screen = "multi" },
-                    cfg.merge
+                    cfg.merge,
+                    { play(it) }
                 ) }
             }
             val ec = editCh
@@ -996,9 +997,58 @@ fun HeaderClock() {
 fun Home(
     ch: List<Channel>, sources: List<Source>, epg: Epg, status: String, hist: List<Int>, cur: Channel?,
     onPlay: (Channel) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onSources: () -> Unit,
-    onEdit: (Channel) -> Unit, onGuide: () -> Unit, onRecs: () -> Unit, onMulti: () -> Unit, merge: Boolean = false
+    onEdit: (Channel) -> Unit, onGuide: () -> Unit, onRecs: () -> Unit, onMulti: () -> Unit, merge: Boolean = false,
+    onSwitch: (Channel) -> Unit = {}
 ) {
     val cp = cur?.let { epg.now(it.epgId) }
+    // Aperçu dans les cartes : lecteur muet. Après 3 s sur une carte l'aperçu démarre ;
+    // après 10 s d'aperçu, la chaîne passe en arrière-plan (avec le son).
+    val pctx = LocalContext.current
+    var focusId by remember { mutableStateOf<Int?>(null) }
+    var pvId by remember { mutableStateOf<Int?>(null) }
+    var pvReady by remember { mutableStateOf(false) }
+    val pvPlayer = remember {
+        val http = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent("VLC/3.0.18 LibVLC/3.0.18")
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(15000)
+        val p = ExoPlayer.Builder(pctx)
+            .setMediaSourceFactory(
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                    androidx.media3.datasource.DefaultDataSource.Factory(pctx, http)
+                )
+            ).build()
+        p.volume = 0f
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()
+        p.addListener(object : Player.Listener {
+            override fun onRenderedFirstFrame() { pvReady = true }
+        })
+        p
+    }
+    DisposableEffect(Unit) { onDispose { try { pvPlayer.release() } catch (e: Exception) { } } }
+    LaunchedEffect(focusId) {
+        pvId = null
+        pvReady = false
+        try { pvPlayer.stop(); pvPlayer.clearMediaItems() } catch (e: Exception) { }
+        val id = focusId
+        val c = if (id != null) ch.firstOrNull { it.id == id } else null
+        val on = pctx.getSharedPreferences("iptv_player", 0).getBoolean("cardPreview", true)
+        if (c != null && on && c.id != cur?.id) {
+            delay(3000)
+            try {
+                pvPlayer.setMediaItem(MediaItem.fromUri(c.url))
+                pvPlayer.prepare()
+                pvPlayer.playWhenReady = true
+                pvId = c.id
+            } catch (e: Exception) { return@LaunchedEffect }
+            delay(10000)
+            onSwitch(c)
+            pvId = null
+            try { pvPlayer.stop(); pvPlayer.clearMediaItems() } catch (e: Exception) { }
+        }
+    }
     val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
     val rows = remember(ch, sources, merge) { buildRows(ch, sources, merge) }
     val listState = rememberLazyListState()
@@ -1103,7 +1153,7 @@ fun Home(
                                 "CONTINUE WATCHING", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 6.dp)
                             )
-                            CardRow(recent, epg, onPlay, onEdit) { rowFocus(baseIdx - 1) }
+                            CardRow(recent, epg, onPlay, onEdit, { rowFocus(baseIdx - 1) }, pvPlayer, pvId, pvReady) { c, fo -> if (fo) focusId = c.id else if (focusId == c.id) focusId = null }
                         }
                     }
                 }
@@ -1120,7 +1170,7 @@ fun Home(
                                 r.title.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 6.dp)
                             )
-                            CardRow(r.chans, epg, onPlay, onEdit) { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }
+                            CardRow(r.chans, epg, onPlay, onEdit, { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }, pvPlayer, pvId, pvReady) { c, fo -> if (fo) focusId = c.id else if (focusId == c.id) focusId = null }
                         }
                     }
                 }
@@ -1134,7 +1184,10 @@ fun Home(
 // Le cadre de sélection est dessiné autour de l'image (il ne cache pas la barre de progression).
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (Channel) -> Unit, onRowFocus: () -> Unit) {
+fun CardRow(
+    list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (Channel) -> Unit, onRowFocus: () -> Unit,
+    pv: ExoPlayer? = null, pvId: Int? = null, pvReady: Boolean = false, onCardFocus: (Channel, Boolean) -> Unit = { _, _ -> }
+) {
     val st = rememberLazyListState()
     val sc = rememberCoroutineScope()
     val firstReq = remember { FocusRequester() }
@@ -1160,7 +1213,7 @@ fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (C
                     onDispose { firstReady = false }
                 }
             }
-            ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) }, if (i == 0) firstReq else null) {
+            ChannelCard(c, epg, { onPlay(c) }, { onEdit(c) }, if (i == 0) firstReq else null, pv = if (pvId == c.id) pv else null, pvReady = pvReady, onFocusState = { onCardFocus(c, it) }) {
                 onRowFocus()
                 sc.launch { try { st.animateScrollToItem((i - 1).coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
             }
@@ -1169,7 +1222,10 @@ fun CardRow(list: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onEdit: (C
 }
 
 @Composable
-fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, req: FocusRequester? = null, onFocus: () -> Unit = {}) {
+fun ChannelCard(
+    c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, req: FocusRequester? = null,
+    pv: ExoPlayer? = null, pvReady: Boolean = false, onFocusState: (Boolean) -> Unit = {}, onFocus: () -> Unit = {}
+) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     val scale by animateFloatAsState(if (f) 1.06f else 1f, label = "cardScale")
@@ -1181,7 +1237,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
-            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .onFocusChanged { f = it.isFocused; onFocusState(it.isFocused); if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
@@ -1199,6 +1255,12 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
                     Text(
                         c.name, color = Th.sub, fontSize = 14.sp, maxLines = 2, textAlign = TextAlign.Center,
                         modifier = Modifier.align(Alignment.Center).padding(8.dp)
+                    )
+                }
+                if (pv != null && f) {
+                    AndroidView(
+                        factory = { cx -> android.view.TextureView(cx).also { tv -> pv.setVideoTextureView(tv) } },
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (pvReady) 1f else 0f }
                     )
                 }
                 if (c.icon.isNotBlank()) {

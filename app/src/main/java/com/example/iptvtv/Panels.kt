@@ -1088,6 +1088,7 @@ fun SettingsHub(
                     { onCfg(cfg.copy(bgSound = !cfg.bgSound)) }, autoFocus = true
                 )
             }
+            item { PrefSwitch("Card preview", "On the home screen: rest on a card to preview it (muted), keep watching to switch the background channel", "cardPreview", true) }
             item { PHeader("Video") }
             item { PrefCycle("Video decoder", "vdec", listOf("hw" to "Hardware", "sw" to "Software"), "hw", "  (restart the app to apply)") }
             item { PrefCycle("Playback buffer", "buf", listOf("5" to "5 Seconds", "10" to "10 Seconds", "20" to "20 Seconds", "30" to "30 Seconds", "60" to "60 Seconds"), "20", "  (restart the app to apply)") }
