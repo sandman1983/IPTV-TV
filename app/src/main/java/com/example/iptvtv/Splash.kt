@@ -155,12 +155,7 @@ fun EliteLogo(modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val c = Offset(size.width / 2f, size.height / 2f)
         val r = size.minDimension / 2f - 1.5.dp.toPx()
-        drawCircle(SP_GOLD.copy(alpha = 0.3f), radius = r, center = c, style = Stroke(1.dp.toPx()))
-        drawArc(
-            SP_GOLD, startAngle = -110f, sweepAngle = 70f, useCenter = false,
-            topLeft = Offset(c.x - r, c.y - r), size = Size(r * 2, r * 2),
-            style = Stroke(1.8.dp.toPx(), cap = StrokeCap.Round)
-        )
+        drawCircle(SP_GOLD, radius = r, center = c, style = Stroke(1.6.dp.toPx()))
         val side = r * 0.58f
         rotate(45f, pivot = c) {
             drawRoundRect(
