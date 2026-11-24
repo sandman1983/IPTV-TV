@@ -194,7 +194,9 @@ fun MiniPlayer(
     val clr = remember { FocusRequester() }
     val p = epg.now(c.epgId)
     // Always the last 10 channels played (the current one first).
-    val recent = remember(hist, channels, c.id) {
+    // L'ordre est figé tant que le mini lecteur reste ouvert : choisir une chaîne ne la fait pas sauter en tête de rangée.
+    // À la prochaine ouverture, la chaîne en cours repasse en premier.
+    val recent = remember(channels) {
         val l = ArrayList<Channel>()
         l.add(c)
         for (id in hist) {
