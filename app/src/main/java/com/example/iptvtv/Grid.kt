@@ -58,7 +58,7 @@ import java.util.Locale
 // ---------------------------------------------------------------------------
 // Mini player : s'affiche au-dessus de la vidéo (programme en cours + rangée de chaînes)
 // ---------------------------------------------------------------------------
-private val M_GRAY = Color(0xFFB8BEC9)
+private val M_GRAY: Color get() = Th.sub
 private val M_TILE = Color(0xFF2B2F36)
 
 @Composable
@@ -86,7 +86,7 @@ private fun MiniItem(
         // The selection frame is drawn around the picture, so it never hides the progress bar.
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .border(3.dp, if (f) Color.White else Color.Transparent, RoundedCornerShape(10.dp)).padding(3.dp)
+                .border(3.dp, if (f) Th.text else Color.Transparent, RoundedCornerShape(10.dp)).padding(3.dp)
         ) {
             Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(M_TILE)) {
                 thumb()
@@ -103,7 +103,7 @@ private fun MiniItem(
             }
         }
         Text(
-            title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+            title, color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
             overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
             modifier = (if (f) Modifier.basicMarquee() else Modifier).padding(top = 6.dp, start = 3.dp)
         )
@@ -160,11 +160,11 @@ private fun CtrlIcon(kind: Int, col: Color, modifier: Modifier = Modifier) {
 private fun CtrlCircle(kind: Int, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.size(36.dp).clip(CircleShape)
-            .background(if (selected) Color.White else Color(0x66FFFFFF))
+            .background(if (selected) Th.focusBg else Th.ovCtl)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        CtrlIcon(kind, if (selected) P_DARK_TXT else Color.White)
+        CtrlIcon(kind, if (selected) Th.focusText else Th.text)
     }
 }
 
@@ -266,12 +266,12 @@ fun MiniPlayer(
     ) {
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6000000), Color(0xF5000000))))
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Th.ovMid, Th.ovEnd)))
                 .padding(start = 40.dp, end = 40.dp, top = 90.dp, bottom = 22.dp)
         ) {
             Text(c.name, color = M_GRAY, fontSize = 16.sp, maxLines = 1)
             Text(
-                p?.title ?: "", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Light,
+                p?.title ?: "", color = Th.text, fontSize = 30.sp, fontWeight = FontWeight.Light,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             if (ctrl) {
@@ -300,7 +300,7 @@ fun MiniPlayer(
                 }
             }
             Text(
-                "Channels", color = Color(0xFFFFE9A8), fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                "Channels", color = Th.gold, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
             )
             LazyRow(
@@ -315,8 +315,8 @@ fun MiniPlayer(
                         ) {
                             repeat(4) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    Box(Modifier.size(7.dp, 7.dp).background(Color(0xFFEFE6C8)))
-                                    Box(Modifier.size(38.dp, 7.dp).background(Color(0xFFEFE6C8)))
+                                    Box(Modifier.size(7.dp, 7.dp).background(Th.goldSoft))
+                                    Box(Modifier.size(38.dp, 7.dp).background(Th.goldSoft))
                                 }
                             }
                         }
@@ -348,9 +348,9 @@ fun MiniPlayer(
         if (cf != null) {
             Column(
                 Modifier.align(Alignment.TopEnd).padding(24.dp).width(380.dp)
-                    .clip(RoundedCornerShape(12.dp)).background(Color(0xF2151A24)).padding(16.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(Th.popup).padding(16.dp)
             ) {
-                Text("Clear recent channels", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("Clear recent channels", color = Th.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Text(cf.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
                 FocusRow({ onClearHist(cf.id); clearFor = null }, Modifier.focusRequester(clr)) {
                     Text("This channel", color = fcolor(Color.White), fontSize = 16.sp)
@@ -377,8 +377,8 @@ object GuideState {
 private const val DPM = 4
 private const val TOTAL_MIN = 2160
 private val LW = 104.dp
-private val ACCENT = Color(0xFF2D9BE0)
-private val P_DARK_TXT = Color(0xFF14213D)
+private val ACCENT: Color get() = Th.accent
+private val P_DARK_TXT: Color get() = Th.focusText
 
 @Composable
 private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null, req: FocusRequester? = null, onClick: () -> Unit) {
@@ -396,7 +396,7 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
             }
             .then(if (f) Modifier.shadow(10.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
-            .background(if (f) Color.White else if (selected) Color(0xFF1E6FD9) else Color(0xFF232A36))
+            .background(if (f) Th.focusBg else if (selected) Color(0xFF1E6FD9) else Th.chip)
             .then(if (f) Modifier.border(1.dp, ACCENT, RoundedCornerShape(3.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
@@ -404,7 +404,7 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
             .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
-        Text(label, color = if (f) P_DARK_TXT else Color.White, fontSize = 14.sp, maxLines = 1)
+        Text(label, color = if (f) P_DARK_TXT else if (selected) Color.White else Th.text, fontSize = 14.sp, maxLines = 1)
     }
 }
 
@@ -429,7 +429,7 @@ private fun GBlock(
             }
             .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
-            .background(if (f) Color.White else if (live) Color(0xFF2F3B48) else Color(0xFF262626))
+            .background(if (f) Th.focusBg else if (live) Th.cellLive else Th.cell)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onSel() }
             .onPreviewKeyEvent { okLong(it, fired, onPlay, onLong) }
@@ -440,7 +440,7 @@ private fun GBlock(
         Column(verticalArrangement = Arrangement.Center) {
             Text(
                 (if (mark.isNotEmpty()) "$mark " else "") + (p?.title ?: "No information"),
-                color = if (f) Color.Black else if (past) M_GRAY else Color.White,
+                color = if (f) Th.focusText else if (past) M_GRAY else Th.text,
                 fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
                 overflow = if (f && w >= 160.dp) TextOverflow.Clip else TextOverflow.Ellipsis,
                 modifier = if (f && w >= 160.dp) Modifier.basicMarquee() else Modifier
@@ -448,7 +448,7 @@ private fun GBlock(
             if (p != null && w >= 110.dp) {
                 Text(
                     hm(p.start) + " - " + hm(p.stop),
-                    color = if (f) Color(0xFF333333) else M_GRAY,
+                    color = if (f) Th.focusSub else M_GRAY,
                     fontSize = 12.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip
                 )
             }
@@ -461,7 +461,7 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
     val sp = selProvider()
         Column(
             Modifier.width(260.dp).fillMaxHeight().padding(start = 10.dp, top = 5.dp, end = 8.dp, bottom = 5.dp)
-                .clip(RoundedCornerShape(3.dp)).background(Color(0xFF262626)).padding(16.dp)
+                .clip(RoundedCornerShape(3.dp)).background(Th.cell).padding(16.dp)
         ) {
             if (sp != null) {
                 val sch = sp.first
@@ -476,18 +476,18 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
                 }
                 Text(sch.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1)
                 Text(
-                    pr?.title ?: "No information", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    pr?.title ?: "No information", color = Th.text, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     maxLines = 3, overflow = TextOverflow.Ellipsis
                 )
                 if (pr != null) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                        Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Color(0xFF8FCBF7), fontSize = 13.sp)
+                        Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Th.time, fontSize = 13.sp)
                         if (pr.start <= nowMs && nowMs < pr.stop) {
                             Bar(fracOf(pr, nowMs), Modifier.padding(start = 10.dp).weight(1f), 8.dp)
                         }
                     }
                     if (pr.sub.isNotBlank() && pr.sub != pr.desc) {
-                        Text(pr.sub, color = Color(0xFFFFE9A8), fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(pr.sub, color = Th.gold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     AutoScrollText(pr.desc, Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp), 13.sp, 18.sp, 4.5f)
                 }
@@ -578,7 +578,7 @@ fun EpgGrid(
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
     Column(
-        Modifier.fillMaxSize().background(Color(0xE0141414))
+        Modifier.fillMaxSize().background(Th.guideBg)
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
@@ -586,7 +586,7 @@ fun EpgGrid(
         ) {
             Text(
                 "Today - " + SimpleDateFormat("EEE, MMM dd", Locale.ENGLISH).format(Date(nowMs)),
-                color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold
+                color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Bold
             )
             Spacer(Modifier.width(24.dp))
             LazyRow(
@@ -669,7 +669,7 @@ fun EpgGrid(
                                 Box(
                                     Modifier.width(LW).fillMaxHeight().padding(5.dp)
                                         .clip(RoundedCornerShape(3.dp))
-                                        .background(Brush.verticalGradient(listOf(Color(0xFF4B5568), Color(0xFF333B49)))),
+                                        .background(Brush.verticalGradient(listOf(Th.logoA, Th.logoB))),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (ch.icon.isNotBlank()) {
@@ -680,7 +680,7 @@ fun EpgGrid(
                                         )
                                     } else {
                                         Text(
-                                            ch.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                            ch.name, color = Th.text, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                                             maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(6.dp)
                                         )
                                     }
@@ -747,7 +747,7 @@ fun EpgGrid(
                                             )
                                         }
                                         if (nowX > 0.dp) {
-                                            Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(Color(0xFF8FCBF7)))
+                                            Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(Th.nowLine))
                                         }
                                     }
                                 }

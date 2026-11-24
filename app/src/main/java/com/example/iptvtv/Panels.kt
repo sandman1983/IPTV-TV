@@ -1206,7 +1206,7 @@ fun SettingsHub(
         "display" -> PanelShell("Display", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
                 PItem(
-                    "Theme", if (Th.light) "Light" else "Dark",
+                    "Theme", when (Th.mode) { 1 -> "Light"; 2 -> "Black"; else -> "Dark" },
                     { page = "theme" }, autoFocus = true
                 )
             }
@@ -1224,8 +1224,9 @@ fun SettingsHub(
             }
         }
         "theme" -> PanelShell("Theme", { back() }, actions = { PButton("Back", { back() }) }) {
-            item { PRadio("Dark", "Dark panels and white text", !Th.light, { Th.set(ctx, false); page = "display" }, autoFocus = !Th.light) }
-            item { PRadio("Light", "Light panels and dark text", Th.light, { Th.set(ctx, true); page = "display" }, autoFocus = Th.light) }
+            item { PRadio("Dark", "Dark blue-grey panels, white text", Th.mode == 0, { Th.set(ctx, 0); page = "display" }, autoFocus = Th.mode == 0) }
+            item { PRadio("Light", "Light panels, dark text", Th.mode == 1, { Th.set(ctx, 1); page = "display" }, autoFocus = Th.mode == 1) }
+            item { PRadio("Black", "Pure black background (OLED)", Th.mode == 2, { Th.set(ctx, 2); page = "display" }, autoFocus = Th.mode == 2) }
         }
         "city" -> PanelShell(
             "Weather", { back() },

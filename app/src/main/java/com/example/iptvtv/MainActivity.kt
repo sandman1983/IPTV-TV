@@ -323,8 +323,8 @@ fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
         delay(100)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xF0151A24)).padding(16.dp)) {
-        Text("Exit the app?", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Th.popup).padding(16.dp)) {
+        Text("Exit the app?", color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr)) { Text("Yes", color = fcolor(Color.White), fontSize = 16.sp) }
@@ -340,9 +340,9 @@ fun ReminderBox(r: Rec, modifier: Modifier, onWatch: () -> Unit, onClose: () -> 
         delay(100)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
-    Column(modifier.width(360.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xF0151515)).padding(16.dp)) {
-        Text("Reminder", color = Color(0xFF8FCBF7), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Text(r.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Column(modifier.width(360.dp).clip(RoundedCornerShape(12.dp)).background(Th.popup).padding(16.dp)) {
+        Text("Reminder", color = Th.time, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(r.title, color = Th.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(r.chName + " · " + hm(r.start), color = MUTED, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             FocusRow(onWatch, Modifier.width(140.dp).focusRequester(fr)) { Text("Watch", color = fcolor(Color.White), fontSize = 16.sp) }
@@ -755,7 +755,7 @@ fun App() {
         }
     }
 
-    MaterialTheme(colorScheme = darkColorScheme()) {
+    MaterialTheme(colorScheme = if (Th.light) androidx.compose.material3.lightColorScheme() else darkColorScheme()) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             // Lecteur vidéo toujours présent en fond : aperçu à l'accueil, plein écran en lecture.
             AndroidView(
@@ -849,11 +849,11 @@ fun App() {
                 }
                 Column(
                     Modifier.align(Alignment.Center).width(760.dp).clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xF2101010)).padding(18.dp)
+                        .background(Th.popup).padding(18.dp)
                 ) {
                     Text("The app closed unexpectedly last time", color = Color(0xFFFFB4A9), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text("Please take a photo of this and send it to Claude:", color = MUTED, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
-                    Text(cr.take(1400), color = Color.White, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 28, overflow = TextOverflow.Ellipsis)
+                    Text(cr.take(1400), color = Th.text, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 28, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(10.dp))
                     FocusRow({ crash = null }, Modifier.width(160.dp).focusRequester(fr2)) {
                         Text("Close", color = fcolor(Color.White), fontSize = 16.sp)
@@ -1461,8 +1461,8 @@ fun SlideIn(visible: Boolean, fromTop: Boolean, modifier: Modifier, content: @Co
 @Composable
 fun Badge(t: String) {
     Text(
-        t, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
-        modifier = Modifier.padding(start = 8.dp).border(1.dp, Color(0xAAFFFFFF), RoundedCornerShape(4.dp))
+        t, color = Th.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+        modifier = Modifier.padding(start = 8.dp).border(1.dp, Th.sub, RoundedCornerShape(4.dp))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     )
 }
@@ -1472,13 +1472,13 @@ fun Badge(t: String) {
 fun TopInfo(c: Channel, num: Int, weather: String, codec: String, quality: String, audioN: Int, subN: Int) {
     Row(
         Modifier.fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color(0xEE000000), Color(0x00000000))))
+            .background(Brush.verticalGradient(listOf(Th.ovTop, Color.Transparent)))
             .padding(horizontal = 24.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("$num", color = LIME, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("$num", color = Th.lime, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(20.dp))
-        Text(c.name, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+        Text(c.name, color = Th.text, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
         Text(
             weather, color = Color(0xFFE0E4EC), fontSize = 16.sp, maxLines = 1,
             textAlign = TextAlign.Center, modifier = Modifier.weight(1.3f)
@@ -1524,7 +1524,7 @@ fun BottomInfo(
     val sp: Prog? = ev ?: p
     Column(
         Modifier.fillMaxWidth().background(
-            Brush.verticalGradient(listOf(Color(0x00000000), Color(0xF2000000), Color(0xFF000000)))
+            Brush.verticalGradient(listOf(Color.Transparent, Th.ovMid, Th.ovEnd))
         )
     ) {
         Row(
@@ -1539,7 +1539,7 @@ fun BottomInfo(
                 },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.padding(start = 24.dp).width(150.dp).height(84.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF1B2230))) {
+                Box(Modifier.padding(start = 24.dp).width(150.dp).height(84.dp).clip(RoundedCornerShape(4.dp)).background(Th.cardBg)) {
                     if (sp != null && sp.icon.isNotBlank()) {
                         AsyncImage(
                             model = sp.icon, contentDescription = null,
@@ -1553,9 +1553,9 @@ fun BottomInfo(
                     }
                 }
                 Column(Modifier.width(96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(Modifier.size(22.dp, 11.dp).chevron(true, MUTED))
-                    Text("$num", color = LIME, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                    Box(Modifier.size(22.dp, 11.dp).chevron(false, MUTED))
+                    Box(Modifier.size(22.dp, 11.dp).chevron(true, Th.sub))
+                    Text("$num", color = Th.lime, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                    Box(Modifier.size(22.dp, 11.dp).chevron(false, Th.sub))
                 }
                 Column(Modifier.weight(1f).height(88.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1566,25 +1566,25 @@ fun BottomInfo(
                                 contentScale = ContentScale.Fit
                             )
                         }
-                        Text(c.name, color = MUTED, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(c.name, color = Th.sub, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (sp == null) {
-                        Text("No guide information", color = MUTED, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text("No guide information", color = Th.sub, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
                     } else {
                         Text(
-                            sp.title, color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold,
+                            sp.title, color = Th.text, fontSize = 21.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                             if (ev == null) {
-                                Text("Now ${hm(nowMs)}", color = Color(0xFF8FCBF7), fontSize = 14.sp)
-                                Text("  |  ", color = MUTED, fontSize = 15.sp)
-                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFF8FCBF7), fontSize = 15.sp)
+                                Text("Now ${hm(nowMs)}", color = Th.time, fontSize = 14.sp)
+                                Text("  |  ", color = Th.sub, fontSize = 15.sp)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.time, fontSize = 15.sp)
                                 Bar(fracOf(sp, nowMs), Modifier.padding(horizontal = 14.dp).width(150.dp), 8.dp)
-                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Color(0xFF8FCBF7), fontSize = 14.sp, maxLines = 1, softWrap = false)
+                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Th.time, fontSize = 14.sp, maxLines = 1, softWrap = false)
                             } else {
-                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Color(0xFF8FCBF7), fontSize = 15.sp)
-                                Text("   in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 15.sp)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.time, fontSize = 15.sp)
+                                Text("   in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = Th.sub, fontSize = 15.sp)
                             }
                             Spacer(Modifier.width(6.dp))
                             if (subN > 0) Badge("SUB")
@@ -1597,16 +1597,16 @@ fun BottomInfo(
             }
             if (ups.isNotEmpty()) {
                 Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("\u203A", color = MUTED, fontSize = 30.sp)
-                    Text("  Up next", color = MUTED, fontSize = 16.sp, maxLines = 1, softWrap = false)
+                    Text("\u203A", color = Th.sub, fontSize = 30.sp)
+                    Text("  Up next", color = Th.sub, fontSize = 16.sp, maxLines = 1, softWrap = false)
                 }
             }
         }
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(c.cat, color = MUTED, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(c.cat, color = Th.sub, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
             Text(
                 "\u2191\u2193  zap     OK  list",
-                color = MUTED, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
+                color = Th.sub, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
             )
         }
     }

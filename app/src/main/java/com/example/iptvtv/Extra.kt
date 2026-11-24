@@ -181,7 +181,7 @@ fun MultiviewScreen(main: ExoPlayer, channels: List<Channel>, epg: Epg, start: C
             try { reqs[sel].requestFocus() } catch (ex: Exception) { }
         }
     }
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(Th.bgBottom)) {
         Column(Modifier.fillMaxSize().padding(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             for (rIdx in 0 until 2) {
                 Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -224,8 +224,8 @@ private fun MvCell(
         modifier
             .focusRequester(req)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
-            .border(if (f) 3.dp else 1.dp, if (f) Color.White else Color(0xFF2A3140))
-            .background(Color(0xFF11151C))
+            .border(if (f) 3.dp else 1.dp, if (f) Th.text else Th.divider)
+            .background(Th.mvCell)
             .clickable { onClick() }
     ) {
         if (ch != null) {
@@ -241,19 +241,19 @@ private fun MvCell(
                 modifier = Modifier.fillMaxSize().padding(2.dp)
             )
             Row(
-                Modifier.align(Alignment.BottomStart).padding(10.dp).background(Color(0xB3000000))
+                Modifier.align(Alignment.BottomStart).padding(10.dp).background(Th.ovMid)
                     .padding(horizontal = 8.dp, vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(ch.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(ch.name, color = Th.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 if (selected) {
                     Spacer(Modifier.width(8.dp))
-                    Text("AUDIO", color = Color(0xFF8FCBF7), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("AUDIO", color = Th.time, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         } else {
             Text(
-                "+  Add a channel", color = X_MUTED, fontSize = 18.sp, textAlign = TextAlign.Center,
+                "+  Add a channel", color = Th.sub, fontSize = 18.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center)
             )
         }

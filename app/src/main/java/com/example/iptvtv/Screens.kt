@@ -92,8 +92,8 @@ fun FocusRow(
 ) {
     var f by remember { mutableStateOf(false) }
     val lt = Th.light && LocalThemed.current
-    val fbg = if (lt) Th.focusBg else Color.White
-    val tcol = if (tileColor != Color.Unspecified) tileColor else if (lt) Th.tile else Color(0xE62A313E)
+    val fbg = Th.focusBg
+    val tcol = if (tileColor != Color.Unspecified) tileColor else Th.tile
     val fired = remember { booleanArrayOf(true) }
     val gk by animateFloatAsState(if (tile && f) 1f else 0f, label = "tileGrow")
     val base = if (!tile) {
@@ -130,10 +130,10 @@ fun Bar(frac: Float, modifier: Modifier = Modifier, h: androidx.compose.ui.unit.
     val shape = RoundedCornerShape(2.dp)
     val lt = Th.light && LocalThemed.current
     Box(
-        modifier.height(h).clip(shape).background(if (lt) Th.barTrack else Color(0xFF070C1A))
+        modifier.height(h).clip(shape).background(Th.barTrack)
             .border(1.5.dp, fcolor(Color(0xDDFFFFFF), Color(0xFF14213D)), shape).padding(1.5.dp)
     ) {
-        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(if (lt) Th.barFill else Color(0xFF8FCBF7)))
+        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Th.barFill))
     }
 }
 
@@ -610,7 +610,7 @@ fun SearchScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBa
         if (t.isEmpty()) emptyList() else chans.filter { it.name.lowercase().contains(t) }.take(60)
     }
     Column(Modifier.fillMaxSize().padding(32.dp)) {
-        Text("Search", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("Search", color = Th.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         OutlinedTextField(
             q, { q = it }, singleLine = true, label = { Text("Channel name") },
             modifier = Modifier.padding(vertical = 10.dp)
