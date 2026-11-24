@@ -71,6 +71,9 @@ private fun MiniItem(
     logo: String?,
     onFocus: () -> Unit,
     onLong: (() -> Unit)? = null,
+    pv: androidx.media3.exoplayer.ExoPlayer? = null,
+    pvReady: Boolean = false,
+    onFocusState: (Boolean) -> Unit = {},
     thumb: @Composable BoxScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
@@ -79,7 +82,7 @@ private fun MiniItem(
     Column(
         Modifier.width(170.dp).graphicsLayer { scaleX = sc; scaleY = sc }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
-            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .onFocusChanged { f = it.isFocused; onFocusState(it.isFocused); if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
@@ -90,6 +93,12 @@ private fun MiniItem(
         ) {
             Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(M_TILE)) {
                 thumb()
+                if (pv != null && f) {
+                    androidx.compose.ui.viewinterop.AndroidView(
+                        factory = { cx -> android.view.TextureView(cx).also { tv -> pv.setVideoTextureView(tv) } },
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (pvReady) 1f else 0f }
+                    )
+                }
                 if (!logo.isNullOrBlank()) {
                     AsyncImage(
                         model = logo, contentDescription = null,
@@ -177,6 +186,7 @@ fun MiniPlayer(
     onTracks: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
+    val prev = rememberCardPreview(channels, c.id)
     var clearFor by remember { mutableStateOf<Channel?>(null) }
     val clr = remember { FocusRequester() }
     val p = epg.now(c.epgId)
@@ -331,7 +341,8 @@ fun MiniPlayer(
                         if (pr != null) fracOf(pr, nowMs) else null,
                         if (pr?.icon.isNullOrBlank()) null else ch.icon,
                         { focusItem(ri + 1) },
-                        { clearFor = ch }
+                        { clearFor = ch },
+                        if (prev.pvId == ch.id) prev.player else null, prev.ready, { prev.focus(ch.id, it) }
                     ) {
                         val img = pr?.icon?.ifBlank { null } ?: ch.icon
                         if (img.isNotBlank()) {

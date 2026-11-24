@@ -259,3 +259,60 @@ private fun MvCell(
         }
     }
 }
+
+
+// Aperçu muet dans les cartes (accueil et mini-lecteur) : démarre dès qu'on se pose sur une carte
+// et dure tant qu'on reste dessus. OK ouvre la chaîne ; la chaîne d'arrière-plan ne change jamais toute seule.
+class CardPreview(val player: ExoPlayer) {
+    var focusId by mutableStateOf<Int?>(null)
+    var pvId by mutableStateOf<Int?>(null)
+    var ready by mutableStateOf(false)
+    fun focus(id: Int, on: Boolean) {
+        if (on) focusId = id else if (focusId == id) focusId = null
+    }
+}
+
+@Composable
+fun rememberCardPreview(ch: List<Channel>, curId: Int?): CardPreview {
+    val ctx = LocalContext.current
+    val cp = remember {
+        val http = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setUserAgent("VLC/3.0.18 LibVLC/3.0.18")
+            .setConnectTimeoutMs(15000)
+            .setReadTimeoutMs(15000)
+        val p = ExoPlayer.Builder(ctx)
+            .setMediaSourceFactory(
+                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                    androidx.media3.datasource.DefaultDataSource.Factory(ctx, http)
+                )
+            ).build()
+        p.volume = 0f
+        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()
+        val c = CardPreview(p)
+        p.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onRenderedFirstFrame() { c.ready = true }
+        })
+        c
+    }
+    DisposableEffect(Unit) { onDispose { try { cp.player.release() } catch (e: Exception) { } } }
+    LaunchedEffect(cp.focusId) {
+        cp.pvId = null
+        cp.ready = false
+        try { cp.player.stop(); cp.player.clearMediaItems() } catch (e: Exception) { }
+        val id = cp.focusId
+        val c = if (id != null) ch.firstOrNull { it.id == id } else null
+        val on = ctx.getSharedPreferences("iptv_player", 0).getBoolean("cardPreview", true)
+        if (c != null && on && c.id != curId) {
+            delay(250) // petit délai anti-rebond quand on défile vite
+            try {
+                cp.player.setMediaItem(MediaItem.fromUri(c.url))
+                cp.player.prepare()
+                cp.player.playWhenReady = true
+                cp.pvId = c.id
+            } catch (e: Exception) { }
+        }
+    }
+    return cp
+}

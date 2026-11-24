@@ -829,8 +829,7 @@ fun App() {
                     { editCh = it.id },
                     { screen = "guide" },
                     { screen = "recs" }, { screen = "multi" },
-                    cfg.merge,
-                    { play(it) }
+                    cfg.merge
                 ) }
             }
             val ec = editCh
@@ -1001,54 +1000,7 @@ fun Home(
     onSwitch: (Channel) -> Unit = {}
 ) {
     val cp = cur?.let { epg.now(it.epgId) }
-    // Aperçu dans les cartes : lecteur muet. Après 3 s sur une carte l'aperçu démarre ;
-    // après 10 s d'aperçu, la chaîne passe en arrière-plan (avec le son).
-    val pctx = LocalContext.current
-    var focusId by remember { mutableStateOf<Int?>(null) }
-    var pvId by remember { mutableStateOf<Int?>(null) }
-    var pvReady by remember { mutableStateOf(false) }
-    val pvPlayer = remember {
-        val http = androidx.media3.datasource.DefaultHttpDataSource.Factory()
-            .setAllowCrossProtocolRedirects(true)
-            .setUserAgent("VLC/3.0.18 LibVLC/3.0.18")
-            .setConnectTimeoutMs(15000)
-            .setReadTimeoutMs(15000)
-        val p = ExoPlayer.Builder(pctx)
-            .setMediaSourceFactory(
-                androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-                    androidx.media3.datasource.DefaultDataSource.Factory(pctx, http)
-                )
-            ).build()
-        p.volume = 0f
-        p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()
-        p.addListener(object : Player.Listener {
-            override fun onRenderedFirstFrame() { pvReady = true }
-        })
-        p
-    }
-    DisposableEffect(Unit) { onDispose { try { pvPlayer.release() } catch (e: Exception) { } } }
-    LaunchedEffect(focusId) {
-        pvId = null
-        pvReady = false
-        try { pvPlayer.stop(); pvPlayer.clearMediaItems() } catch (e: Exception) { }
-        val id = focusId
-        val c = if (id != null) ch.firstOrNull { it.id == id } else null
-        val on = pctx.getSharedPreferences("iptv_player", 0).getBoolean("cardPreview", true)
-        if (c != null && on && c.id != cur?.id) {
-            delay(3000)
-            try {
-                pvPlayer.setMediaItem(MediaItem.fromUri(c.url))
-                pvPlayer.prepare()
-                pvPlayer.playWhenReady = true
-                pvId = c.id
-            } catch (e: Exception) { return@LaunchedEffect }
-            delay(10000)
-            onSwitch(c)
-            pvId = null
-            try { pvPlayer.stop(); pvPlayer.clearMediaItems() } catch (e: Exception) { }
-        }
-    }
+    val pvc = rememberCardPreview(ch, cur?.id)
     val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
     val rows = remember(ch, sources, merge) { buildRows(ch, sources, merge) }
     val listState = rememberLazyListState()
@@ -1153,7 +1105,7 @@ fun Home(
                                 "CONTINUE WATCHING", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 6.dp)
                             )
-                            CardRow(recent, epg, onPlay, onEdit, { rowFocus(baseIdx - 1) }, pvPlayer, pvId, pvReady) { c, fo -> if (fo) focusId = c.id else if (focusId == c.id) focusId = null }
+                            CardRow(recent, epg, onPlay, onEdit, { rowFocus(baseIdx - 1) }, pvc.player, pvc.pvId, pvc.ready) { c, fo -> pvc.focus(c.id, fo) }
                         }
                     }
                 }
@@ -1170,7 +1122,7 @@ fun Home(
                                 r.title.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 6.dp)
                             )
-                            CardRow(r.chans, epg, onPlay, onEdit, { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }, pvPlayer, pvId, pvReady) { c, fo -> if (fo) focusId = c.id else if (focusId == c.id) focusId = null }
+                            CardRow(r.chans, epg, onPlay, onEdit, { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }, pvc.player, pvc.pvId, pvc.ready) { c, fo -> pvc.focus(c.id, fo) }
                         }
                     }
                 }
