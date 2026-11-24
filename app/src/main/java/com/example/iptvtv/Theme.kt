@@ -64,7 +64,7 @@ object Th {
     val cell: Color get() = pick(0xFF262626, 0xFFE3E8F1, 0xFF141414)
     val cellLive: Color get() = pick(0xFF2F3B48, 0xFFC3D6EA, 0xFF1B2A3A)
     val chip: Color get() = pick(0xFF232A36, 0xFFDDE3EE, 0xFF161616)
-    val guideBg: Color get() = pick(0xE0141414, 0xF2F1F4F9, 0xFF000000)
+    val guideBg: Color get() = pick(0xE0141414, 0xF2F1F4F9, 0xE6000000)
     val logoA: Color get() = pick(0xFF4B5568, 0xFFD3DBE8, 0xFF1C1C1C)
     val logoB: Color get() = pick(0xFF333B49, 0xFFBFC9DA, 0xFF101010)
     val divider: Color get() = pick(0xFF2A3140, 0xFFC3CCDA, 0xFF2A2A2A)

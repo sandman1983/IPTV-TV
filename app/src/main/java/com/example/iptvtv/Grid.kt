@@ -406,7 +406,6 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
                     scaleY = (size.height + 2 * g) / size.height
                 }
             }
-            .then(if (f) Modifier.shadow(10.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
             .background(if (f) Th.focusBg else if (selected) Color(0xFF1E6FD9) else Th.chip)
             .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
@@ -594,7 +593,7 @@ fun EpgGrid(
         Modifier.fillMaxSize().background(Th.guideBg)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
+            Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -605,7 +604,7 @@ fun EpgGrid(
             LazyRow(
                 state = chipState,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
+                contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp, start = 14.dp, end = 30.dp)
             ) {
                 item { GChip("All", cat.isEmpty(), null, if (cat.isEmpty()) chipReq else null) { cat = "" } }
                 items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }, if (cat == c2) chipReq else null) { cat = c2 } }
