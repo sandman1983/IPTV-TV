@@ -39,21 +39,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 // Écran de démarrage : affiché une seule fois par lancement (le drapeau est remis à zéro quand on quitte l'app).
 object SplashState {
     @Volatile var done = false
+    // Passe à true quand les chaînes et le guide sont chargés (renseigné par l'écran principal).
+    var ready by androidx.compose.runtime.mutableStateOf(false)
 }
 
 private val SP_BG = Color(0xFF06070B)
 private val SP_GOLD = Color(0xFFD4AF6A)
 
 @Composable
-fun SplashScreen(durationMs: Int = 15000, onDone: () -> Unit) {
+fun SplashScreen(maxWaitMs: Int = 30000, onDone: () -> Unit) {
     val fade = remember { Animatable(1f) }
     val prog = remember { Animatable(0f) }
+    // Se ferme quand l'accueil est prêt (minimum 3 s, maximum 30 s), puis laisse 2 s aux images pour s'afficher.
     LaunchedEffect(Unit) {
-        prog.animateTo(1f, tween(durationMs, easing = LinearEasing))
+        val t0 = System.currentTimeMillis()
+        launch { prog.animateTo(0.9f, tween(maxWaitMs, easing = LinearEasing)) }
+        kotlinx.coroutines.withTimeoutOrNull(maxWaitMs.toLong()) {
+            androidx.compose.runtime.snapshotFlow { SplashState.ready }.first { it }
+        }
+        val el = System.currentTimeMillis() - t0
+        if (el < 3000L) kotlinx.coroutines.delay(3000L - el)
+        prog.animateTo(1f, tween(1800))
         fade.animateTo(0f, tween(450))
         onDone()
     }

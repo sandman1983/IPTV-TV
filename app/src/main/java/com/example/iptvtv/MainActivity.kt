@@ -304,6 +304,7 @@ class MainActivity : ComponentActivity() {
             )
         } catch (e: Exception) { }
         Th.load(this)
+        if (!SplashState.done) SplashState.ready = false
         setContent {
             var splash by remember { mutableStateOf(!SplashState.done) }
             Box(
@@ -659,6 +660,12 @@ fun App() {
                 delay(30 * 60 * 1000L)
             }
         }
+    }
+
+    // Signale à l'écran de démarrage que l'accueil est prêt.
+    LaunchedEffect(channels.size, status, sources) {
+        SplashState.ready = sources.none { it.enabled } ||
+            (channels.isNotEmpty() && !status.startsWith("Loading"))
     }
 
     // Rafraîchit l'affichage "en cours / à suivre" toutes les 30 s.
