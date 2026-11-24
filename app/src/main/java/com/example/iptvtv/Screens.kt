@@ -566,25 +566,31 @@ fun ChannelPanel(
                 }
             }
         }
-        // Ligne de séparation dorée, effet brillant / glossy.
-        Row(Modifier.width(4.dp).fillMaxHeight()) {
-            Box(
-                Modifier.width(2.dp).fillMaxHeight().background(
+        // Ligne de séparation dorée opaque, effet métal brillant (reflets en haut et en bas).
+        Box(Modifier.width(6.dp).fillMaxHeight().background(Color(0xFF14110A))) {
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.width(3.dp).fillMaxHeight().background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0f to Color(0x00E0B85A), 0.12f to Color(0xFFB8892B), 0.3f to Color(0xFFFFE9A8),
-                        0.45f to Color(0xFFE0B85A), 0.6f to Color(0xFF9C7220), 0.78f to Color(0xFFFFE9A8),
-                        0.9f to Color(0xFFB8892B), 1f to Color(0x00E0B85A)
+                        0f to Color(0xFF8A6A25), 0.5f to Color(0xFF5E4818), 1f to Color(0xFF8A6A25)
                     )
-                )
-            )
-            Box(
-                Modifier.width(1.dp).fillMaxHeight().background(
+                ))
+                Box(Modifier.width(2.dp).fillMaxHeight().background(
                     androidx.compose.ui.graphics.Brush.verticalGradient(
-                        0f to Color.Transparent, 0.3f to Color(0xAAFFFFFF), 0.5f to Color(0x22FFFFFF),
-                        0.78f to Color(0xAAFFFFFF), 1f to Color.Transparent
+                        0f to Color(0xFFD9B65A), 0.5f to Color(0xFF9A7A2E), 1f to Color(0xFFD9B65A)
                     )
-                )
-            )
+                ))
+                Box(Modifier.width(1.dp).fillMaxHeight().background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        0f to Color(0xFFFFF3C4), 0.5f to Color(0xFFE0B85A), 1f to Color(0xFFFFF3C4)
+                    )
+                ))
+            }
+            Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(90.dp).background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color(0xFFFFF6D0), 0.25f to Color(0xCCFFE9A8), 1f to Color(0x00FFE9A8))
+            ))
+            Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(90.dp).background(
+                androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color(0x00FFE9A8), 0.75f to Color(0xCCFFE9A8), 1f to Color(0xFFFFF6D0))
+            ))
         }
         if (!cols) Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xE6000000))) {
             Column(Modifier.fillMaxSize().padding(24.dp)) {
