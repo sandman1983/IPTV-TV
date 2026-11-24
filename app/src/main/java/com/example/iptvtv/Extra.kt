@@ -297,7 +297,8 @@ fun rememberCardPreview(ch: List<Channel>, curId: Int?): CardPreview {
         c
     }
     DisposableEffect(Unit) { onDispose { try { cp.player.release() } catch (e: Exception) { } } }
-    LaunchedEffect(cp.focusId) {
+    // Relancé aussi quand la chaîne en cours change : une carte qui vient d'être lancée repasse sur sa vignette.
+    LaunchedEffect(cp.focusId, curId) {
         cp.pvId = null
         cp.ready = false
         try { cp.player.stop(); cp.player.clearMediaItems() } catch (e: Exception) { }
