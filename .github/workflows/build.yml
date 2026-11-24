@@ -15,7 +15,9 @@ jobs:
         with:
           gradle-version: 8.7
       - run: gradle assembleDebug --no-daemon
+      - name: Rename APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Elite-TV.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: iptv-tv-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Elite-TV
+          path: app/build/outputs/apk/debug/Elite-TV.apk
