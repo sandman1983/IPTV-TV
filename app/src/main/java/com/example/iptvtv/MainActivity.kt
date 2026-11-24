@@ -955,8 +955,9 @@ fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.padding(horizontal = 4.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
+            .clip(RoundedCornerShape(3.dp))
             .background(if (f) Th.focusBg else Color.Transparent)
-            .then(if (f) Modifier.border(2.dp, Th.sel) else Modifier)
+            .then(if (f) Modifier.border(1.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 7.dp),
@@ -1064,10 +1065,7 @@ fun Home(
                 Modifier.fillMaxWidth().background(Th.header).padding(horizontal = 24.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "IPTV", color = Th.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(end = 28.dp)
-                )
+                EliteLogo(Modifier.padding(end = 28.dp).size(44.dp))
                 TopTab("Home", true) { }
                 TopTab("Guide", false) { onGuide() }
                 TopTab("Recordings", false) { onRecs() }

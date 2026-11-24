@@ -148,3 +148,33 @@ private fun buildAnnotated(): androidx.compose.ui.text.AnnotatedString =
         append(" TV")
         pop()
     }
+
+// Petit logo (anneau + losange + "play") utilisé dans l'en-tête de l'accueil.
+@Composable
+fun EliteLogo(modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val c = Offset(size.width / 2f, size.height / 2f)
+        val r = size.minDimension / 2f - 1.5.dp.toPx()
+        drawCircle(SP_GOLD.copy(alpha = 0.3f), radius = r, center = c, style = Stroke(1.dp.toPx()))
+        drawArc(
+            SP_GOLD, startAngle = -110f, sweepAngle = 70f, useCenter = false,
+            topLeft = Offset(c.x - r, c.y - r), size = Size(r * 2, r * 2),
+            style = Stroke(1.8.dp.toPx(), cap = StrokeCap.Round)
+        )
+        val side = r * 0.58f
+        rotate(45f, pivot = c) {
+            drawRoundRect(
+                SP_GOLD, topLeft = Offset(c.x - side / 2, c.y - side / 2), size = Size(side, side),
+                cornerRadius = CornerRadius(side * 0.16f), style = Stroke(1.8.dp.toPx())
+            )
+        }
+        val t = r * 0.2f
+        val tri = Path().apply {
+            moveTo(c.x - t * 0.45f, c.y - t * 1.05f)
+            lineTo(c.x + t * 1.05f, c.y)
+            lineTo(c.x - t * 0.45f, c.y + t * 1.05f)
+            close()
+        }
+        drawPath(tri, SP_GOLD)
+    }
+}
