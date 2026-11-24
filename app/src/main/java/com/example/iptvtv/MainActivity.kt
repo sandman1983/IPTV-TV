@@ -304,7 +304,15 @@ class MainActivity : ComponentActivity() {
             )
         } catch (e: Exception) { }
         Th.load(this)
-        setContent { App() }
+        setContent {
+            var splash by remember { mutableStateOf(!SplashState.done) }
+            Box(
+                Modifier.fillMaxSize().onPreviewKeyEvent { splash }
+            ) {
+                App()
+                if (splash) SplashScreen { SplashState.done = true; splash = false }
+            }
+        }
     }
 
     // Compose can throw while moving focus during a fast scroll (a known library bug).
@@ -888,7 +896,7 @@ fun App() {
             if (exitAsk) {
                 ExitBox(
                     Modifier.align(Alignment.BottomEnd).padding(24.dp),
-                    { exo.pause(); activityOf(ctx)?.finishAndRemoveTask() },
+                    { exo.pause(); SplashState.done = false; activityOf(ctx)?.finishAndRemoveTask() },
                     { exitAsk = false }
                 )
             }
