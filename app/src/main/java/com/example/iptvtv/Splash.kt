@@ -49,7 +49,7 @@ private val SP_BG = Color(0xFF06070B)
 private val SP_GOLD = Color(0xFFD4AF6A)
 
 @Composable
-fun SplashScreen(durationMs: Int = 10000, onDone: () -> Unit) {
+fun SplashScreen(durationMs: Int = 15000, onDone: () -> Unit) {
     val fade = remember { Animatable(1f) }
     val prog = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
