@@ -428,6 +428,12 @@ private fun GBlock(
     val fired = remember { booleanArrayOf(true) }
     val live = p != null && p.start <= nowMs && nowMs < p.stop
     val past = p != null && p.stop <= nowMs
+    // Défilement du titre seulement si on reste sur la tuile (évite l'animation pendant un appui long Haut/Bas).
+    var marq by remember { mutableStateOf(false) }
+    LaunchedEffect(f) {
+        marq = false
+        if (f) { delay(600); marq = true }
+    }
     Box(
         Modifier.offset(x = x).width(w).fillMaxHeight().padding(5.dp)
             .zIndex(if (f) 1f else 0f)
@@ -438,7 +444,6 @@ private fun GBlock(
                     scaleY = (size.height + grow) / size.height
                 }
             }
-            .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
             .background(if (f) Th.focusBg else if (live) Th.cellLive else Th.cell)
             .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
@@ -454,8 +459,8 @@ private fun GBlock(
                 (if (mark.isNotEmpty()) "$mark " else "") + (p?.title ?: "No information"),
                 color = if (f) Th.focusText else if (past) M_GRAY else Th.text,
                 fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
-                overflow = if (f && w >= 160.dp) TextOverflow.Clip else TextOverflow.Ellipsis,
-                modifier = if (f && w >= 160.dp) Modifier.basicMarquee() else Modifier
+                overflow = if (marq && w >= 160.dp) TextOverflow.Clip else TextOverflow.Ellipsis,
+                modifier = if (marq && w >= 160.dp) Modifier.basicMarquee() else Modifier
             )
             if (p != null && w >= 110.dp) {
                 Text(
@@ -470,7 +475,12 @@ private fun GBlock(
 
 @Composable
 private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
-    val sp = selProvider()
+    // Léger délai : pendant un appui long, le panneau (image + texte) ne se redessine pas à chaque ligne.
+    val live = selProvider()
+    var sp by remember { mutableStateOf(live) }
+    LaunchedEffect(live) {
+        if (sp != live) { delay(150); sp = live }
+    }
         Column(
             Modifier.width(260.dp).fillMaxHeight().padding(start = 10.dp, top = 5.dp, end = 8.dp, bottom = 5.dp)
                 .clip(RoundedCornerShape(3.dp)).background(Th.cell).padding(16.dp)
