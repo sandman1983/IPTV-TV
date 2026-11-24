@@ -29,7 +29,7 @@ private fun srcFromJson(x: JSONObject): Source = Source(
 // Personnalisation d'une chaîne (vide = valeur d'origine)
 data class Ov(
     val name: String = "", val logo: String = "", val epg: String = "",
-    val hidden: Boolean = false, val cat: String = ""
+    val hidden: Boolean = false, val cat: String = "", val inv: Boolean = false
 )
 
 data class Cfg(
@@ -89,7 +89,7 @@ fun cfgToJson(g: Cfg): JSONObject {
     val j = JSONObject()
     val o = JSONObject()
     for ((id, v) in g.ov) {
-        o.put(id.toString(), JSONObject().put("n", v.name).put("l", v.logo).put("e", v.epg).put("h", v.hidden).put("c", v.cat))
+        o.put(id.toString(), JSONObject().put("n", v.name).put("l", v.logo).put("e", v.epg).put("h", v.hidden).put("c", v.cat).put("iv", v.inv))
     }
     j.put("ov", o)
     j.put("order", JSONArray(g.order))
@@ -114,7 +114,7 @@ fun cfgFromJson(j: JSONObject): Cfg {
     val m = HashMap<Int, Ov>()
     for (key in o.keys()) {
         val x = o.getJSONObject(key)
-        m[key.toInt()] = Ov(x.optString("n"), x.optString("l"), x.optString("e"), x.optBoolean("h"), x.optString("c"))
+        m[key.toInt()] = Ov(x.optString("n"), x.optString("l"), x.optString("e"), x.optBoolean("h"), x.optString("c"), x.optBoolean("iv"))
     }
     val od = j.getJSONArray("order")
     val ord = (0 until od.length()).map { od.getInt(it) }
@@ -181,7 +181,8 @@ fun applyCfg(src: List<Channel>, g: Cfg, icons: Map<String, String>): List<Chann
             icon = (o?.logo ?: "").ifBlank { auto },
             epgId = eid,
             cat = (o?.cat ?: "").ifBlank { c.cat },
-            hidden = o?.hidden ?: false
+            hidden = o?.hidden ?: false,
+            invert = o?.inv ?: false
         )
         Pair(pos[c.id] ?: (g.order.size + i), c2)
     }.sortedBy { it.first }.map { it.second }

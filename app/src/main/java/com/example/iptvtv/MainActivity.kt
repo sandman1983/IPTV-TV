@@ -87,8 +87,20 @@ private val ACCENT = Color(0xFF1EB6E8)
 
 data class Channel(
     val id: Int, val name: String, val icon: String, val epgId: String, val cat: String,
-    val hidden: Boolean = false, val url: String = "", val src: String = ""
+    val hidden: Boolean = false, val url: String = "", val src: String = "",
+    val invert: Boolean = false
 )
+
+// Inverse les couleurs du logo (RVB), en gardant la transparence.
+fun invFilter(on: Boolean): androidx.compose.ui.graphics.ColorFilter? =
+    if (!on) null else androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+        androidx.compose.ui.graphics.ColorMatrix(floatArrayOf(
+            -1f, 0f, 0f, 0f, 255f,
+            0f, -1f, 0f, 0f, 255f,
+            0f, 0f, -1f, 0f, 255f,
+            0f, 0f, 0f, 1f, 0f
+        ))
+    )
 
 data class Prog(
     val title: String, val sub: String, val cat: String, val icon: String,
@@ -1058,7 +1070,7 @@ fun Home(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (cur.icon.isNotBlank()) {
                                 AsyncImage(
-                                    model = cur.icon, contentDescription = null,
+                                    model = cur.icon, contentDescription = null, colorFilter = invFilter(cur.invert),
                                     modifier = Modifier.padding(end = 10.dp).size(56.dp, 30.dp),
                                     contentScale = ContentScale.Fit
                                 )
@@ -1219,7 +1231,7 @@ fun ChannelCard(
                 }
                 if (c.icon.isNotBlank()) {
                     AsyncImage(
-                        model = c.icon, contentDescription = null,
+                        model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
                         modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 12.dp)
                             .size(48.dp, 26.dp),
                         contentScale = ContentScale.Fit
@@ -1563,7 +1575,7 @@ fun BottomInfo(
                         )
                     } else if (c.icon.isNotBlank()) {
                         AsyncImage(
-                            model = c.icon, contentDescription = null,
+                            model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
                             modifier = Modifier.fillMaxSize().padding(12.dp), contentScale = ContentScale.Fit
                         )
                     }
@@ -1577,7 +1589,7 @@ fun BottomInfo(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (c.icon.isNotBlank()) {
                             AsyncImage(
-                                model = c.icon, contentDescription = null,
+                                model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
                                 modifier = Modifier.height(20.dp).widthIn(max = 48.dp).padding(end = 8.dp),
                                 contentScale = ContentScale.Fit
                             )

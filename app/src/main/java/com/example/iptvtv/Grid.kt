@@ -687,7 +687,7 @@ fun EpgGrid(
                                 ) {
                                     if (ch.icon.isNotBlank()) {
                                         AsyncImage(
-                                            model = ch.icon, contentDescription = null,
+                                            model = ch.icon, contentDescription = null, colorFilter = invFilter(ch.invert),
                                             modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit,
                                             alignment = Alignment.Center
                                         )

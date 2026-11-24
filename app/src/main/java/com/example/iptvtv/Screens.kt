@@ -511,7 +511,7 @@ fun ChannelPanel(
                                 Box(Modifier.size(56.dp, 34.dp)) {
                                     if (c.icon.isNotBlank()) {
                                         AsyncImage(
-                                            model = c.icon, contentDescription = null,
+                                            model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
                                             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
                                         )
                                     }
@@ -598,7 +598,7 @@ fun ChannelPanel(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 110.dp)) {
                 if (fc.icon.isNotBlank()) {
                     AsyncImage(
-                        model = fc.icon, contentDescription = null,
+                        model = fc.icon, contentDescription = null, colorFilter = invFilter(fc.invert),
                         modifier = Modifier.size(72.dp, 48.dp), contentScale = ContentScale.Fit,
                         alignment = Alignment.CenterStart
                     )
@@ -805,7 +805,7 @@ fun SearchScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBa
                     Box(Modifier.size(64.dp, 40.dp)) {
                         if (c.icon.isNotBlank()) {
                             AsyncImage(
-                                model = c.icon, contentDescription = null,
+                                model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
                                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
                             )
                         }
@@ -894,7 +894,7 @@ fun GuideColumn(c: Channel, epg: Epg, onPlay: () -> Unit, onDetail: (Prog) -> Un
         Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.Center) {
             if (c.icon.isNotBlank()) {
                 AsyncImage(
-                    model = c.icon, contentDescription = null,
+                    model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
                     modifier = Modifier.fillMaxSize().padding(4.dp), contentScale = ContentScale.Fit
                 )
             } else {

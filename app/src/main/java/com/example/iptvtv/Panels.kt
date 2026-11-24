@@ -426,6 +426,7 @@ fun ChannelEditor(
                 item { PItem("Rename", e.name, { open("rename", e.name) }, autoFocus = true) }
                 item { PItem("Change logo (URL)", if (e.icon.isBlank()) "None" else e.icon, { open("logo", e.icon) }, icon = e.icon) }
                 item { PItem("Change EPG ID", e.epgId.ifBlank { "None" }, { open("epg", e.name) }) }
+                item { PSwitch("Invert logotype colors", "", e.invert, { upd { it.copy(inv = !e.invert) } }) }
                 item { PItem("Reset this channel", "", { onCfg(cfg.copy(ov = cfg.ov - e.id)); page = "menu" }) }
             }
             "move" -> {
@@ -1209,7 +1210,7 @@ fun SettingsHub(
         "display" -> PanelShell("Display", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
                 PItem(
-                    "Theme", when (Th.mode) { 1 -> "Light"; 2 -> "Black"; else -> "Dark" },
+                    "Theme", when (Th.mode) { 2 -> "Black"; else -> "Dark" },
                     { page = "theme" }, autoFocus = true
                 )
             }
@@ -1228,7 +1229,6 @@ fun SettingsHub(
         }
         "theme" -> PanelShell("Theme", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PRadio("Dark", "Dark blue-grey panels, white text", Th.mode == 0, { Th.set(ctx, 0); page = "display" }, autoFocus = Th.mode == 0) }
-            item { PRadio("Light", "Light panels, dark text", Th.mode == 1, { Th.set(ctx, 1); page = "display" }, autoFocus = Th.mode == 1) }
             item { PRadio("Black", "Pure black background (OLED)", Th.mode == 2, { Th.set(ctx, 2); page = "display" }, autoFocus = Th.mode == 2) }
         }
         "city" -> PanelShell(
