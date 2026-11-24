@@ -477,10 +477,11 @@ private fun GBlock(
 private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
     // Léger délai : pendant un appui long, le panneau (image + texte) ne se redessine pas à chaque ligne.
     val live = selProvider()
-    var sp by remember { mutableStateOf(live) }
+    var shown by remember { mutableStateOf(live) }
     LaunchedEffect(live) {
-        if (sp != live) { delay(150); sp = live }
+        if (shown != live) { delay(150); shown = live }
     }
+    val sp = shown
         Column(
             Modifier.width(260.dp).fillMaxHeight().padding(start = 10.dp, top = 5.dp, end = 8.dp, bottom = 5.dp)
                 .clip(RoundedCornerShape(3.dp)).background(Th.cell).padding(16.dp)
