@@ -50,20 +50,20 @@ fun RecordingsScreen(recs: List<Rec>, onAct: (String, String) -> Unit, onBack: (
     var menu by remember { mutableStateOf<Rec?>(null) }
     val df = remember { SimpleDateFormat("EEE dd MMM", Locale.ENGLISH) }
     Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 28.dp)) {
-        Text("Recordings", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text("Recordings", color = Th.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text(
             "OK on a recording for its actions   |   Back to return",
-            color = X_MUTED, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+            color = Th.sub, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
         )
         if (list.isEmpty()) {
             Text(
                 "No recordings yet. In the guide, select a future programme to record it.",
-                color = X_MUTED, fontSize = 16.sp, modifier = Modifier.padding(top = 12.dp)
+                color = Th.sub, fontSize = 16.sp, modifier = Modifier.padding(top = 12.dp)
             )
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
             items(list, key = { it.id }) { r ->
-                FocusRow({ menu = r }, tile = true, tileColor = Color(0xFF262626)) {
+                FocusRow({ menu = r }, tile = true, tileColor = Th.tile) {
                     Column(Modifier.weight(1f)) {
                         Text(r.title, color = fcolor(Color.White), fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(

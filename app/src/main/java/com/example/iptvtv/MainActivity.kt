@@ -291,6 +291,7 @@ class MainActivity : ComponentActivity() {
                     .build()
             )
         } catch (e: Exception) { }
+        Th.load(this)
         setContent { App() }
     }
 
@@ -352,7 +353,7 @@ fun ReminderBox(r: Rec, modifier: Modifier, onWatch: () -> Unit, onClose: () -> 
 
 @Composable
 fun Solid(content: @Composable () -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color(0xFF0E1117))) { content() }
+    Box(Modifier.fillMaxSize().background(Th.bgBottom)) { content() }
 }
 
 @OptIn(UnstableApi::class)
@@ -774,7 +775,7 @@ fun App() {
                 modifier = Modifier.fillMaxSize()
             )
             when {
-                sources.isEmpty() || screen == "settings" -> SettingsHub(
+                sources.isEmpty() || screen == "settings" -> CompositionLocalProvider(LocalThemed provides true) { SettingsHub(
                     if (sources.isEmpty()) "src_type" else settingsPage,
                     sources, cfg, all, epg.chans, report, lastSync, recs,
                     { a, i -> recAct(a, i) },
@@ -783,8 +784,8 @@ fun App() {
                     { reload++ },
                     sources.isNotEmpty(),
                     { screen = "" }
-                )
-                screen == "recs" -> Solid { RecordingsScreen(recs, { a, i -> recAct(a, i) }) { screen = "" } }
+                ) }
+                screen == "recs" -> Solid { CompositionLocalProvider(LocalThemed provides true) { RecordingsScreen(recs, { a, i -> recAct(a, i) }) { screen = "" } } }
                 screen == "multi" -> MultiviewScreen(exo, shown, epg, cur) { screen = "" }
                 screen == "search" -> Solid {
                     SearchScreen(shown, epg, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }) { screen = "" }
@@ -821,7 +822,7 @@ fun App() {
                 ) {
                     if (fromGuide) screen = "guide" else onRootBack { full = false }
                 }
-                else -> Home(
+                else -> CompositionLocalProvider(LocalThemed provides true) { Home(
                     shown, sources, epg, status, hist, cur,
                     { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false },
                     { screen = "search" }, { settingsPage = ""; screen = "settings" }, { settingsPage = "sources"; screen = "settings" },
@@ -829,7 +830,7 @@ fun App() {
                     { screen = "guide" },
                     { screen = "recs" }, { screen = "multi" },
                     cfg.merge
-                )
+                ) }
             }
             val ec = editCh
             if (ec != null) {
@@ -927,14 +928,14 @@ fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.padding(horizontal = 4.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
-            .background(if (f) Color.White else Color.Transparent)
+            .background(if (f) Th.focusBg else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            label, color = if (f) Color(0xFF14213D) else if (selected) Color.White else MUTED, fontSize = 15.sp,
+            label, color = if (f) Th.focusText else if (selected) Th.text else Th.sub, fontSize = 15.sp,
             fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Normal, maxLines = 1
         )
     }
@@ -945,12 +946,12 @@ fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
 fun HeaderIcon(kind: Int, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) 1.15f else 1f, label = "hicon")
-    val col = if (f) Color(0xFF14213D) else Color.White
+    val col = if (f) Th.focusText else Th.text
     Box(
         Modifier.size(38.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(if (f) Color.White else Color(0xFF1F2733))
+            .background(if (f) Th.focusBg else Th.iconBg)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() },
         contentAlignment = Alignment.Center
@@ -986,8 +987,8 @@ fun HeaderClock() {
     var t by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { t = System.currentTimeMillis(); delay(1000) } }
     Column(horizontalAlignment = Alignment.End) {
-        Text(hm(t), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text(SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date(t)), color = MUTED, fontSize = 12.sp)
+        Text(hm(t), color = Th.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date(t)), color = Th.sub, fontSize = 12.sp)
     }
 }
 
@@ -1022,18 +1023,18 @@ fun Home(
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    0f to Color(0x99000000), 0.4f to Color(0x55000000),
-                    0.62f to Color(0xEB0E1117), 1f to Color(0xFF0E1117)
+                    0f to Th.gradTop, 0.4f to Th.gradMid,
+                    0.62f to Th.bgMid, 1f to Th.bgBottom
                 )
             )
         )
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().background(Color(0xB3000000)).padding(horizontal = 24.dp, vertical = 6.dp),
+                Modifier.fillMaxWidth().background(Th.header).padding(horizontal = 24.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "IPTV", color = ACCENT, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    "IPTV", color = Th.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 28.dp)
                 )
                 TopTab("Home", true) { }
@@ -1058,26 +1059,26 @@ fun Home(
                                     contentScale = ContentScale.Fit
                                 )
                             }
-                            Text(cur.name, color = MUTED, fontSize = 16.sp)
+                            Text(cur.name, color = Th.sub, fontSize = 16.sp)
                             Spacer(Modifier.width(10.dp))
                             Box(Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0xFFE5484D)).padding(horizontal = 7.dp, vertical = 2.dp)) {
                                 Text("LIVE", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                         Text(
-                            cp?.title ?: "", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                            cp?.title ?: "", color = Th.text, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         if (cp != null) {
                             Row(Modifier.width(380.dp).padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(hm(cp.start), color = MUTED, fontSize = 14.sp)
+                                Text(hm(cp.start), color = Th.sub, fontSize = 14.sp)
                                 Bar(fracOf(cp, System.currentTimeMillis()), Modifier.weight(1f).padding(horizontal = 10.dp), 5.dp)
-                                Text("+${((cp.stop - System.currentTimeMillis()) / 60000).coerceAtLeast(0)} min", color = MUTED, fontSize = 14.sp, maxLines = 1, softWrap = false)
+                                Text("+${((cp.stop - System.currentTimeMillis()) / 60000).coerceAtLeast(0)} min", color = Th.sub, fontSize = 14.sp, maxLines = 1, softWrap = false)
                             }
                             val dsc = cp.desc.ifBlank { cp.sub }
                             if (dsc.isNotBlank()) {
                                 Text(
-                                    dsc, color = Color(0xFFDDE2EA), fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                    dsc, color = Th.desc, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.width(380.dp).padding(top = 4.dp)
                                 )
                             }
@@ -1109,14 +1110,14 @@ fun Home(
                 itemsIndexed(rows) { ri, r ->
                     if (r.header) {
                         Text(
-                            r.title.uppercase(), color = ACCENT, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                            r.title.uppercase(), color = Th.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 22.dp, bottom = 2.dp)
                         )
-                        Box(Modifier.fillMaxWidth().height(2.dp).background(ACCENT))
+                        Box(Modifier.fillMaxWidth().height(2.dp).background(Th.accent))
                     } else {
                         Column(Modifier.heightIn(min = rowH)) {
                             Text(
-                                r.title.uppercase(), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                r.title.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 6.dp)
                             )
                             CardRow(r.chans, epg, onPlay, onEdit) { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }
@@ -1186,9 +1187,9 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
     ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .border(3.dp, if (f) Color.White else Color.Transparent, outer).padding(3.dp)
+                .border(3.dp, if (f) Th.text else Color.Transparent, outer).padding(3.dp)
         ) {
-            Box(Modifier.fillMaxSize().clip(inner).background(Color(0xFF1B2230))) {
+            Box(Modifier.fillMaxSize().clip(inner).background(Th.cardBg)) {
                 if (p != null && p.icon.isNotBlank()) {
                     AsyncImage(
                         model = p.icon, contentDescription = null,
@@ -1196,7 +1197,7 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
                     )
                 } else {
                     Text(
-                        c.name, color = MUTED, fontSize = 14.sp, maxLines = 2, textAlign = TextAlign.Center,
+                        c.name, color = Th.sub, fontSize = 14.sp, maxLines = 2, textAlign = TextAlign.Center,
                         modifier = Modifier.align(Alignment.Center).padding(8.dp)
                     )
                 }
@@ -1218,12 +1219,12 @@ fun ChannelCard(c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, r
             }
         }
         Text(
-            p?.title ?: c.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            p?.title ?: c.name, color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 3.dp)
         )
         Text(
             if (p != null) "${hm(p.start)} - ${hm(p.stop)}" else "",
-            color = MUTED, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            color = Th.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 3.dp)
         )
     }
@@ -1384,13 +1385,13 @@ fun PlayerScreen(
             )
         }
         if (panel) {
-            ChannelPanel(
+            CompositionLocalProvider(LocalThemed provides true) { ChannelPanel(
                 if (cfg.merge) channels.map { it.copy(src = "") } else channels, sources,
                 if (cfg.merge) c.copy(src = "") else c, epg, nowMs, focusId, refocus,
                 cfg.showNums, { onZap(it); panel = false; fromPanel = true }, { editId = it.id }, { editCatP = it },
                 recs = recs, remOn = cfg.remOn, onDvr = onDvr,
                 onClose = { panel = false }
-            )
+            ) }
         }
         if (tracksOpen) TracksDialog(tracks, exo) { tracksOpen = false }
         val ecp = editCatP

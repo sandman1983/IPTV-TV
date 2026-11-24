@@ -74,7 +74,9 @@ val LocalRowFocused = compositionLocalOf { false }
 // Couleur d'un texte dans une ligne : devient sombre quand la barre de sélection blanche est active.
 @Composable
 fun fcolor(normal: Color, focused: Color = Color(0xFF14213D)): Color =
-    if (LocalRowFocused.current) focused else normal
+    (Th.light && LocalThemed.current).let { lt ->
+        if (LocalRowFocused.current) Th.mapFocused(focused, lt) else Th.mapNormal(normal, lt)
+    }
 
 @Composable
 fun FocusRow(
@@ -85,15 +87,18 @@ fun FocusRow(
     pad: androidx.compose.ui.unit.Dp = 10.dp,
     corner: androidx.compose.ui.unit.Dp = 8.dp,
     tile: Boolean = false,
-    tileColor: Color = Color(0xE62A313E),
+    tileColor: Color = Color.Unspecified,
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
+    val lt = Th.light && LocalThemed.current
+    val fbg = if (lt) Th.focusBg else Color.White
+    val tcol = if (tileColor != Color.Unspecified) tileColor else if (lt) Th.tile else Color(0xE62A313E)
     val fired = remember { booleanArrayOf(true) }
     val gk by animateFloatAsState(if (tile && f) 1f else 0f, label = "tileGrow")
     val base = if (!tile) {
         modifier.fillMaxWidth().clip(RoundedCornerShape(corner))
-            .background(if (f) Color.White else Color.Transparent)
+            .background(if (f) fbg else Color.Transparent)
     } else {
         modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
             .zIndex(if (f) 1f else 0f)
@@ -107,7 +112,7 @@ fun FocusRow(
             }
             .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
-            .background(if (f) Color.White else tileColor)
+            .background(if (f) fbg else tcol)
     }
     Row(
         modifier = base
@@ -123,11 +128,12 @@ fun FocusRow(
 @Composable
 fun Bar(frac: Float, modifier: Modifier = Modifier, h: androidx.compose.ui.unit.Dp = 8.dp) {
     val shape = RoundedCornerShape(2.dp)
+    val lt = Th.light && LocalThemed.current
     Box(
-        modifier.height(h).clip(shape).background(Color(0xFF070C1A))
+        modifier.height(h).clip(shape).background(if (lt) Th.barTrack else Color(0xFF070C1A))
             .border(1.5.dp, fcolor(Color(0xDDFFFFFF), Color(0xFF14213D)), shape).padding(1.5.dp)
     ) {
-        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Color(0xFF8FCBF7)))
+        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(if (lt) Th.barFill else Color(0xFF8FCBF7)))
     }
 }
 
@@ -204,10 +210,10 @@ fun AutoScrollText(
 fun PanelHeader(t: String) {
     Box(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(3.dp)).background(Color(0xCC0C0C0C)).padding(vertical = 4.dp),
+            .clip(RoundedCornerShape(3.dp)).background(Th.headerBox).padding(vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(t, color = CYAN, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(t, color = Th.accent, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -339,7 +345,7 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xF5151515))) {
+            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Th.panel3)) {
                 PanelHeader("Sources")
                 Spacer(Modifier.height(6.dp))
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -357,7 +363,7 @@ fun ChannelPanel(
                     }
                 }
             }
-            Column(Modifier.width(260.dp).fillMaxHeight().background(Color(0xF5191919))) {
+            Column(Modifier.width(260.dp).fillMaxHeight().background(Th.panel2)) {
                 PanelHeader("Categories")
                 Spacer(Modifier.height(6.dp))
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -382,7 +388,7 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(420.dp).fillMaxHeight().background(Color(0xF5171717))) {
+        Column(Modifier.width(420.dp).fillMaxHeight().background(Th.panel)) {
             PanelHeader(selCat)
             Spacer(Modifier.height(6.dp))
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -396,7 +402,7 @@ fun ChannelPanel(
                             { focused = c; upIdx = -1; cols = false },
                             { onEdit(c) },
                             6.dp, 0.dp, tile = true,
-                            tileColor = if (c.id == current.id) Color(0xFF1F5FA6) else Color(0xE62A313E)
+                            tileColor = if (c.id == current.id) Th.tileCur else Th.tile
                         ) {
                             if (showNums) {
                                 Text(

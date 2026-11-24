@@ -60,10 +60,10 @@ import java.util.Locale
 // ---------------------------------------------------------------------------
 private val P_TOP = Color(0xFF14224A)
 private val P_BOTTOM = Color(0xFF2D6199)
-private val P_DARK = Color(0xFF14213D)
+private val P_DARK: Color get() = Th.focusText
 private val P_BAR = Color(0xFFFFFFFF)
-private val P_SUB = Color(0xFFB0B8C8)
-private val P_SUB_DARK = Color(0xFF45557A)
+private val P_SUB: Color get() = Th.sub
+private val P_SUB_DARK: Color get() = Th.focusSub
 
 @Composable
 fun PanelShell(
@@ -79,15 +79,15 @@ fun PanelShell(
         initialFirstVisibleItemIndex = (scrollTo - 2).coerceAtLeast(0)
     )
     Row(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(0.50f).fillMaxHeight().background(Color(0x80000000)))
+        Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
         Row(
-            Modifier.weight(0.50f).fillMaxHeight().background(Color(0xF5171717))
+            Modifier.weight(0.50f).fillMaxHeight().background(Th.panel)
         ) {
             Column(Modifier.weight(1f).fillMaxHeight().padding(start = 24.dp, end = 16.dp, top = 28.dp)) {
                 if (title.isNotEmpty()) {
                     Text(
-                        title, color = Color(0xFF1EB6E8), fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                        title, color = Th.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
                     )
@@ -118,7 +118,7 @@ fun PanelShell(
             }
             if (actions != null) {
                 Column(
-                    Modifier.width(130.dp).fillMaxHeight().background(Color(0xF5191919))
+                    Modifier.width(130.dp).fillMaxHeight().background(Th.panel2)
                         .padding(start = 8.dp, end = 8.dp, top = 70.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) { actions() }
@@ -168,7 +168,7 @@ fun PItem(
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(6.dp))
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
-            .background(if (f) Color.White else Color.Transparent)
+            .background(if (f) Th.focusBg else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { if (holdGuard(it)) true else if (onLong != null) okLong(it, fired, onClick, onLong) else false }
             .clickable { onClick() }
@@ -188,7 +188,7 @@ fun PItem(
         }
         Column(Modifier.weight(1f)) {
             Text(
-                title, color = if (f) P_DARK else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                title, color = if (f) P_DARK else Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
                 maxLines = 1, softWrap = false, overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
                 modifier = if (f) Modifier.basicMarquee() else Modifier
             )
@@ -230,7 +230,7 @@ fun PRadio(title: String, sub: String, selected: Boolean, onClick: () -> Unit, a
     PItem(
         title, sub, onClick, autoFocus = autoFocus,
         leading = { f ->
-            val c = if (f) P_DARK else Color.White
+            val c = if (f) P_DARK else Th.text
             Box(Modifier.size(18.dp).border(2.dp, c, CircleShape).padding(4.dp)) {
                 if (selected) Box(Modifier.fillMaxSize().clip(CircleShape).background(c))
             }
@@ -251,20 +251,20 @@ fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
-            .background(if (f) Color.White else Color.Transparent)
+            .background(if (f) Th.focusBg else Color.Transparent)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { holdGuard(it) }
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
-        Text(label, color = if (f) P_DARK else Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(label, color = if (f) P_DARK else Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
 @Composable
 fun PHeader(t: String) {
     Text(
-        t.uppercase(), color = Color(0xFF9CC2F5), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        t.uppercase(), color = Th.accentSoft, fontSize = 12.sp, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp)
     )
 }
@@ -272,7 +272,7 @@ fun PHeader(t: String) {
 @Composable
 fun PInfo(text: String, error: Boolean = false) {
     Text(
-        text, color = if (error) Color(0xFFFFB4A9) else Color(0xDDFFFFFF), fontSize = 13.sp,
+        text, color = if (error) Color(0xFFFFB4A9) else Th.text, fontSize = 13.sp,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
     )
 }
@@ -290,11 +290,11 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
     }
     var foc by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-        Text(label, color = if (foc) Color.White else P_SUB, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
+        Text(label, color = if (foc) Th.text else P_SUB, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
         androidx.compose.foundation.text.BasicTextField(
             value = value, onValueChange = onChange, singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 15.sp),
-            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
+            textStyle = androidx.compose.ui.text.TextStyle(color = Th.text, fontSize = 15.sp),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(Th.text),
             modifier = Modifier.fillMaxWidth()
                 .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
                 .onFocusChanged { foc = it.isFocused; if (!it.isFocused) kb?.hide() }
@@ -308,7 +308,7 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
             decorationBox = { inner ->
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
-                        .border(if (foc) 2.dp else 1.dp, if (foc) Color.White else Color(0xFF6F7A8C), RoundedCornerShape(6.dp))
+                        .border(if (foc) 2.dp else 1.dp, if (foc) Th.text else Color(0xFF6F7A8C), RoundedCornerShape(6.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) { inner() }
             }
@@ -743,6 +743,7 @@ fun SettingsHub(
         when (page) {
             "" -> onExit()
             "sync", "setup" -> page = "sources"
+            "theme" -> page = "display"
             "src_menu" -> page = "setup"
             "src_cats", "src_acc" -> page = "src_menu"
             "src_type" -> if (canExit) page = "setup"
@@ -866,7 +867,7 @@ fun SettingsHub(
                     { onSources(sources.map { if (it.id == s.id) it.copy(enabled = !it.enabled) else it }) },
                     onLong = { selSrc = s; page = "src_menu" },
                     leading = { f ->
-                        val c = if (f) P_DARK else Color.White
+                        val c = if (f) P_DARK else Th.text
                         Box(
                             Modifier.size(20.dp).border(2.dp, c, RoundedCornerShape(3.dp)),
                             contentAlignment = Alignment.Center
@@ -1205,8 +1206,14 @@ fun SettingsHub(
         "display" -> PanelShell("Display", { back() }, actions = { PButton("Done", { back() }) }) {
             item {
                 PItem(
+                    "Theme", if (Th.light) "Light" else "Dark",
+                    { page = "theme" }, autoFocus = true
+                )
+            }
+            item {
+                PItem(
                     "Weather in the info bar", if (cfg.city.isBlank()) "Off" else cfg.city,
-                    { cityIn = cfg.city; page = "city" }, autoFocus = true
+                    { cityIn = cfg.city; page = "city" }
                 )
             }
             item {
@@ -1215,6 +1222,10 @@ fun SettingsHub(
                     { onCfg(cfg.copy(showNums = !cfg.showNums)) }
                 )
             }
+        }
+        "theme" -> PanelShell("Theme", { back() }, actions = { PButton("Back", { back() }) }) {
+            item { PRadio("Dark", "Dark panels and white text", !Th.light, { Th.set(ctx, false); page = "display" }, autoFocus = !Th.light) }
+            item { PRadio("Light", "Light panels and dark text", Th.light, { Th.set(ctx, true); page = "display" }, autoFocus = Th.light) }
         }
         "city" -> PanelShell(
             "Weather", { back() },
