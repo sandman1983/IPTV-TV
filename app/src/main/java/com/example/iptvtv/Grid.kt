@@ -89,7 +89,7 @@ private fun MiniItem(
         // The selection frame is drawn around the picture, so it never hides the progress bar.
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .border(3.dp, if (f) Th.text else Color.Transparent, RoundedCornerShape(10.dp)).padding(3.dp)
+                .border(3.dp, if (f) Th.sel else Color.Transparent, RoundedCornerShape(10.dp)).padding(3.dp)
         ) {
             Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(M_TILE)) {
                 thumb()
@@ -170,6 +170,7 @@ private fun CtrlCircle(kind: Int, selected: Boolean, onClick: () -> Unit) {
     Box(
         Modifier.size(36.dp).clip(CircleShape)
             .background(if (selected) Th.focusBg else Th.ovCtl)
+            .then(if (selected) Modifier.border(2.dp, Th.sel, CircleShape) else Modifier)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -408,7 +409,7 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
             .then(if (f) Modifier.shadow(10.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
             .background(if (f) Th.focusBg else if (selected) Color(0xFF1E6FD9) else Th.chip)
-            .then(if (f) Modifier.border(1.dp, ACCENT, RoundedCornerShape(3.dp)) else Modifier)
+            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
@@ -441,6 +442,7 @@ private fun GBlock(
             .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(3.dp)) else Modifier)
             .clip(RoundedCornerShape(3.dp))
             .background(if (f) Th.focusBg else if (live) Th.cellLive else Th.cell)
+            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onSel() }
             .onPreviewKeyEvent { okLong(it, fired, onPlay, onLong) }

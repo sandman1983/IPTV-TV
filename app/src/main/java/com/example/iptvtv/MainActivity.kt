@@ -929,6 +929,7 @@ fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
         Modifier.padding(horizontal = 4.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .background(if (f) Th.focusBg else Color.Transparent)
+            .then(if (f) Modifier.border(2.dp, Th.sel) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 7.dp),
@@ -952,6 +953,7 @@ fun HeaderIcon(kind: Int, onClick: () -> Unit) {
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .clip(androidx.compose.foundation.shape.CircleShape)
             .background(if (f) Th.focusBg else Th.iconBg)
+            .then(if (f) Modifier.border(2.dp, Th.sel, androidx.compose.foundation.shape.CircleShape) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() },
         contentAlignment = Alignment.Center
@@ -1195,7 +1197,7 @@ fun ChannelCard(
     ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .border(3.dp, if (f) Th.text else Color.Transparent, outer).padding(3.dp)
+                .border(3.dp, if (f) Th.sel else Color.Transparent, outer).padding(3.dp)
         ) {
             Box(Modifier.fillMaxSize().clip(inner).background(Th.cardBg)) {
                 if (p != null && p.icon.isNotBlank()) {

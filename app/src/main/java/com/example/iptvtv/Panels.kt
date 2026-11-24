@@ -169,6 +169,7 @@ fun PItem(
         Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(6.dp))
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
             .background(if (f) Th.focusBg else Color.Transparent)
+            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(6.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { if (holdGuard(it)) true else if (onLong != null) okLong(it, fired, onClick, onLong) else false }
             .clickable { onClick() }
@@ -252,6 +253,7 @@ fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
             .background(if (f) Th.focusBg else Color.Transparent)
+            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(6.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { holdGuard(it) }
             .clickable { onClick() }
@@ -308,7 +310,7 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
             decorationBox = { inner ->
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
-                        .border(if (foc) 2.dp else 1.dp, if (foc) Th.text else Color(0xFF6F7A8C), RoundedCornerShape(6.dp))
+                        .border(if (foc) 2.dp else 1.dp, if (foc) Th.sel else Color(0xFF6F7A8C), RoundedCornerShape(6.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) { inner() }
             }

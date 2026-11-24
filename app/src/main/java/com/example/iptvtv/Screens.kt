@@ -91,7 +91,7 @@ fun FocusRow(
     tile: Boolean = false,
     tileColor: Color = Color.Unspecified,
     tileCorner: androidx.compose.ui.unit.Dp = 3.dp,
-    tileBorder: Color = Color.Unspecified,
+    tileBorder: Color = GOLD,
     tileVPad: androidx.compose.ui.unit.Dp = 4.dp,
     content: @Composable RowScope.() -> Unit
 ) {
@@ -104,6 +104,7 @@ fun FocusRow(
     val base = if (!tile) {
         modifier.fillMaxWidth().clip(RoundedCornerShape(corner))
             .background(if (f) fbg else Color.Transparent)
+            .then(if (f) Modifier.border(2.dp, GOLD, RoundedCornerShape(corner)) else Modifier)
     } else {
         modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = tileVPad)
             .zIndex(if (f) 1f else 0f)
@@ -134,12 +135,12 @@ fun FocusRow(
 @Composable
 fun Bar(frac: Float, modifier: Modifier = Modifier, h: androidx.compose.ui.unit.Dp = 8.dp) {
     val shape = RoundedCornerShape(2.dp)
-    val lt = Th.light && LocalThemed.current
+    val foc = LocalRowFocused.current
     Box(
-        modifier.height(h).clip(shape).background(Th.barTrack)
-            .border(1.5.dp, fcolor(Color(0xDDFFFFFF), Color(0xFF14213D)), shape).padding(1.5.dp)
+        modifier.height(h.coerceAtMost(5.dp)).clip(shape)
+            .background(if (foc || Th.light) Color(0x33000000) else Color(0x33FFFFFF))
     ) {
-        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Th.barFill))
+        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(Th.sel))
     }
 }
 
@@ -167,6 +168,15 @@ fun GoldBar(frac: Float, modifier: Modifier = Modifier, h: androidx.compose.ui.u
 fun leftText(p: Prog, nowMs: Long): String {
     val m = ((p.stop - nowMs) / 60000).toInt().coerceAtLeast(0)
     return if (m >= 60) "${m / 60} h ${"%02d".format(m % 60)}" else "$m min"
+}
+
+@Composable
+fun ColTitle(t: String) {
+    Text(
+        t.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+        letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp)
+    )
 }
 
 @Composable
@@ -366,8 +376,7 @@ fun ChannelPanel(
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
             if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Th.panel3)) {
-                PanelHeader("Sources")
-                Spacer(Modifier.height(6.dp))
+                ColTitle("Sources")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
                     LazyColumn(Modifier.fillMaxSize()) {
@@ -376,7 +385,7 @@ fun ChannelPanel(
                             FocusRow({ selSrc = sid }, Modifier.height(rowH2), {
                                 selSrc = sid
                                 if (!all.any { it.src == sid && it.cat == selCat }) selCat = all.first { it.src == sid }.cat
-                            }, tile = true) {
+                            }, tile = true, tileCorner = 10.dp, tileVPad = 3.dp) {
                                 Text(nm, color = fcolor(if (sid == selSrc) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
@@ -384,8 +393,7 @@ fun ChannelPanel(
                 }
             }
             Column(Modifier.width(260.dp).fillMaxHeight().background(Th.panel2)) {
-                PanelHeader("Categories")
-                Spacer(Modifier.height(6.dp))
+                ColTitle("Categories")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
                     val catState = rememberLazyListState(initialFirstVisibleItemIndex = (srcCats.indexOf(selCat) - 3).coerceAtLeast(0))
@@ -399,7 +407,7 @@ fun ChannelPanel(
                                 (if (cat == selCat) Modifier.focusRequester(catFr) else Modifier).height(rowH2),
                                 { selCat = cat },
                                 { onEditCat(cat) },
-                                tile = true
+                                tile = true, tileCorner = 10.dp, tileVPad = 3.dp
                             ) {
                                 Text(cat, color = fcolor(if (cat == selCat) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
@@ -599,7 +607,8 @@ fun ChannelPanel(
                             Column(
                                 Modifier.weight(1f).graphicsLayer { scaleX = chipScale; scaleY = chipScale }
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (sel) Color.White else Color.Transparent).padding(4.dp)
+                                    .background(if (sel) Color.White else Color.Transparent)
+                                    .then(if (sel) Modifier.border(2.dp, GOLD, RoundedCornerShape(6.dp)) else Modifier).padding(4.dp)
                             ) {
                                 Box(
                                     Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(4.dp))

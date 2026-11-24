@@ -224,7 +224,7 @@ private fun MvCell(
         modifier
             .focusRequester(req)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
-            .border(if (f) 3.dp else 1.dp, if (f) Th.text else Th.divider)
+            .border(if (f) 3.dp else 1.dp, if (f) Th.sel else Th.divider)
             .background(Th.mvCell)
             .clickable { onClick() }
     ) {
