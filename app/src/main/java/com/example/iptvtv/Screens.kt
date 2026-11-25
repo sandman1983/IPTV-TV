@@ -872,14 +872,55 @@ fun SearchScreen(
     val fr = remember { FocusRequester() }
     var ff by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(150); try { fr.requestFocus() } catch (e: Exception) { } }
+    val ctx = LocalContext.current
+    var listening by remember { mutableStateOf(false) }
     val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         val s = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
         if (!s.isNullOrBlank()) q = s
     }
+    val sr = remember {
+        if (android.speech.SpeechRecognizer.isRecognitionAvailable(ctx)) android.speech.SpeechRecognizer.createSpeechRecognizer(ctx) else null
+    }
+    DisposableEffect(Unit) { onDispose { try { sr?.destroy() } catch (e: Exception) { } } }
+    val voiceIntent = remember {
+        Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
+            putExtra(android.speech.RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+    }
+    val startListen = {
+        if (sr == null) {
+            try { voice.launch(voiceIntent) } catch (e: Exception) { }
+        } else {
+            sr.setRecognitionListener(object : android.speech.RecognitionListener {
+                override fun onReadyForSpeech(p: android.os.Bundle?) {}
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(v: Float) {}
+                override fun onBufferReceived(b: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+                override fun onError(e: Int) { listening = false }
+                override fun onEvent(t: Int, p: android.os.Bundle?) {}
+                override fun onPartialResults(b: android.os.Bundle?) {
+                    val x = b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    if (!x.isNullOrBlank()) q = x
+                }
+                override fun onResults(b: android.os.Bundle?) {
+                    val x = b?.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    if (!x.isNullOrBlank()) q = x
+                    listening = false
+                }
+            })
+            try { sr.startListening(voiceIntent); listening = true } catch (e: Exception) { listening = false }
+        }
+    }
+    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) startListen()
+    }
     val t = q.trim().lowercase()
     val chRes = remember(t, chans) {
         if (t.isEmpty()) emptyList()
-        else chans.withIndex().filter { it.value.name.lowercase().contains(t) || (it.index + 1).toString() == t }
+        else chans.withIndex().filter { it.value.name.lowercase().contains(t) }
             .map { Pair(it.index + 1, it.value) }.take(60)
     }
     val byEpg = remember(chans) {
@@ -932,26 +973,27 @@ fun SearchScreen(
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(GOLD),
                         modifier = Modifier.weight(1f).focusRequester(fr).onFocusChanged { ff = it.isFocused }
                     )
-                    Text("Name or number", color = Th.sub, fontSize = 12.sp, maxLines = 1)
+                    Text("Search program or channel", color = Th.sub, fontSize = 12.sp, maxLines = 1)
                 }
                 Spacer(Modifier.width(12.dp))
                 var mf by remember { mutableStateOf(false) }
                 Box(
-                    Modifier.size(42.dp).clip(shape).background(Th.cell)
+                    Modifier.size(42.dp).clip(shape).background(if (listening) GOLD else Th.cell)
                         .border(if (mf) 2.dp else 0.dp, if (mf) GOLD else Color.Transparent, shape)
                         .onFocusChanged { mf = it.isFocused }
                         .clickable {
-                            try {
-                                voice.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
-                                })
-                            } catch (e: Exception) { }
+                            if (listening) {
+                                try { sr?.stopListening() } catch (e: Exception) { }
+                                listening = false
+                            } else if (androidx.core.content.ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) ==
+                                android.content.pm.PackageManager.PERMISSION_GRANTED || sr == null
+                            ) startListen()
+                            else permLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     androidx.compose.foundation.Canvas(Modifier.size(20.dp)) {
-                        val col = if (mf) GOLD else Th.text
+                        val col = if (listening) Color(0xFF14213D) else if (mf) GOLD else Th.text
                         val sw = 2.dp.toPx()
                         drawRoundRect(col, androidx.compose.ui.geometry.Offset(size.width * 0.35f, 0f), androidx.compose.ui.geometry.Size(size.width * 0.3f, size.height * 0.58f), androidx.compose.ui.geometry.CornerRadius(size.width * 0.15f))
                         drawArc(col, 0f, 180f, false, androidx.compose.ui.geometry.Offset(size.width * 0.18f, size.height * 0.2f), androidx.compose.ui.geometry.Size(size.width * 0.64f, size.height * 0.55f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
@@ -968,11 +1010,7 @@ fun SearchScreen(
             Spacer(Modifier.height(8.dp))
             val empty = when (tab) { 0 -> chRes.isEmpty(); 1 -> prRes.isEmpty(); else -> recRes.isEmpty() }
             if (empty) {
-                Text(
-                    if (t.isEmpty()) "Type a channel name or number, a program title, or use the microphone."
-                    else "No results.",
-                    color = Th.sub, fontSize = 16.sp, modifier = Modifier.padding(8.dp).weight(1f)
-                )
+                Spacer(Modifier.weight(1f))
             } else {
                 val ls = rememberLazyListState()
                 LazyColumn(
