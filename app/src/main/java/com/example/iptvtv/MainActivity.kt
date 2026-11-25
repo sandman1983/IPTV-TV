@@ -128,28 +128,14 @@ class Epg(val progs: Map<String, List<Prog>>, val chans: List<GuideCh> = emptyLi
     fun touch(): Epg = Epg(progs, chans)
 }
 
-// Doublons d'un même guide : deux programmes qui commencent à la même heure, ou à moins de 2 minutes d'écart avec
-// des titres qui se ressemblent ("La sélection" / "La sélection CNEWS"). On garde celui qui a une image, puis la plus
-// longue description. Un vrai programme court avec un titre différent n'est jamais masqué.
-private fun sameTitle(a: String, b: String): Boolean {
-    val x = a.lowercase().filter { it.isLetterOrDigit() }
-    val y = b.lowercase().filter { it.isLetterOrDigit() }
-    return x.isNotEmpty() && y.isNotEmpty() && (x.contains(y) || y.contains(x))
-}
-
+// Doublons d'un même guide : deux programmes qui commencent exactement à la même heure sur une chaîne.
+// On garde celui qui a une image, puis la plus longue description. Les programmes courts ne sont pas touchés.
 fun dedupEpg(e: Epg): Epg = Epg(
     e.progs.mapValues { (_, l) ->
-        val out = ArrayList<Prog>()
-        val cmp = compareBy<Prog>({ it.icon.isNotBlank() }, { it.desc.length }, { it.title.length })
-        for (p in l.sortedBy { it.start }) {
-            val q = out.lastOrNull()
-            if (q != null && (p.start == q.start || (p.start - q.start <= 120000L && sameTitle(p.title, q.title)))) {
-                if (cmp.compare(p, q) > 0) out[out.size - 1] = p
-            } else {
-                out.add(p)
-            }
-        }
-        out
+        l.groupBy { it.start }.values.map { g ->
+            if (g.size == 1) g[0]
+            else g.maxWithOrNull(compareBy<Prog>({ it.icon.isNotBlank() }, { it.desc.length }, { it.title.length }))!!
+        }.sortedBy { it.start }
     },
     e.chans
 )
