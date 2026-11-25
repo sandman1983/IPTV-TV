@@ -276,7 +276,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         }
         return "$day · ${hm(t)}"
     }
-    val gap = 14.dp
+    val gap = 4.dp
     val showCont = (tab == 0 || tab == 1) && cont.isNotEmpty()
     val showSched = (tab == 0 || tab == 2) && sched.isNotEmpty()
     val showDone = (tab == 0 || tab == 3) && done.isNotEmpty()
@@ -289,6 +289,9 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     fun reveal(idx: Int) {
         scope.launch {
             try {
+                // On attend la fin du défilement automatique du focus avant de vérifier
+                delay(60)
+                while (lc.isScrollInProgress) delay(30)
                 val li = lc.layoutInfo
                 val info = li.visibleItemsInfo.firstOrNull { it.index == idx }
                 val ok = info != null && info.offset >= 0 && info.offset + info.size <= li.viewportEndOffset - li.afterContentPadding
@@ -303,7 +306,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         val live = r.state == "recording"
         CardWrap(w4) {
             RecCard(
-                w4 - 12.dp, chById[r.chId], r, thumbOf(r),
+                w4 - 10.dp, chById[r.chId], r, thumbOf(r),
                 if (rec) (if (live) "● Recording" else "● Record") else "⏰ Reminder", if (rec) 2 else 0,
                 "${hm(r.start)} - ${hm(r.stop)}", null,
                 r.title,
@@ -322,7 +325,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         val isNew = watch[r.id] == null && r.state == "done"
         CardWrap(w4) {
             RecCard(
-                w4 - 12.dp, chById[r.chId], r, thumbOf(r),
+                w4 - 10.dp, chById[r.chId], r, thumbOf(r),
                 if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", if (isNew) 1 else 0,
                 durTxt(r.stop - r.start), null,
                 r.title,
@@ -398,7 +401,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                                 val left = (wt.second - wt.first).coerceAtLeast(0L)
                                 CardWrap(w4) {
                                     RecCard(
-                                        w4 - 12.dp, chById[r.chId], r, thumbOf(r), "$pct%", 0, "", fr,
+                                        w4 - 10.dp, chById[r.chId], r, thumbOf(r), "$pct%", 0, "", fr,
                                         r.title,
                                         androidx.compose.ui.text.buildAnnotatedString {
                                             append(r.chName + " · ")

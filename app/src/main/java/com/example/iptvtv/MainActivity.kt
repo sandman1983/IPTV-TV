@@ -581,6 +581,7 @@ fun App() {
                         if (r != null) {
                             when (act) {
                                 "play" -> {
+                                    bg = null
                                     recPlayId = r.id
                                     screen = "recplay"
                                 }

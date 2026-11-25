@@ -3,7 +3,19 @@
 package com.example.iptvtv
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -65,12 +77,10 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx)))
             .build()
     }
-    // Le lecteur principal (TV en direct) se met en pause pendant la lecture, et reprend à la sortie.
-    DisposableEffect(Unit) {
-        val was = main.playWhenReady
-        main.playWhenReady = false
-        onDispose { main.playWhenReady = was }
-    }
+    // La chaîne en direct s'arrête pendant la lecture de l'enregistrement et ne reprend pas à la sortie.
+    LaunchedEffect(Unit) { try { main.stop() } catch (e: Exception) { } }
+    var confirm by remember { mutableStateOf(false) }
+    val contReq = remember { FocusRequester() }
 
     val list = remember(recs) {
         recs.filter { it.kind == "rec" && it.state == "done" && it.path.isNotBlank() }.sortedByDescending { it.start }
@@ -149,8 +159,8 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
         }
     }
     // Les commandes se cachent d'elles-mêmes pendant la lecture
-    LaunchedEffect(show, touch, playing) {
-        if (show && playing) {
+    LaunchedEffect(show, touch, playing, confirm) {
+        if (show && playing && !confirm) {
             delay(4500)
             show = false
             try { root.requestFocus() } catch (e: Exception) { }
@@ -160,10 +170,12 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
         delay(150)
         try { root.requestFocus() } catch (e: Exception) { }
     }
-    BackHandler {
-        if (show && playing) { show = false; try { root.requestFocus() } catch (e: Exception) { } }
-        else onBack()
+    LaunchedEffect(confirm) {
+        delay(80)
+        try { if (confirm) contReq.requestFocus() else root.requestFocus() } catch (e: Exception) { }
     }
+    // Retour : demande confirmation avant d'arrêter la lecture
+    BackHandler { confirm = !confirm }
 
     val df = remember { SimpleDateFormat("EEE d MMM · HH:mm", Locale.ENGLISH) }
     Box(
@@ -258,24 +270,126 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TopTab("-1 min", false, hPad = 12.dp) { seekBy(-60_000L) }
-                    TopTab("-10 s", false, hPad = 12.dp) { seekBy(-10_000L) }
-                    TopTab(if (playing) "Pause" else "Play", true, btn, hPad = 22.dp) { toggle() }
-                    TopTab("+10 s", false, hPad = 12.dp) { seekBy(10_000L) }
-                    TopTab("+1 min", false, hPad = 12.dp) { seekBy(60_000L) }
-                    Spacer(Modifier.width(18.dp))
-                    TopTab(
-                        (if (speed == speed.toInt().toFloat()) "${speed.toInt()}" else "$speed") + "x", false, hPad = 12.dp
+                    RpBtn(0, "60") { seekBy(-60_000L) }
+                    RpBtn(0, "10") { seekBy(-10_000L) }
+                    RpBtn(if (playing) 3 else 2, "", btn, big = true) { toggle() }
+                    RpBtn(1, "10") { seekBy(10_000L) }
+                    RpBtn(1, "60") { seekBy(60_000L) }
+                    Spacer(Modifier.width(28.dp))
+                    RpBtn(
+                        6, (if (speed == speed.toInt().toFloat()) "${speed.toInt()}" else "$speed") + "x"
                     ) {
                         val opts = listOf(1f, 1.25f, 1.5f, 2f)
                         speed = opts[(opts.indexOf(speed).coerceAtLeast(0) + 1) % opts.size]
                         player.setPlaybackSpeed(speed)
                         poke()
                     }
-                    if (next != null) TopTab("Next", false, hPad = 12.dp) { onPick(next.id) }
-                    TopTab("Back", false, hPad = 12.dp) { onBack() }
+                    if (next != null) RpBtn(4, "") { onPick(next.id) }
+                    RpBtn(5, "") { confirm = true }
                 }
             }
+        }
+        if (confirm) {
+            Box(Modifier.fillMaxSize().background(Color(0xB3000000)), contentAlignment = Alignment.Center) {
+                Column(
+                    Modifier.clip(RoundedCornerShape(16.dp)).background(Th.cardBg).padding(horizontal = 40.dp, vertical = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Stop playing?", color = Th.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(rec.title, color = Th.sub, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp).widthIn(max = 420.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        RpPill("Continue watching", contReq) { confirm = false }
+                        RpPill("Stop", null) { onBack() }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RpPill(label: String, req: FocusRequester?, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    Box(
+        Modifier
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
+            .onFocusChanged { f = it.isFocused }
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (f) RP_GOLD else Color(0x22FFFFFF))
+            .clickable { onClick() }
+            .padding(horizontal = 26.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (f) Color(0xFF1A1A1A) else Th.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+// Boutons ronds avec de vraies icônes dessinées, toutes centrées
+// kind : 0 = saut arrière, 1 = saut avant, 2 = lecture, 3 = pause, 4 = suivant, 5 = fermer, 6 = vitesse
+@Composable
+private fun RpBtn(kind: Int, label: String, req: FocusRequester? = null, big: Boolean = false, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val sz = if (big) 68.dp else 50.dp
+    val sc by animateFloatAsState(if (f) 1.12f else 1f, label = "rpb")
+    val ink = if (f) Color(0xFF1A1A1A) else Color.White
+    Box(
+        Modifier.padding(horizontal = 7.dp).size(sz).scale(sc)
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
+            .onFocusChanged { f = it.isFocused }
+            .clip(CircleShape)
+            .background(if (f) RP_GOLD else if (big) Color(0x40FFFFFF) else Color(0x26FFFFFF))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        when (kind) {
+            0, 1 -> {
+                Canvas(Modifier.size(sz * 0.8f)) { rpSeek(kind == 1, ink) }
+                Text(label, color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+            6 -> Text(label, color = ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            else -> Canvas(Modifier.size(sz * 0.46f)) { rpGlyph(kind, ink) }
+        }
+    }
+}
+
+private fun DrawScope.rpSeek(fwd: Boolean, col: Color) {
+    val s = size.minDimension
+    val c = Offset(s / 2f, s / 2f)
+    val r = s * 0.40f
+    val start = if (fwd) -60f else -120f
+    val sweep = if (fwd) 300f else -300f
+    drawArc(col, start, sweep, false, topLeft = Offset(c.x - r, c.y - r), size = Size(2f * r, 2f * r), style = Stroke(s * 0.08f))
+    val th = Math.toRadians((start + sweep).toDouble())
+    val p = Offset(c.x + r * cos(th).toFloat(), c.y + r * sin(th).toFloat())
+    val d = if (fwd) Offset((-sin(th)).toFloat(), cos(th).toFloat()) else Offset(sin(th).toFloat(), (-cos(th)).toFloat())
+    val n = Offset(-d.y, d.x)
+    val h = s * 0.17f
+    val tip = Offset(p.x + d.x * h * 1.1f, p.y + d.y * h * 1.1f)
+    val b1 = Offset(p.x + n.x * h, p.y + n.y * h)
+    val b2 = Offset(p.x - n.x * h, p.y - n.y * h)
+    val path = Path().apply { moveTo(tip.x, tip.y); lineTo(b1.x, b1.y); lineTo(b2.x, b2.y); close() }
+    drawPath(path, col)
+}
+
+private fun DrawScope.rpGlyph(kind: Int, col: Color) {
+    val s = size.minDimension
+    fun tri(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) {
+        val pa = Path().apply { moveTo(x1 * s, y1 * s); lineTo(x2 * s, y2 * s); lineTo(x3 * s, y3 * s); close() }
+        drawPath(pa, col)
+    }
+    when (kind) {
+        2 -> tri(0.22f, 0.04f, 0.22f, 0.96f, 0.96f, 0.5f)
+        3 -> {
+            drawRect(col, Offset(0.12f * s, 0.06f * s), Size(0.28f * s, 0.88f * s))
+            drawRect(col, Offset(0.60f * s, 0.06f * s), Size(0.28f * s, 0.88f * s))
+        }
+        4 -> {
+            tri(0.04f, 0.06f, 0.04f, 0.94f, 0.72f, 0.5f)
+            drawRect(col, Offset(0.78f * s, 0.06f * s), Size(0.17f * s, 0.88f * s))
+        }
+        5 -> {
+            drawLine(col, Offset(0.1f * s, 0.1f * s), Offset(0.9f * s, 0.9f * s), s * 0.14f, StrokeCap.Round)
+            drawLine(col, Offset(0.9f * s, 0.1f * s), Offset(0.1f * s, 0.9f * s), s * 0.14f, StrokeCap.Round)
         }
     }
 }
