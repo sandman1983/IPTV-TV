@@ -768,18 +768,22 @@ fun resetTracks(exo: ExoPlayer) {
 @Composable
 private fun SearchTab(label: String, count: Int, sel: Boolean, onFocus: () -> Unit, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(22.dp)
-    Row(
+    val shape = RoundedCornerShape(5.dp)
+    Box(
         Modifier.clip(shape)
             .background(if (sel) Th.focusBg else Color.Transparent)
             .border(if (f) 2.dp else 0.dp, if (f) GOLD else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .clickable { onClick() }
-            .padding(horizontal = 18.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 14.dp, vertical = 4.dp)
     ) {
-        Text(label, color = if (sel) Th.focusText else Th.text, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-        Text("  $count", color = if (sel) Th.focusSub else Th.sub, fontSize = 17.sp)
+        Text(
+            androidx.compose.ui.text.buildAnnotatedString {
+                withStyle(androidx.compose.ui.text.SpanStyle(color = if (sel) Th.focusText else Th.text, fontWeight = FontWeight.Medium)) { append(label) }
+                withStyle(androidx.compose.ui.text.SpanStyle(color = if (sel) Th.focusSub else Th.sub)) { append("  $count") }
+            },
+            fontSize = 15.sp, maxLines = 1
+        )
     }
 }
 
@@ -793,7 +797,7 @@ private fun SearchRow(
     val tx = if (f) Th.focusText else Th.text
     val sb = if (f) Th.focusSub else Th.sub
     Row(
-        Modifier.fillMaxWidth().clip(shape)
+        Modifier.fillMaxWidth().height(104.dp).clip(shape)
             .background(if (f) Th.focusBg else Th.cardBg)
             .border(if (f) 2.dp else 0.dp, if (f) GOLD else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused }
@@ -806,16 +810,16 @@ private fun SearchRow(
                 AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
             Box(
-                Modifier.padding(6.dp).size(36.dp, 30.dp).clip(RoundedCornerShape(6.dp)).background(Color.White),
-                contentAlignment = Alignment.Center
+                Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 8.dp).size(38.dp, 26.dp),
+                contentAlignment = Alignment.BottomStart
             ) {
                 if (c != null && c.icon.isNotBlank()) {
                     AsyncImage(
                         model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
-                        modifier = Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit, alignment = Alignment.BottomStart
                     )
                 } else {
-                    Text((c?.name ?: "?").take(2), color = Color(0xFF14213D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text((c?.name ?: "?").take(3), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
             if (live) {
@@ -900,22 +904,22 @@ fun SearchScreen(
         else recs.filter { it.kind == "rec" && (it.title.lowercase().contains(t) || it.chName.lowercase().contains(t)) }.take(60)
     }
     val now = System.currentTimeMillis()
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(8.dp)
 
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
-        Column(Modifier.weight(0.50f).fillMaxHeight().background(Th.panel).padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 16.dp)) {
-            Text("Search", color = Th.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(14.dp))
+        Column(Modifier.weight(0.50f).fillMaxHeight().background(Th.panel).padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 10.dp)) {
+            Text("Search", color = Th.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
-                    Modifier.weight(1f).height(56.dp).clip(shape).background(Th.cell)
+                    Modifier.weight(1f).height(42.dp).clip(shape).background(Th.cell)
                         .border(if (ff) 2.dp else 1.dp, if (ff) GOLD else GOLD.copy(alpha = 0.55f), shape)
-                        .padding(horizontal = 14.dp),
+                        .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
+                    androidx.compose.foundation.Canvas(Modifier.size(18.dp)) {
                         val sw = 2.2.dp.toPx()
                         drawCircle(Th.sub, radius = size.minDimension * 0.34f, center = androidx.compose.ui.geometry.Offset(size.width * 0.42f, size.height * 0.42f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
                         drawLine(Th.sub, androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.66f), androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.92f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
@@ -923,16 +927,16 @@ fun SearchScreen(
                     Spacer(Modifier.width(12.dp))
                     androidx.compose.foundation.text.BasicTextField(
                         q, { q = it }, singleLine = true,
-                        textStyle = androidx.compose.ui.text.TextStyle(color = Th.text, fontSize = 22.sp),
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Th.text, fontSize = 17.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(GOLD),
                         modifier = Modifier.weight(1f).focusRequester(fr).onFocusChanged { ff = it.isFocused }
                     )
-                    Text("Name or number", color = Th.sub, fontSize = 14.sp, maxLines = 1)
+                    Text("Name or number", color = Th.sub, fontSize = 12.sp, maxLines = 1)
                 }
                 Spacer(Modifier.width(12.dp))
                 var mf by remember { mutableStateOf(false) }
                 Box(
-                    Modifier.size(56.dp).clip(shape).background(Th.cell)
+                    Modifier.size(42.dp).clip(shape).background(Th.cell)
                         .border(if (mf) 2.dp else 0.dp, if (mf) GOLD else Color.Transparent, shape)
                         .onFocusChanged { mf = it.isFocused }
                         .clickable {
@@ -945,7 +949,7 @@ fun SearchScreen(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    androidx.compose.foundation.Canvas(Modifier.size(24.dp)) {
+                    androidx.compose.foundation.Canvas(Modifier.size(20.dp)) {
                         val col = if (mf) GOLD else Th.text
                         val sw = 2.dp.toPx()
                         drawRoundRect(col, androidx.compose.ui.geometry.Offset(size.width * 0.35f, 0f), androidx.compose.ui.geometry.Size(size.width * 0.3f, size.height * 0.58f), androidx.compose.ui.geometry.CornerRadius(size.width * 0.15f))
@@ -954,13 +958,13 @@ fun SearchScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 SearchTab("Channels", chRes.size, tab == 0, { tab = 0 }) { tab = 0 }
                 SearchTab("Programs", prRes.size, tab == 1, { tab = 1 }) { tab = 1 }
                 SearchTab("Recordings", recRes.size, tab == 2, { tab = 2 }) { tab = 2 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
             val empty = when (tab) { 0 -> chRes.isEmpty(); 1 -> prRes.isEmpty(); else -> recRes.isEmpty() }
             if (empty) {
                 Text(
@@ -969,7 +973,28 @@ fun SearchScreen(
                     color = Th.sub, fontSize = 16.sp, modifier = Modifier.padding(8.dp).weight(1f)
                 )
             } else {
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+                val ls = rememberLazyListState()
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth()
+                        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val h = size.height
+                            val f = (26.dp.toPx() / h).coerceIn(0.01f, 0.2f)
+                            val topF = if (ls.canScrollBackward) f else 0.001f
+                            val botF = if (ls.canScrollForward) f else 0.001f
+                            drawRect(
+                                Brush.verticalGradient(
+                                    0f to (if (topF > 0.002f) Color.Transparent else Color.Black),
+                                    topF to Color.Black,
+                                    (1f - botF) to Color.Black,
+                                    1f to (if (botF > 0.002f) Color.Transparent else Color.Black)
+                                ),
+                                blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                            )
+                        },
+                    state = ls, verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)
+                ) {
                     when (tab) {
                         0 -> items(chRes, key = { it.second.id }) { (n, c) ->
                             val p = epg.now(c.epgId)
@@ -1001,10 +1026,6 @@ fun SearchScreen(
                         }
                     }
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.padding(top = 8.dp)) {
-                Text("OK · WATCH", color = Th.sub, fontSize = 12.sp, letterSpacing = 1.sp)
-                Text("BACK · CLOSE", color = Th.sub, fontSize = 12.sp, letterSpacing = 1.sp)
             }
         }
     }
