@@ -215,7 +215,24 @@ fun okLong(ev: KeyEvent, fired: BooleanArray, onShort: () -> Unit, onLong: () ->
 
 // Lit un guide XMLTV (.gz ou non) en flux : chaînes du guide (nom, logo) et, pour chaque chaîne,
 // tous les programmes de la fenêtre [maintenant - 3 h ; maintenant + 36 h].
-suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
+class EpgFilter(val ids: Set<String>, val keys: Set<String>)
+
+// Chaînes à garder : celles de la playlist (ID EPG, ID choisi à la main ou nom reconnu comme dans le rapprochement automatique).
+fun mkEpgFilter(chs: List<Channel>, ov: Map<Int, Ov>): EpgFilter {
+    val ids = HashSet<String>()
+    val keys = HashSet<String>()
+    for (c in chs) {
+        if (c.epgId.isNotBlank()) ids.add(c.epgId)
+        val k1 = mkey(c.name)
+        val k2 = mkey(c.name.substringAfterLast('|').substringAfterLast(':'))
+        if (k1.isNotEmpty()) keys.add(k1)
+        if (k2.isNotEmpty()) keys.add(k2)
+    }
+    for (o in ov.values) if (o.epg.isNotBlank()) ids.add(o.epg)
+    return EpgFilter(ids, keys)
+}
+
+suspend fun loadEpg(url: String, only: EpgFilter? = null): Epg = withContext(Dispatchers.IO) {
     val raw = URL(url).openStream().buffered()
     raw.mark(2)
     val b1 = raw.read()
@@ -226,6 +243,7 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     val now = System.currentTimeMillis()
     val progs = HashMap<String, ArrayList<Prog>>()
     val chans = ArrayList<GuideCh>()
+    val keepCh = HashSet<String>()
     val p = Xml.newPullParser()
     p.setInput(input, null)
     var inCh = false
@@ -281,10 +299,11 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
             val n = p.name
             if (n == "channel" && inCh) {
                 chans.add(GuideCh(chId, chName, chIcon))
+                if (only == null || chId in only.ids || mkey(chName) in only.keys || mkey(chId) in only.keys) keepCh.add(chId)
                 inCh = false
             } else if (n == "programme") {
                 inProg = false
-                if (sp > now - 3 * 3600000L && st < now + 36 * 3600000L) {
+                if (sp > now - 3 * 3600000L && st < now + 36 * 3600000L && (only == null || ch in keepCh || ch in only.ids)) {
                     progs.getOrPut(ch) { ArrayList() }.add(Prog(title, sub.ifBlank { desc }, cat, icon, st, sp, desc.take(1500)))
                 }
             }
@@ -691,10 +710,10 @@ fun App() {
     }
 
     // Chargement des sources et des guides, puis rechargement des guides toutes les 30 minutes.
-    LaunchedEffect(sources, cfg.epgs, reload) {
+    LaunchedEffect(sources, cfg.epgs, cfg.epgMine, reload) {
         val sources = sources.filter { it.enabled }
         val cacheKey = sources.joinToString("|") { "${it.id}${it.type}${it.host}${it.user}${it.pass}${it.url}${it.epg}${it.output}${it.useAuth}" } +
-            "#" + cfg.epgs.joinToString("|")
+            "#" + cfg.epgs.joinToString("|") + (if (cfg.epgMine) "#mine" else "")
         val force = reload > 0
         // 0 = synchronisation périodique désactivée
         val maxAge = if (cfg.syncHours > 0) cfg.syncHours * 3600_000L else Long.MAX_VALUE / 4
@@ -717,14 +736,15 @@ fun App() {
                 report = listOf("Loaded from cache")
             }
         }
-        suspend fun fetchGuides(urls: List<String>, into: MutableList<String>, show: Boolean): Epg {
+        suspend fun fetchGuides(urls: List<String>, into: MutableList<String>, show: Boolean, list: List<Channel>): Epg {
+            val only = if (cfg.epgMine && list.isNotEmpty()) mkEpgFilter(list, cfg.ov) else null
             var g = Epg(emptyMap())
             var n = 0
             for (u in urls) {
                 n++
                 if (show) status = "Loading guide $n/${urls.size}…"
                 try {
-                    val e = loadEpg(u)
+                    val e = loadEpg(u, only)
                     g = mergeEpg(g, e)
                     into.add("OK - Guide $n : ${e.chans.size} channels, ${e.progs.size} with programmes")
                 } catch (ex: Exception) {
@@ -760,7 +780,7 @@ fun App() {
             guideUrls = urls.filter { it.isNotBlank() }.distinct()
             val okAll = rep.none { it.startsWith("ERROR") }
             if (newCh.isNotEmpty() || !haveCache) channels = newCh
-            val g = fetchGuides(guideUrls, rep, !haveCache)
+            val g = fetchGuides(guideUrls, rep, !haveCache, newCh)
             if (g.progs.isNotEmpty() || g.chans.isNotEmpty() || !haveCache) epg = g
             lastSync = System.currentTimeMillis()
             report = rep.toList()
@@ -786,7 +806,7 @@ fun App() {
                 }
                 guideUrls = u.filter { it.isNotBlank() }.distinct()
             }
-            val g2 = fetchGuides(guideUrls, ArrayList(), false)
+            val g2 = fetchGuides(guideUrls, ArrayList(), false, channels)
             if (g2.progs.isNotEmpty() || g2.chans.isNotEmpty()) {
                 epg = g2
                 lastSync = System.currentTimeMillis()

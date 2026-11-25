@@ -47,7 +47,8 @@ data class Cfg(
     val recStop: Int = 0,
     val remOn: Boolean = true,
     val merge: Boolean = false,
-    val updateOnStart: Boolean = false
+    val updateOnStart: Boolean = false,
+    val epgMine: Boolean = false
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -106,6 +107,7 @@ fun cfgToJson(g: Cfg): JSONObject {
     j.put("rm", g.remOn)
     j.put("mg", g.merge)
     j.put("us", g.updateOnStart)
+    j.put("em", g.epgMine)
     return j
 }
 
@@ -126,7 +128,7 @@ fun cfgFromJson(j: JSONObject): Cfg {
         m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" },
         j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24), j.optBoolean("sn", true),
         j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true), j.optBoolean("mg", false),
-        j.optBoolean("us", false)
+        j.optBoolean("us", false), j.optBoolean("em", false)
     )
 }
 

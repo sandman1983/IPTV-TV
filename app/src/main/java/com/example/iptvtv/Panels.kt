@@ -1003,6 +1003,12 @@ fun SettingsHub(
             item { PItem("Add XMLTV guide", "URL of an .xml or .gz file", { epgIn = ""; page = "guide_add" }, autoFocus = true) }
             items(cfg.epgs) { u -> PItem(u, "Top guide has priority · OK: manage", { selEpg = u; page = "guide_menu" }) }
             item {
+                PSwitch(
+                    "Keep only my playlist channels", "Import programmes only for channels in your playlists (faster, lighter). Applies at the next guide update",
+                    cfg.epgMine, { onCfg(cfg.copy(epgMine = !cfg.epgMine)) }
+                )
+            }
+            item {
                 PItem(
                     "Logo priority",
                     if (cfg.logoPrio == "xmltv") "1) XMLTV guide   2) playlist" else "1) playlist   2) XMLTV guide",
