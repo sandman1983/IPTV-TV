@@ -45,6 +45,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -116,7 +117,8 @@ private fun RecCard(
     w: androidx.compose.ui.unit.Dp, ch: Channel?, r: Rec, thumb: String,
     topRight: String, tagKind: Int, bottomRight: String, frac: Float?,
     line1: String, line2: androidx.compose.ui.text.AnnotatedString,
-    onClick: () -> Unit, onLong: () -> Unit, req: FocusRequester? = null
+    onClick: () -> Unit, onLong: () -> Unit, req: FocusRequester? = null,
+    showPlay: Boolean = true, onFocus: (Boolean) -> Unit = {}
 ) {
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
@@ -126,7 +128,7 @@ private fun RecCard(
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
-            .onFocusChanged { f = it.isFocused }
+            .onFocusChanged { f = it.isFocused; onFocus(it.isFocused) }
             .onPreviewKeyEvent { okLong(it, fired, onClick, onLong) }
             .clickable { onClick() }
     ) {
@@ -152,7 +154,7 @@ private fun RecCard(
                             .background(Color(0xB3000000)).padding(horizontal = 7.dp, vertical = 3.dp)
                     )
                 }
-                if (f) {
+                if (f && showPlay) {
                     Box(
                         Modifier.align(Alignment.Center).size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White)
                             .drawBehind {
@@ -246,6 +248,20 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     val total = vol.first
     val used = (vol.first - vol.second).coerceAtLeast(0L)
 
+    val scope = rememberCoroutineScope()
+    val lsCont = androidx.compose.foundation.lazy.rememberLazyListState()
+    val lsSched = androidx.compose.foundation.lazy.rememberLazyListState()
+    val lsDone = androidx.compose.foundation.lazy.rememberLazyListState()
+    // Chaque rangée montre un nombre entier de cartes : le défilement se cale sur la carte sélectionnée
+    fun snap(ls: androidx.compose.foundation.lazy.LazyListState, idx: Int, n: Int) {
+        scope.launch {
+            try {
+                val first = ls.firstVisibleItemIndex
+                if (idx < first) ls.scrollToItem(idx) else if (idx > first + n - 1) ls.scrollToItem(idx - n + 1)
+                else if (ls.firstVisibleItemScrollOffset != 0) ls.scrollToItem(first)
+            } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+        }
+    }
     val dfDay = remember { SimpleDateFormat("EEE d", Locale.ENGLISH) }
     val dfRec = remember { SimpleDateFormat("EEE d MMM", Locale.ENGLISH) }
     val dfKey = remember { SimpleDateFormat("yyyyMMdd", Locale.US) }
@@ -272,11 +288,11 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
             Spacer(Modifier.width(14.dp))
             Box(Modifier.width(1.dp).height(22.dp).background(Th.divider))
             Spacer(Modifier.width(10.dp))
-            listOf("All", "Continue watching", "Scheduled", "Recorded").forEachIndexed { i, l ->
-                TopTab(l, tab == i, hPad = 10.dp) { tab = i }
+            listOf("All" to 0, "Scheduled" to 2, "Recorded" to 3).forEach { (l, v) ->
+                TopTab(l, tab == v, hPad = 10.dp) { tab = v }
             }
             Spacer(Modifier.weight(1f))
-            Column(Modifier.weight(1f, fill = false).widthIn(max = 160.dp)) {
+            Column(Modifier.width(172.dp)) {
                 Row(Modifier.fillMaxWidth()) {
                     Text("Storage", color = Th.sub, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
@@ -304,12 +320,12 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             val w4 = (maxWidth - gap * 3) / 4
             val w5 = (maxWidth - gap * 4) / 5
-            LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp), contentPadding = PaddingValues(bottom = 30.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(18.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)) {
                 if (showCont) item(key = "cont") {
                     Column {
                         SecHead("Continue watching", "Resume where you stopped")
-                        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) {
-                            items(cont, key = { it.id }) { r ->
+                        androidx.compose.foundation.lazy.LazyRow(state = lsCont, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(vertical = 6.dp)) {
+                            itemsIndexed(cont, key = { _, it -> it.id }) { ix, r ->
                                 val wt = watch[r.id]!!
                                 val fr = wt.first.toFloat() / wt.second
                                 val pct = (fr * 100).toInt()
@@ -323,18 +339,19 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                                             withStyle(androidx.compose.ui.text.SpanStyle(color = X_GOLD)) { append("$pct% watched") }
                                             append(" · ${durTxt(left)} left")
                                         },
-                                        { onAct("play", r.id) }, { menu = r }
+                                        { onAct("play", r.id) }, { menu = r },
+                                        onFocus = { if (it) snap(lsCont, ix, 4) }
                                     )
                                 }
                             }
                         }
                     }
                 }
-                if (showSched) item(key = "sched") {
-                    Column {
-                        SecHead("Scheduled", "${sched.size} upcoming")
-                        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
-                            items(sched, key = { it.id }) { r ->
+                if (showSched) {
+                    item(key = "sched_h") { SecHead("Scheduled", "${sched.size} upcoming") }
+                    items(sched.chunked(4), key = { "s_" + it.first().id }) { rowItems ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                            for (r in rowItems) {
                                 val rec = r.kind == "rec"
                                 val live = r.state == "recording"
                                 CardWrap(w4) {
@@ -347,22 +364,23 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                                             withStyle(androidx.compose.ui.text.SpanStyle(color = X_GOLD)) { append(if (live) "Now" else whenTxt(r.start)) }
                                             append(" · " + r.chName)
                                         },
-                                        { menu = r }, { menu = r }
+                                        { menu = r }, { menu = r },
+                                        showPlay = false
                                     )
                                 }
                             }
                         }
                     }
                 }
-                if (showDone) item(key = "done") {
-                    Column {
-                        SecHead("Recorded", "Newest first · Hold OK to delete or rename")
-                        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)) {
-                            items(done, key = { it.id }) { r ->
+                if (showDone) {
+                    item(key = "done_h") { SecHead("Recorded", "Newest first · Hold OK to delete or rename") }
+                    items(done.chunked(4), key = { "d_" + it.first().id }) { rowItems ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                            for (r in rowItems) {
                                 val isNew = watch[r.id] == null && r.state == "done"
-                                CardWrap(w5) {
+                                CardWrap(w4) {
                                     RecCard(
-                                        w5 - 12.dp, chById[r.chId], r, thumbOf(r),
+                                        w4 - 12.dp, chById[r.chId], r, thumbOf(r),
                                         if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", if (isNew) 1 else 0,
                                         durTxt(r.stop - r.start), null,
                                         r.title,
