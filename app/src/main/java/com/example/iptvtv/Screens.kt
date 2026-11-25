@@ -832,9 +832,9 @@ private fun SearchRow(
             }
             if (live) {
                 Text(
-                    "● LIVE", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).clip(RoundedCornerShape(3.dp))
-                        .background(Color(0xFFE5484D)).padding(horizontal = 4.dp, vertical = 1.dp)
+                    "● LIVE", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFFE5484D)).padding(horizontal = 3.dp, vertical = 1.dp)
                 )
             }
             if (frac != null) {
@@ -847,7 +847,7 @@ private fun SearchRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (num > 0) Text("$num  ", color = sb, fontSize = 15.sp)
                 Text(
-                    c?.name ?: "", color = if (f) Color(0xFF8A6100) else GOLD, fontSize = 20.sp,
+                    c?.name ?: "", color = if (f) Color(0xFF8A6100) else GOLD, fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
@@ -1031,26 +1031,12 @@ fun SearchScreen(
                         }
                     }
                 }
-                LazyColumn(
-                    Modifier.weight(1f).fillMaxWidth()
-                        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-                        .drawWithContent {
-                            drawContent()
-                            val h = size.height
-                            val f = (26.dp.toPx() / h).coerceIn(0.01f, 0.2f)
-                            val topF = if (ls.canScrollBackward) f else 0.001f
-                            val botF = if (ls.canScrollForward) f else 0.001f
-                            drawRect(
-                                Brush.verticalGradient(
-                                    0f to (if (topF > 0.002f) Color.Transparent else Color.Black),
-                                    topF to Color.Black,
-                                    (1f - botF) to Color.Black,
-                                    1f to (if (botF > 0.002f) Color.Transparent else Color.Black)
-                                ),
-                                blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
-                            )
-                        },
-                    state = ls, verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)
+                // La hauteur de la liste est un multiple exact de la hauteur d'une carte : aucune carte coupée en haut ni en bas.
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                    val nFit = ((maxHeight + 8.dp) / 112.dp).toInt().coerceAtLeast(1)
+                    LazyColumn(
+                        Modifier.fillMaxWidth().height(112.dp * nFit - 8.dp),
+                        state = ls, verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (tab) {
                         0 -> itemsIndexed(chRes, key = { _, it -> it.second.id }) { ix, (n, c) ->
@@ -1085,6 +1071,7 @@ fun SearchScreen(
                             )
                         }
                     }
+                }
                 }
             }
         }
