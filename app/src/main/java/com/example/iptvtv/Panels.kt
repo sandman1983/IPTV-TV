@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
@@ -70,6 +72,8 @@ private val P_SUB: Color get() = Th.sub
 private val P_SUB_DARK: Color get() = Th.focusSub
 
 // Position de la liste du panneau : permet de garder l'élément sélectionné entièrement visible (hors fondu).
+class ActScope(val req: FocusRequester) { var used = false }
+val LocalActScope = androidx.compose.runtime.compositionLocalOf<ActScope?> { null }
 class PanelList(val state: androidx.compose.foundation.lazy.LazyListState) { var top = 0f; var bottom = 0f }
 val LocalPanelList = androidx.compose.runtime.compositionLocalOf<PanelList?> { null }
 
@@ -87,7 +91,8 @@ fun PanelShell(
         initialFirstVisibleItemIndex = (scrollTo - 2).coerceAtLeast(0)
     )
     val pl = remember { PanelList(lstate) }
-    CompositionLocalProvider(LocalPanelList provides pl) {
+    val act = remember { ActScope(FocusRequester()) }
+    CompositionLocalProvider(LocalPanelList provides pl, LocalActScope provides act) {
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
@@ -130,6 +135,8 @@ fun PanelShell(
             if (actions != null) {
                 Column(
                     Modifier.width(130.dp).fillMaxHeight().background(Th.panel2)
+                        .focusProperties { enter = { act.req } }
+                        .focusGroup()
                         .padding(start = 8.dp, end = 8.dp, top = 70.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) { actions() }
@@ -286,6 +293,9 @@ fun PRadio(title: String, sub: String, selected: Boolean, onClick: () -> Unit, a
 fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
     var f by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
+    // Le premier bouton du panneau (ex. Save) reçoit le focus quand on appuie sur Droite depuis la liste.
+    val actSc = LocalActScope.current
+    val first = remember { if (actSc != null && !actSc.used) { actSc.used = true; true } else false }
     if (autoFocus) {
         LaunchedEffect(Unit) {
             delay(120)
@@ -295,6 +305,7 @@ fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
+            .then(if (first && actSc != null) Modifier.focusRequester(actSc.req) else Modifier)
             .background(if (f) Th.focusBg else Color.Transparent)
             .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(6.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
@@ -334,7 +345,11 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
         }
     }
     var foc by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+    val pl = LocalPanelList.current
+    val scope = rememberCoroutineScope()
+    val dens = androidx.compose.ui.platform.LocalDensity.current
+    val co = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 3.dp).onGloballyPositioned { co[0] = it }) {
         Text(label, color = if (foc) Th.text else P_SUB, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
         androidx.compose.foundation.text.BasicTextField(
             value = value, onValueChange = onChange, singleLine = true,
@@ -342,7 +357,25 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
             cursorBrush = androidx.compose.ui.graphics.SolidColor(Th.text),
             modifier = Modifier.fillMaxWidth()
                 .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
-                .onFocusChanged { foc = it.isFocused; if (!it.isFocused) kb?.hide() }
+                .onFocusChanged {
+                    foc = it.isFocused
+                    if (!it.isFocused) kb?.hide()
+                    else if (pl != null) scope.launch {
+                        // Garde le champ entièrement visible (haut et bas du panneau)
+                        delay(90)
+                        val c = co[0]
+                        if (c != null && c.isAttached) {
+                            val r = c.boundsInWindow()
+                            val m = with(dens) { 30.dp.toPx() }
+                            val over = r.bottom - (pl.bottom - m)
+                            val under = (pl.top + m) - r.top
+                            try {
+                                if (over > 1f) pl.state.animateScrollBy(over)
+                                else if (under > 1f && pl.state.canScrollBackward) pl.state.animateScrollBy(-under)
+                            } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                        }
+                    }
+                }
                 .onPreviewKeyEvent { ev ->
                     if (ev.type == KeyEventType.KeyDown && (ev.key == Key.DirectionDown || ev.key == Key.DirectionUp)) {
                         kb?.hide()
@@ -747,6 +780,7 @@ fun SettingsHub(
     var accTxt by remember { mutableStateOf("") }
     var selEpg by remember { mutableStateOf("") }
     var epgIn by remember { mutableStateOf("") }
+    var epgName by remember { mutableStateOf("") }
     var catIn by remember { mutableStateOf("") }
     var cityIn by remember { mutableStateOf("") }
     var editCh by remember { mutableStateOf<Int?>(null) }
@@ -809,6 +843,7 @@ fun SettingsHub(
             "src_type" -> if (canExit) page = "setup"
             "src_form" -> page = if (editingId != null) "src_menu" else "src_type"
             "guide_menu", "guide_add" -> page = "guides"
+            "guide_ren" -> page = "guide_menu"
             "chlist", "newcat" -> page = "channels"
             "city" -> page = "display"
             "recs" -> page = "dvr"
@@ -1066,8 +1101,11 @@ fun SettingsHub(
             if (msg.isNotBlank()) item { PInfo(msg, true) }
         }
         "guides" -> PanelShell("Guides (EPG)", { back() }, actions = { PButton("Done", { back() }) }) {
-            item { PItem("Add XMLTV guide", "URL of an .xml or .gz file", { epgIn = ""; page = "guide_add" }, autoFocus = true) }
-            items(cfg.epgs) { u -> PItem(u, "Top guide has priority · OK: manage", { selEpg = u; page = "guide_menu" }) }
+            item { PItem("Add XMLTV guide", "URL of an .xml or .gz file", { epgIn = ""; epgName = ""; page = "guide_add" }, autoFocus = true) }
+            items(cfg.epgs) { u ->
+                val nm = cfg.epgNames[u].orEmpty()
+                PItem(nm.ifBlank { u }, if (nm.isBlank()) "Top guide has priority · OK: manage" else u, { selEpg = u; epgName = nm; page = "guide_menu" })
+            }
             item {
                 PSwitch(
                     "Keep only my playlist channels", "Import programmes only for channels in your playlists (faster, lighter). Applies at the next guide update",
@@ -1085,24 +1123,43 @@ fun SettingsHub(
         }
         "guide_menu" -> PanelShell("Guide", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PInfo(selEpg) }
+            item { PItem("Rename", cfg.epgNames[selEpg].orEmpty().ifBlank { "No name" }, { epgName = cfg.epgNames[selEpg].orEmpty(); page = "guide_ren" }, autoFocus = true) }
             item {
-                PItem("Delete this guide", "", { onCfg(cfg.copy(epgs = cfg.epgs.filter { it != selEpg })); page = "guides" }, autoFocus = true)
+                PItem("Delete this guide", "", { onCfg(cfg.copy(epgs = cfg.epgs.filter { it != selEpg }, epgNames = cfg.epgNames - selEpg)); page = "guides" })
             }
             item {
                 PItem("Move to top (priority)", "", { onCfg(cfg.copy(epgs = listOf(selEpg) + cfg.epgs.filter { it != selEpg })); page = "guides" })
             }
         }
+        "guide_ren" -> PanelShell(
+            "Rename guide", { page = "guide_menu" },
+            actions = {
+                PButton("Save", {
+                    val n = epgName.trim()
+                    onCfg(cfg.copy(epgNames = if (n.isBlank()) cfg.epgNames - selEpg else cfg.epgNames + (selEpg to n)))
+                    page = "guides"
+                })
+                PButton("Back", { page = "guide_menu" })
+            }
+        ) {
+            item { PInput("Guide name", epgName, { epgName = it }, autoFocus = true) }
+        }
         "guide_add" -> PanelShell(
             "Add XMLTV guide", { back() },
             actions = {
                 PButton("Save", {
-                    if (epgIn.isNotBlank()) onCfg(cfg.copy(epgs = (cfg.epgs + norm(epgIn)).distinct()))
+                    if (epgIn.isNotBlank()) {
+                        val u = norm(epgIn)
+                        val n = epgName.trim()
+                        onCfg(cfg.copy(epgs = (cfg.epgs + u).distinct(), epgNames = if (n.isBlank()) cfg.epgNames else cfg.epgNames + (u to n)))
+                    }
                     page = "guides"
                 })
                 PButton("Back", { back() })
             }
         ) {
-            item { PInput("Guide URL (.xml or .gz)", epgIn, { epgIn = it }, autoFocus = true) }
+            item { PInput("Name (optional)", epgName, { epgName = it }, autoFocus = true) }
+            item { PInput("Guide URL (.xml or .gz)", epgIn, { epgIn = it }) }
         }
         "channels" -> PanelShell("Channels", { back() }, actions = { PButton("Done", { back() }) }) {
             item { PSwitch("Merge sources", "Same categories from all sources shown together", cfg.merge, { onCfg(cfg.copy(merge = !cfg.merge)) }, autoFocus = true) }

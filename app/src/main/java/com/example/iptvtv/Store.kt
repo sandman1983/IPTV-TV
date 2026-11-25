@@ -48,7 +48,8 @@ data class Cfg(
     val remOn: Boolean = true,
     val merge: Boolean = false,
     val updateOnStart: Boolean = false,
-    val epgMine: Boolean = false
+    val epgMine: Boolean = false,
+    val epgNames: Map<String, String> = emptyMap()
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -96,6 +97,7 @@ fun cfgToJson(g: Cfg): JSONObject {
     j.put("order", JSONArray(g.order))
     j.put("cats", JSONArray(g.cats))
     j.put("epgs", JSONArray(g.epgs))
+    j.put("en", JSONObject().also { o -> for ((k, v) in g.epgNames) o.put(k, v) })
     j.put("lp", g.logoPrio)
     j.put("bs", g.bgSound)
     j.put("ct", g.city)
@@ -128,7 +130,8 @@ fun cfgFromJson(j: JSONObject): Cfg {
         m, ord, cs, es, j.optString("lp", "playlist").ifBlank { "playlist" },
         j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24), j.optBoolean("sn", true),
         j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true), j.optBoolean("mg", false),
-        j.optBoolean("us", false), j.optBoolean("em", false)
+        j.optBoolean("us", false), j.optBoolean("em", false),
+        j.optJSONObject("en")?.let { o -> o.keys().asSequence().associateWith { k -> o.optString(k) } } ?: emptyMap()
     )
 }
 
