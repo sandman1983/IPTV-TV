@@ -766,35 +766,245 @@ fun resetTracks(exo: ExoPlayer) {
 // Recherche de chaînes
 // ---------------------------------------------------------------------------
 @Composable
-fun SearchScreen(chans: List<Channel>, epg: Epg, onPlay: (Channel) -> Unit, onBack: () -> Unit) {
+private fun SearchTab(label: String, count: Int, sel: Boolean, onFocus: () -> Unit, onClick: () -> Unit) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        Modifier.clip(shape)
+            .background(if (sel) Th.focusBg else Color.Transparent)
+            .border(if (f) 2.dp else 0.dp, if (f) GOLD else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .clickable { onClick() }
+            .padding(horizontal = 18.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = if (sel) Th.focusText else Th.text, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+        Text("  $count", color = if (sel) Th.focusSub else Th.sub, fontSize = 17.sp)
+    }
+}
+
+@Composable
+private fun SearchRow(
+    c: Channel?, num: Int, title: String, line1: String, frac: Float?, next: String?,
+    live: Boolean, thumb: String, onClick: () -> Unit
+) {
+    var f by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+    val tx = if (f) Th.focusText else Th.text
+    val sb = if (f) Th.focusSub else Th.sub
+    Row(
+        Modifier.fillMaxWidth().clip(shape)
+            .background(if (f) Th.focusBg else Th.cardBg)
+            .border(if (f) 2.dp else 0.dp, if (f) GOLD else Color.Transparent, shape)
+            .onFocusChanged { f = it.isFocused }
+            .clickable { onClick() }
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(150.dp, 84.dp).clip(RoundedCornerShape(8.dp)).background(Th.iconBg)) {
+            if (thumb.isNotBlank()) {
+                AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            }
+            Box(
+                Modifier.padding(6.dp).size(36.dp, 30.dp).clip(RoundedCornerShape(6.dp)).background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                if (c != null && c.icon.isNotBlank()) {
+                    AsyncImage(
+                        model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
+                        modifier = Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Text((c?.name ?: "?").take(2), color = Color(0xFF14213D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (live) {
+                Text(
+                    "● LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFFE5484D)).padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+            if (frac != null) {
+                Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Th.barTrack)) {
+                    Box(Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).fillMaxHeight().background(GOLD))
+                }
+            }
+        }
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (num > 0) Text("$num  ", color = sb, fontSize = 15.sp)
+                Text(
+                    c?.name ?: "", color = if (f) Color(0xFF8A6100) else GOLD, fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(title, color = tx, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (line1.isNotBlank() || frac != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(line1, color = sb, fontSize = 13.sp, maxLines = 1)
+                    if (frac != null) {
+                        Box(Modifier.padding(horizontal = 8.dp).weight(1f).height(3.dp).background(Th.barTrack)) {
+                            Box(Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).fillMaxHeight().background(GOLD))
+                        }
+                        Text("${(frac * 100).toInt().coerceIn(0, 100)}%", color = sb, fontSize = 13.sp)
+                    }
+                }
+            }
+            if (!next.isNullOrBlank()) Text(next, color = sb, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+fun SearchScreen(
+    chans: List<Channel>, epg: Epg, recs: List<Rec>,
+    onPlay: (Channel) -> Unit, onRecs: () -> Unit, onBack: () -> Unit
+) {
     BackHandler { onBack() }
     var q by remember { mutableStateOf("") }
-    val res = remember(q, chans) {
-        val t = q.trim().lowercase()
-        if (t.isEmpty()) emptyList() else chans.filter { it.name.lowercase().contains(t) }.take(60)
+    var tab by remember { mutableStateOf(0) }
+    val fr = remember { FocusRequester() }
+    var ff by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { delay(150); try { fr.requestFocus() } catch (e: Exception) { } }
+    val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val s = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!s.isNullOrBlank()) q = s
     }
-    Column(Modifier.fillMaxSize().padding(32.dp)) {
-        Text("Search", color = Th.text, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        OutlinedTextField(
-            q, { q = it }, singleLine = true, label = { Text("Channel name") },
-            modifier = Modifier.padding(vertical = 10.dp)
-        )
-        LazyColumn(Modifier.weight(1f)) {
-            items(res, key = { it.id }) { c ->
-                FocusRow({ onPlay(c) }) {
-                    Box(Modifier.size(64.dp, 40.dp)) {
-                        if (c.icon.isNotBlank()) {
-                            AsyncImage(
-                                model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
-                                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit
+    val t = q.trim().lowercase()
+    val chRes = remember(t, chans) {
+        if (t.isEmpty()) emptyList()
+        else chans.withIndex().filter { it.value.name.lowercase().contains(t) || (it.index + 1).toString() == t }
+            .map { Pair(it.index + 1, it.value) }.take(60)
+    }
+    val byEpg = remember(chans) {
+        val m = HashMap<String, Pair<Int, Channel>>()
+        chans.forEachIndexed { i, c -> if (c.epgId.isNotBlank() && !m.containsKey(c.epgId)) m[c.epgId] = Pair(i + 1, c) }
+        m
+    }
+    val prRes = remember(t, byEpg, epg) {
+        if (t.length < 2) emptyList()
+        else {
+            val now = System.currentTimeMillis()
+            val l = ArrayList<Triple<Int, Channel, Prog>>()
+            for ((id, list) in epg.progs) {
+                val ch = byEpg[id] ?: continue
+                for (p in list) if (p.stop > now && p.title.lowercase().contains(t)) l.add(Triple(ch.first, ch.second, p))
+            }
+            l.sortBy { it.third.start }
+            l.take(60)
+        }
+    }
+    val recRes = remember(t, recs) {
+        if (t.isEmpty()) emptyList()
+        else recs.filter { it.kind == "rec" && (it.title.lowercase().contains(t) || it.chName.lowercase().contains(t)) }.take(60)
+    }
+    val now = System.currentTimeMillis()
+    val shape = RoundedCornerShape(14.dp)
+
+    Row(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
+        Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
+        Column(Modifier.weight(0.50f).fillMaxHeight().background(Th.panel).padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 16.dp)) {
+            Text("Search", color = Th.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.weight(1f).height(56.dp).clip(shape).background(Th.cell)
+                        .border(if (ff) 2.dp else 1.dp, if (ff) GOLD else GOLD.copy(alpha = 0.55f), shape)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.foundation.Canvas(Modifier.size(22.dp)) {
+                        val sw = 2.2.dp.toPx()
+                        drawCircle(Th.sub, radius = size.minDimension * 0.34f, center = androidx.compose.ui.geometry.Offset(size.width * 0.42f, size.height * 0.42f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                        drawLine(Th.sub, androidx.compose.ui.geometry.Offset(size.width * 0.66f, size.height * 0.66f), androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.92f), sw, androidx.compose.ui.graphics.StrokeCap.Round)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    androidx.compose.foundation.text.BasicTextField(
+                        q, { q = it }, singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Th.text, fontSize = 22.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(GOLD),
+                        modifier = Modifier.weight(1f).focusRequester(fr).onFocusChanged { ff = it.isFocused }
+                    )
+                    Text("Name or number", color = Th.sub, fontSize = 14.sp, maxLines = 1)
+                }
+                Spacer(Modifier.width(12.dp))
+                var mf by remember { mutableStateOf(false) }
+                Box(
+                    Modifier.size(56.dp).clip(shape).background(Th.cell)
+                        .border(if (mf) 2.dp else 0.dp, if (mf) GOLD else Color.Transparent, shape)
+                        .onFocusChanged { mf = it.isFocused }
+                        .clickable {
+                            try {
+                                voice.launch(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                    putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
+                                })
+                            } catch (e: Exception) { }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    androidx.compose.foundation.Canvas(Modifier.size(24.dp)) {
+                        val col = if (mf) GOLD else Th.text
+                        val sw = 2.dp.toPx()
+                        drawRoundRect(col, androidx.compose.ui.geometry.Offset(size.width * 0.35f, 0f), androidx.compose.ui.geometry.Size(size.width * 0.3f, size.height * 0.58f), androidx.compose.ui.geometry.CornerRadius(size.width * 0.15f))
+                        drawArc(col, 0f, 180f, false, androidx.compose.ui.geometry.Offset(size.width * 0.18f, size.height * 0.2f), androidx.compose.ui.geometry.Size(size.width * 0.64f, size.height * 0.55f), style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                        drawLine(col, androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.75f), androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.95f), sw)
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SearchTab("Channels", chRes.size, tab == 0, { tab = 0 }) { tab = 0 }
+                SearchTab("Programs", prRes.size, tab == 1, { tab = 1 }) { tab = 1 }
+                SearchTab("Recordings", recRes.size, tab == 2, { tab = 2 }) { tab = 2 }
+            }
+            Spacer(Modifier.height(12.dp))
+            val empty = when (tab) { 0 -> chRes.isEmpty(); 1 -> prRes.isEmpty(); else -> recRes.isEmpty() }
+            if (empty) {
+                Text(
+                    if (t.isEmpty()) "Type a channel name or number, a program title, or use the microphone."
+                    else "No results.",
+                    color = Th.sub, fontSize = 16.sp, modifier = Modifier.padding(8.dp).weight(1f)
+                )
+            } else {
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+                    when (tab) {
+                        0 -> items(chRes, key = { it.second.id }) { (n, c) ->
+                            val p = epg.now(c.epgId)
+                            val nx = if (p != null) epg.upcoming(c.epgId, 1).firstOrNull() else null
+                            SearchRow(
+                                c, n, p?.title ?: "No information",
+                                if (p != null) "${hm(p.start)} – ${hm(p.stop)}" else "",
+                                if (p != null) fracOf(p, now) else null,
+                                if (nx != null) "Next ${hm(nx.start)} · ${nx.title}" else null,
+                                p != null, p?.icon ?: "", { onPlay(c) }
+                            )
+                        }
+                        1 -> items(prRes) { (n, c, p) ->
+                            val live = p.start <= now && now < p.stop
+                            val day = if (java.text.SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(java.util.Date(p.start)) ==
+                                java.text.SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(java.util.Date(now))) ""
+                                else java.text.SimpleDateFormat("EEE d  ", Locale.getDefault()).format(java.util.Date(p.start))
+                            SearchRow(
+                                c, n, p.title, "$day${hm(p.start)} – ${hm(p.stop)}",
+                                if (live) fracOf(p, now) else null, null, live, p.icon, { onPlay(c) }
+                            )
+                        }
+                        else -> items(recRes, key = { it.id }) { r ->
+                            val c = chans.firstOrNull { it.id == r.chId }
+                            SearchRow(
+                                c, 0, r.title, "${hm(r.start)} – ${hm(r.stop)}  ·  ${r.state}",
+                                null, null, false, "", { onRecs() }
                             )
                         }
                     }
-                    Column(Modifier.padding(start = 12.dp)) {
-                        Text(c.name, color = fcolor(Color.White), fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                        Text(epg.now(c.epgId)?.title ?: "", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 14.sp, maxLines = 1)
-                    }
                 }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(24.dp), modifier = Modifier.padding(top = 8.dp)) {
+                Text("OK · WATCH", color = Th.sub, fontSize = 12.sp, letterSpacing = 1.sp)
+                Text("BACK · CLOSE", color = Th.sub, fontSize = 12.sp, letterSpacing = 1.sp)
             }
         }
     }

@@ -828,8 +828,8 @@ fun App() {
                 ) }
                 screen == "recs" -> Solid { CompositionLocalProvider(LocalThemed provides true) { RecordingsScreen(recs, { a, i -> recAct(a, i) }) { screen = "" } } }
                 screen == "multi" -> MultiviewScreen(exo, shown, epg, cur) { screen = "" }
-                screen == "search" -> Solid {
-                    SearchScreen(shown, epg, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }) { screen = "" }
+                screen == "search" -> run {
+                    SearchScreen(shown, epg, recs, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }, { screen = "recs" }) { screen = "" }
                 }
                 screen == "guide" -> EpgGrid(
                     shown, epg, cur, cfg.showNums, recs, cfg.remOn,
