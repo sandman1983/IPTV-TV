@@ -146,6 +146,10 @@ fun PanelDialog(
     PanelDialogHost(onBack) { PanelShell(title, onBack, false, actions, 0, content) }
 }
 
+// Mémoire du dernier choix par page des réglages : au retour, le focus revient sur l'entrée choisie.
+class PMem(val page: () -> String) { val last = HashMap<String, String>() }
+val LocalPMem = androidx.compose.runtime.compositionLocalOf<PMem?> { null }
+
 @Composable
 fun PItem(
     title: String,
@@ -160,6 +164,10 @@ fun PItem(
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     val fr = remember { FocusRequester() }
+    val mem = LocalPMem.current
+    val saved = mem?.last?.get(mem.page())
+    val autoFocus = if (mem != null && saved != null) saved == title else autoFocus
+    val onClick = if (mem != null) ({ mem.last[mem.page()] = title; onClick() }) else onClick
     if (autoFocus) {
         LaunchedEffect(Unit) {
             delay(120)
@@ -583,6 +591,7 @@ fun CategoryEditor(
         when (page) {
             "menu" -> PanelShell(cur, { back() }, false, actions = { PButton("Close", { onClose() }) }) {
                 item { PItem("Move", "Several categories at once", { picked.clear(); picked.add(cur); page = "move" }, autoFocus = true) }
+                item { PItem("New category", "Create an empty category", { text = ""; page = "newcat" }) }
                 item { PItem("Edit category", "Rename, restore", { page = "edit" }) }
                 item { PItem("Show / Hide", "Choose from a list", { page = "vis" }) }
                 item { PItem("Delete category", "Remove it from the lists", { page = "del" }) }
@@ -611,6 +620,19 @@ fun CategoryEditor(
                         if (v.isNotBlank() && v != cur) { rename(cur, v); onClose() } else page = "edit"
                     })
                     PButton("Cancel", { page = "edit" })
+                }
+            ) {
+                item { PInput("Category name", text, { text = it }, autoFocus = true) }
+            }
+            "newcat" -> PanelShell(
+                "New category", { page = "menu" }, false,
+                actions = {
+                    PButton("Save", {
+                        val v = text.trim()
+                        if (v.isNotBlank()) onCfg(cfg.copy(cats = (cfg.cats + v).distinct()))
+                        onClose()
+                    })
+                    PButton("Cancel", { page = "menu" })
                 }
             ) {
                 item { PInput("Category name", text, { text = it }, autoFocus = true) }
@@ -815,7 +837,9 @@ fun SettingsHub(
     }
 
     val cats = (all.map { it.cat } + cfg.cats).distinct()
+    val pmem = remember { PMem { page } }
 
+    CompositionLocalProvider(LocalPMem provides pmem) {
     when (page) {
         "" -> PanelShell("Settings", { back() }) {
             item { PItem("Sources", "${sources.size} source(s) configured", { page = "sources" }, autoFocus = true) }
@@ -1234,6 +1258,7 @@ fun SettingsHub(
         else -> PanelShell("About", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PInfo("Elite TV · version 1.0") }
         }
+    }
     }
 
     val ec = editCh

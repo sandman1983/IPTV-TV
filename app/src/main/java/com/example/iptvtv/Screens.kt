@@ -1033,9 +1033,19 @@ fun SearchScreen(
                 }
                 // La hauteur de la liste est un multiple exact de la hauteur d'une carte : aucune carte coupée en haut ni en bas.
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-                    val nFit = ((maxHeight + 8.dp) / 112.dp).toInt().coerceAtLeast(1)
+                    // La liste remplit toute la hauteur : une 4e carte apparaît en bas avec un fondu.
                     LazyColumn(
-                        Modifier.fillMaxWidth().height(112.dp * nFit - 8.dp),
+                        Modifier.fillMaxSize()
+                            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                            .drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    Brush.verticalGradient(
+                                        0.78f to Color.Black, 1f to Color.Transparent
+                                    ),
+                                    blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                                )
+                            },
                         state = ls, verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (tab) {
