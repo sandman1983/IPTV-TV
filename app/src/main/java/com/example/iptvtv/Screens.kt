@@ -825,9 +825,9 @@ private fun SearchRow(
             }
             if (live) {
                 Text(
-                    "● LIVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFE5484D)).padding(horizontal = 6.dp, vertical = 2.dp)
+                    "● LIVE", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(5.dp).clip(RoundedCornerShape(3.dp))
+                        .background(Color(0xFFE5484D)).padding(horizontal = 4.dp, vertical = 1.dp)
                 )
             }
             if (frac != null) {
@@ -844,7 +844,7 @@ private fun SearchRow(
                     fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(title, color = tx, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = tx, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (line1.isNotBlank() || frac != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(line1, color = sb, fontSize = 13.sp, maxLines = 1)
@@ -863,10 +863,11 @@ private fun SearchRow(
 
 @Composable
 fun SearchScreen(
-    chans: List<Channel>, epg: Epg, recs: List<Rec>,
-    onPlay: (Channel) -> Unit, onRecs: () -> Unit, onBack: () -> Unit
+    chans: List<Channel>, epg: Epg, recs: List<Rec>, remOn: Boolean,
+    onPlay: (Channel) -> Unit, onRecs: () -> Unit, onDvr: (Channel, Prog, String) -> Unit, onBack: () -> Unit
 ) {
     BackHandler { onBack() }
+    var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
     var q by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf(0) }
     val fr = remember { FocusRequester() }
@@ -951,9 +952,7 @@ fun SearchScreen(
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
-        Column(Modifier.weight(0.50f).fillMaxHeight().background(Th.panel).padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 10.dp)) {
-            Text("Search", color = Th.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
+        Column(Modifier.weight(0.50f).fillMaxHeight().background(Th.panel).padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     Modifier.weight(1f).height(42.dp).clip(shape).background(Th.cell)
@@ -1042,7 +1041,7 @@ fun SearchScreen(
                                 c, n, p?.title ?: "No information",
                                 if (p != null) "${hm(p.start)} – ${hm(p.stop)}" else "",
                                 if (p != null) fracOf(p, now) else null,
-                                if (nx != null) "Next ${hm(nx.start)} · ${nx.title}" else null,
+                                null,
                                 p != null, p?.icon ?: "", { onPlay(c) }
                             )
                         }
@@ -1053,7 +1052,7 @@ fun SearchScreen(
                                 else java.text.SimpleDateFormat("EEE d  ", Locale.getDefault()).format(java.util.Date(p.start))
                             SearchRow(
                                 c, n, p.title, "$day${hm(p.start)} – ${hm(p.stop)}",
-                                if (live) fracOf(p, now) else null, null, live, p.icon, { onPlay(c) }
+                                if (live) fracOf(p, now) else null, null, live, p.icon, { if (live) onPlay(c) else dvrFor = Pair(c, p) }
                             )
                         }
                         else -> items(recRes, key = { it.id }) { r ->
@@ -1066,6 +1065,36 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+    }
+    val dv = dvrFor
+    if (dv != null) {
+        val dch = dv.first
+        val dp = dv.second
+        val recId = "${dch.id}_${dp.start}_rec"
+        val remId = "${dch.id}_${dp.start}_rem"
+        val hasRec = recs.any { it.id == recId && (it.state == "scheduled" || it.state == "recording") }
+        val hasRem = recs.any { it.id == remId && it.state == "scheduled" }
+        val closeDvr: () -> Unit = { dvrFor = null }
+        PanelDialog(dp.title, closeDvr, actions = { PButton("Close", closeDvr) }) {
+            item { PInfo(dch.name + "  ·  " + hm(dp.start) + " - " + hm(dp.stop)) }
+            item {
+                PItem(
+                    if (hasRec) "Cancel recording" else "Record",
+                    if (hasRec) "" else "Recorded automatically at start time",
+                    { onDvr(dch, dp, if (hasRec) "unrec" else "rec"); closeDvr() },
+                    autoFocus = true
+                )
+            }
+            if (remOn) {
+                item {
+                    PItem(
+                        if (hasRem) "Remove reminder" else "Set reminder", "A notice appears when it starts",
+                        { onDvr(dch, dp, if (hasRem) "unrem" else "rem"); closeDvr() }
+                    )
+                }
+            }
+            item { PItem("Watch channel", "", { dvrFor = null; onPlay(dch) }) }
         }
     }
 }
