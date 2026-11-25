@@ -970,8 +970,10 @@ fun buildRows(ch: List<Channel>, sources: List<Source>, merge: Boolean = false):
 }
 
 // Onglet de l'en-tête : le carré blanc (sans coins arrondis) grandit quand il est sélectionné.
+object HomeNav { var last = -1 }
+
 @Composable
-fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
+fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) 1.12f else 1f, label = "tab")
     Box(
@@ -980,6 +982,7 @@ fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
             .clip(RoundedCornerShape(3.dp))
             .background(if (f) Th.focusBg else Color.Transparent)
             .then(if (f) Modifier.border(1.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 7.dp),
@@ -994,7 +997,7 @@ fun TopTab(label: String, selected: Boolean, onClick: () -> Unit) {
 
 // Boutons ronds de l'en-tête : 0 = recherche, 1 = réglages.
 @Composable
-fun HeaderIcon(kind: Int, onClick: () -> Unit) {
+fun HeaderIcon(kind: Int, req: FocusRequester? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) 1.15f else 1f, label = "hicon")
     val col = if (f) Th.focusText else Th.text
@@ -1004,6 +1007,7 @@ fun HeaderIcon(kind: Int, onClick: () -> Unit) {
             .clip(androidx.compose.foundation.shape.CircleShape)
             .background(if (f) Th.focusBg else Th.iconBg)
             .then(if (f) Modifier.border(2.dp, Th.sel, androidx.compose.foundation.shape.CircleShape) else Modifier)
+            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() },
         contentAlignment = Alignment.Center
@@ -1058,6 +1062,16 @@ fun Home(
     val rows = remember(ch, sources, merge) { buildRows(ch, sources, merge) }
     val listState = rememberLazyListState()
     val homeScope = rememberCoroutineScope()
+    // Au retour d'un écran ouvert depuis l'en-tête (recherche, réglages, guide...), la sélection revient sur cet élément.
+    val hdr = remember { List(5) { FocusRequester() } }
+    LaunchedEffect(Unit) {
+        val k = HomeNav.last
+        if (k in 0..4) {
+            HomeNav.last = -1
+            delay(350)
+            try { hdr[k].requestFocus() } catch (e: Exception) { }
+        }
+    }
     val baseIdx = (if (status.isNotBlank()) 1 else 0) + (if (recent.isNotEmpty()) 1 else 0)
     var lastRow by remember { mutableStateOf(-1) }
     fun rowFocus(idx: Int) {
@@ -1090,13 +1104,13 @@ fun Home(
             ) {
                 EliteLogo(Modifier.padding(end = 28.dp).size(44.dp))
                 TopTab("Home", true) { }
-                TopTab("Guide", false) { onGuide() }
-                TopTab("Recordings", false) { onRecs() }
-                TopTab("Multiview", false) { onMulti() }
+                TopTab("Guide", false, hdr[0]) { HomeNav.last = 0; onGuide() }
+                TopTab("Recordings", false, hdr[1]) { HomeNav.last = 1; onRecs() }
+                TopTab("Multiview", false, hdr[2]) { HomeNav.last = 2; onMulti() }
                 Spacer(Modifier.weight(1f))
-                HeaderIcon(0) { onSearch() }
+                HeaderIcon(0, hdr[3]) { HomeNav.last = 3; onSearch() }
                 Spacer(Modifier.width(10.dp))
-                HeaderIcon(1) { onSettings() }
+                HeaderIcon(1, hdr[4]) { HomeNav.last = 4; onSettings() }
                 Spacer(Modifier.width(20.dp))
                 HeaderClock()
             }
