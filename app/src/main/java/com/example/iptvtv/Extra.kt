@@ -263,6 +263,11 @@ private fun MvCell(
 
 // Aperçu muet dans les cartes (accueil et mini-lecteur) : démarre dès qu'on se pose sur une carte
 // et dure tant qu'on reste dessus. OK ouvre la chaîne ; la chaîne d'arrière-plan ne change jamais toute seule.
+// Vrai pendant une mise à jour des chaînes / du guide (affiche un cercle de chargement dans les réglages).
+object SyncState {
+    var busy by mutableStateOf(false)
+}
+
 class CardPreview(val player: ExoPlayer) {
     var focusId by mutableStateOf<Int?>(null)
     var pvId by mutableStateOf<Int?>(null)

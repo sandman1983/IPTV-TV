@@ -843,8 +843,16 @@ fun SettingsHub(
             item {
                 PItem(
                     "Update",
-                    "Last run: " + (if (lastSync > 0) SimpleDateFormat("dd MMM, HH:mm", Locale.ENGLISH).format(Date(lastSync)) else "—"),
-                    { onReload(); msg = "Update started…" }
+                    if (SyncState.busy) "Updating…"
+                    else "Last run: " + (if (lastSync > 0) SimpleDateFormat("dd MMM, HH:mm", Locale.ENGLISH).format(Date(lastSync)) else "—"),
+                    { if (!SyncState.busy) onReload() },
+                    trailing = {
+                        if (SyncState.busy) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                Modifier.size(24.dp), color = Color(0xFFE0B85A), strokeWidth = 3.dp
+                            )
+                        }
+                    }
                 )
             }
             if (msg.isNotBlank()) item { PInfo(msg) }
@@ -1015,24 +1023,7 @@ fun SettingsHub(
                     { onCfg(cfg.copy(logoPrio = if (cfg.logoPrio == "xmltv") "playlist" else "xmltv")) }
                 )
             }
-            item {
-                PItem(
-                    "Auto-match EPG IDs", "${guide.size} channels in the loaded guide",
-                    {
-                        if (guide.isEmpty()) {
-                            msg = "No guide loaded yet."
-                        } else {
-                            val r = autoMatch(all, cfg, guide)
-                            onCfg(r.first)
-                            msg = "${r.second} channel(s) matched to the guide."
-                        }
-                    }
-                )
-            }
             if (msg.isNotBlank()) item { PInfo(msg) }
-            item { PHeader("Load status") }
-            if (report.isEmpty()) item { PInfo("Loading…") }
-            items(report) { line -> PInfo(line, line.startsWith("ERROR")) }
         }
         "guide_menu" -> PanelShell("Guide", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PInfo(selEpg) }

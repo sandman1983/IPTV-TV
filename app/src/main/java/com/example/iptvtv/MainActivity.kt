@@ -558,6 +558,13 @@ fun App() {
     LaunchedEffect(screen) { applyPlayerPrefs(ctx, exo) }
 
     val all = remember(channels, cfg, epg.chans) { applyCfg(channels, cfg, epg.icons) }
+    // Rapprochement automatique des chaînes sans ID EPG valide, à chaque chargement du guide.
+    LaunchedEffect(epg.chans, channels) {
+        if (epg.chans.isNotEmpty() && channels.isNotEmpty()) {
+            val r = autoMatch(all, cfg, epg.chans)
+            if (r.second > 0) { cfg = r.first; saveCfg(ctx, r.first) }
+        }
+    }
     val shown = remember(all) { all.filter { !it.hidden } }
     val cur = bg?.let { b -> all.firstOrNull { it.id == b.id } ?: b }
 
@@ -728,6 +735,7 @@ fun App() {
         PlayerPrefs.applyInsecure(PlayerPrefs.bool(ctx, "insecure", false) || PlayerPrefs.srcInsecure)
         val firstRun = !startChecked
         startChecked = true
+        SyncState.busy = false
         var haveCache = false
         var fresh = false
         if (!force) {
@@ -763,6 +771,7 @@ fun App() {
 
         var guideUrls: List<String> = emptyList()
         if (!(haveCache && fresh)) {
+            SyncState.busy = true
             // Cache missing or old: refresh (silently when cached data is already shown).
             if (!haveCache) status = "Loading channels…"
             val chs = ArrayList<Channel>()
@@ -798,6 +807,7 @@ fun App() {
                     if (g.progs.isNotEmpty() || g.chans.isNotEmpty()) GuideCache.saveEpg(ctx, cacheKey, g)
                 }
             }
+            SyncState.busy = false
             delay(maxAge)
         } else {
             // Rebuild the guide URL list (needed for later refreshes) without downloading channels again.
@@ -813,7 +823,9 @@ fun App() {
                 }
                 guideUrls = u.filter { it.isNotBlank() }.distinct()
             }
+            SyncState.busy = true
             val g2 = fetchGuides(guideUrls, ArrayList(), false, channels)
+            SyncState.busy = false
             if (g2.progs.isNotEmpty() || g2.chans.isNotEmpty()) {
                 epg = g2
                 lastSync = System.currentTimeMillis()
@@ -999,8 +1011,44 @@ fun buildRows(ch: List<Channel>, sources: List<Source>, merge: Boolean = false):
 // Onglet de l'en-tête : le carré blanc (sans coins arrondis) grandit quand il est sélectionné.
 object HomeNav { var last = -1 }
 
+// Petits pictogrammes des onglets : 0 accueil, 1 guide, 2 enregistrements, 3 multi-vues.
 @Composable
-fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, onClick: () -> Unit) {
+fun TabGlyph(kind: Int, col: Color) {
+    androidx.compose.foundation.Canvas(Modifier.size(17.dp)) {
+        val w = size.width
+        val h = size.height
+        val rr = androidx.compose.ui.geometry.CornerRadius(w * 0.08f)
+        fun box(x0: Float, y0: Float, x1: Float, y1: Float) =
+            drawRoundRect(col, androidx.compose.ui.geometry.Offset(x0 * w, y0 * h), androidx.compose.ui.geometry.Size((x1 - x0) * w, (y1 - y0) * h), rr)
+        when (kind) {
+            0 -> {
+                val p = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.5f, h * 0.06f); lineTo(w * 0.97f, h * 0.5f); lineTo(w * 0.84f, h * 0.5f)
+                    lineTo(w * 0.84f, h * 0.92f); lineTo(w * 0.6f, h * 0.92f); lineTo(w * 0.6f, h * 0.62f)
+                    lineTo(w * 0.4f, h * 0.62f); lineTo(w * 0.4f, h * 0.92f); lineTo(w * 0.16f, h * 0.92f)
+                    lineTo(w * 0.16f, h * 0.5f); lineTo(w * 0.03f, h * 0.5f); close()
+                }
+                drawPath(p, col)
+            }
+            1 -> {
+                box(0.04f, 0.10f, 0.40f, 0.32f); box(0.47f, 0.10f, 0.96f, 0.32f)
+                box(0.04f, 0.40f, 0.62f, 0.62f); box(0.69f, 0.40f, 0.96f, 0.62f)
+                box(0.04f, 0.70f, 0.28f, 0.92f); box(0.35f, 0.70f, 0.96f, 0.92f)
+            }
+            2 -> {
+                drawCircle(col, w * 0.44f, center, style = androidx.compose.ui.graphics.drawscope.Stroke(w * 0.11f))
+                drawCircle(col, w * 0.21f, center)
+            }
+            else -> {
+                box(0.05f, 0.05f, 0.46f, 0.46f); box(0.54f, 0.05f, 0.95f, 0.46f)
+                box(0.05f, 0.54f, 0.46f, 0.95f); box(0.54f, 0.54f, 0.95f, 0.95f)
+            }
+        }
+    }
+}
+
+@Composable
+fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: Int = -1, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) 1.12f else 1f, label = "tab")
     Box(
@@ -1012,13 +1060,20 @@ fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, onClic
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
-            .padding(horizontal = 18.dp, vertical = 7.dp),
+            .padding(horizontal = 16.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            label, color = if (f) Th.focusText else if (selected) Th.text else Th.sub, fontSize = 15.sp,
-            fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Normal, maxLines = 1
-        )
+        val tc = if (f) Th.focusText else if (selected) Th.text else Th.sub
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon >= 0) {
+                TabGlyph(icon, tc)
+                Spacer(Modifier.width(7.dp))
+            }
+            Text(
+                label, color = tc, fontSize = 15.sp,
+                fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Normal, maxLines = 1
+            )
+        }
     }
 }
 
@@ -1039,24 +1094,25 @@ fun HeaderIcon(kind: Int, req: FocusRequester? = null, onClick: () -> Unit) {
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.foundation.Canvas(Modifier.size(18.dp)) {
+        androidx.compose.foundation.Canvas(Modifier.size(20.dp)) {
             val w = size.width
             val st = androidx.compose.ui.graphics.drawscope.Stroke(1.8.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
             if (kind == 0) {
                 drawCircle(col, w * 0.34f, androidx.compose.ui.geometry.Offset(w * 0.42f, w * 0.42f), style = st)
                 drawLine(col, androidx.compose.ui.geometry.Offset(w * 0.68f, w * 0.68f), androidx.compose.ui.geometry.Offset(w * 0.94f, w * 0.94f), 1.8.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round)
             } else {
+                // Engrenage : anneau épais + 8 dents rectangulaires.
                 val c0 = androidx.compose.ui.geometry.Offset(w / 2f, w / 2f)
-                drawCircle(col, w * 0.2f, c0, style = st)
+                drawCircle(col, w * 0.29f, c0, style = androidx.compose.ui.graphics.drawscope.Stroke(w * 0.17f))
                 for (k in 0 until 8) {
                     val ang = Math.PI * k / 4.0
                     val ca = Math.cos(ang).toFloat()
                     val sa = Math.sin(ang).toFloat()
                     drawLine(
                         col,
-                        androidx.compose.ui.geometry.Offset(c0.x + ca * w * 0.32f, c0.y + sa * w * 0.32f),
-                        androidx.compose.ui.geometry.Offset(c0.x + ca * w * 0.46f, c0.y + sa * w * 0.46f),
-                        2.6.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round
+                        androidx.compose.ui.geometry.Offset(c0.x + ca * w * 0.34f, c0.y + sa * w * 0.34f),
+                        androidx.compose.ui.geometry.Offset(c0.x + ca * w * 0.49f, c0.y + sa * w * 0.49f),
+                        w * 0.19f, androidx.compose.ui.graphics.StrokeCap.Butt
                     )
                 }
             }
@@ -1130,10 +1186,10 @@ fun Home(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 EliteLogo(Modifier.padding(end = 28.dp).size(44.dp))
-                TopTab("Home", true) { }
-                TopTab("Guide", false, hdr[0]) { HomeNav.last = 0; onGuide() }
-                TopTab("Recordings", false, hdr[1]) { HomeNav.last = 1; onRecs() }
-                TopTab("Multiview", false, hdr[2]) { HomeNav.last = 2; onMulti() }
+                TopTab("Home", true, icon = 0) { }
+                TopTab("Guide", false, hdr[0], 1) { HomeNav.last = 0; onGuide() }
+                TopTab("Recordings", false, hdr[1], 2) { HomeNav.last = 1; onRecs() }
+                TopTab("Multiview", false, hdr[2], 3) { HomeNav.last = 2; onMulti() }
                 Spacer(Modifier.weight(1f))
                 HeaderIcon(0, hdr[3]) { HomeNav.last = 3; onSearch() }
                 Spacer(Modifier.width(10.dp))
