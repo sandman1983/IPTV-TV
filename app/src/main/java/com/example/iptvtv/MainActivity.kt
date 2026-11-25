@@ -879,7 +879,7 @@ fun App() {
                         }) { screen = "" }
                 }
                 screen == "guide" -> EpgGrid(
-                    shown, epg, cur, cfg.showNums, recs, cfg.remOn,
+                    shown, epg, cur, cfg.showNums, recs, cfg.remOn, cfg.dvrUri.isNotBlank(),
                     { play(it); full = true; quietStart = false; miniStart = false; fromGuide = true; screen = "" },
                     { ch, p, act ->
                         when (act) {

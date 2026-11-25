@@ -473,13 +473,28 @@ private fun GBlock(
         contentAlignment = Alignment.CenterStart
     ) {
         Column(verticalArrangement = Arrangement.Center) {
-            Text(
-                (if (mark.isNotEmpty()) "$mark " else "") + (p?.title ?: "No information"),
-                color = if (f) Th.focusText else if (past) M_GRAY else Th.text,
-                fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
-                overflow = if (marq && w >= 160.dp) TextOverflow.Clip else TextOverflow.Ellipsis,
-                modifier = if (marq && w >= 160.dp) Modifier.basicMarquee() else Modifier
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (mark == "●") {
+                    // Enregistrement programmé : point rouge qui clignote.
+                    val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "recdot")
+                    val a by tr.animateFloat(
+                        1f, 0.15f,
+                        androidx.compose.animation.core.infiniteRepeatable(
+                            androidx.compose.animation.core.tween(650),
+                            androidx.compose.animation.core.RepeatMode.Reverse
+                        ), label = "recdotA"
+                    )
+                    Box(Modifier.padding(end = 6.dp).size(9.dp).graphicsLayer { alpha = a }
+                        .clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFFE5242B)))
+                }
+                Text(
+                    (if (mark.isNotEmpty() && mark != "●") "$mark " else "") + (p?.title ?: "No information"),
+                    color = if (f) Th.focusText else if (past) M_GRAY else Th.text,
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+                    overflow = if (marq && w >= 160.dp) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    modifier = (if (marq && w >= 160.dp) Modifier.basicMarquee() else Modifier).weight(1f, fill = false)
+                )
+            }
             if (p != null && w >= 110.dp) {
                 Text(
                     hm(p.start) + " - " + hm(p.stop),
@@ -540,10 +555,12 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
 @Composable
 fun EpgGrid(
     chans: List<Channel>, epg: Epg, current: Channel?, showNums: Boolean,
-    recs: List<Rec>, remOn: Boolean,
+    recs: List<Rec>, remOn: Boolean, dvrSet: Boolean,
     onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onEdit: (Channel) -> Unit, onEditCat: (String) -> Unit, onBack: () -> Unit
 ) {
     var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
+    var toast by remember { mutableStateOf<Pair<String, String>?>(null) }
+    LaunchedEffect(toast) { if (toast != null) { delay(2200); toast = null } }
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -800,7 +817,16 @@ fun EpgGrid(
                                                         scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
                                                     }
                                                 },
-                                                { if (p.start > nowMs) dvrFor = Pair(ch, p) else play(ch) },
+                                                {
+                                                    if (p.start > nowMs) {
+                                                        if (dvrSet) {
+                                                            // Dossier d'enregistrement défini : OK programme / annule directement l'enregistrement.
+                                                            val has = recs.any { it.id == "${ch.id}_${p.start}_rec" && (it.state == "scheduled" || it.state == "recording") }
+                                                            onDvr(ch, p, if (has) "unrec" else "rec")
+                                                            toast = Pair(if (has) "Removed schedule" else "Scheduled recording", p.title)
+                                                        } else dvrFor = Pair(ch, p)
+                                                    } else play(ch)
+                                                },
                                                 { onEdit(ch) }
                                             )
                                         }
@@ -815,6 +841,20 @@ fun EpgGrid(
                 }
             }
             DetailPane({ sel }, nowMs)
+        }
+    }
+    val tt = toast
+    if (tt != null) {
+        androidx.compose.ui.window.Popup(
+            alignment = Alignment.TopCenter,
+            offset = androidx.compose.ui.unit.IntOffset(0, with(density) { 120.dp.roundToPx() })
+        ) {
+            Column(
+                Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xE6262626)).padding(horizontal = 28.dp, vertical = 16.dp)
+            ) {
+                Text(tt.first, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Medium)
+                Text(tt.second, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+            }
         }
     }
     val d = dvrFor
@@ -835,7 +875,7 @@ fun EpgGrid(
                 PItem(
                     if (hasRec) "Cancel recording" else "Record",
                     if (hasRec) "" else if (live) "Starts now" else "Recorded automatically at start time",
-                    { onDvr(dch, dp, if (hasRec) "unrec" else "rec"); dvrFor = null },
+                    { onDvr(dch, dp, if (hasRec) "unrec" else "rec"); toast = Pair(if (hasRec) "Removed schedule" else "Scheduled recording", dp.title); dvrFor = null },
                     autoFocus = !live
                 )
             }
