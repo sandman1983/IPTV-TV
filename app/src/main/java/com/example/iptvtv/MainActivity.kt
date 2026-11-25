@@ -569,7 +569,9 @@ fun App() {
     val shown = remember(all) { all.filter { !it.hidden } }
     val cur = bg?.let { b -> all.firstOrNull { it.id == b.id } ?: b }
 
+    var watchRec by remember { mutableStateOf<String?>(null) }
     fun play(c: Channel) {
+        watchRec = null
         bg = c
         hist = pushHist(hist, c.id)
         saveHist(ctx, hist)
@@ -581,6 +583,7 @@ fun App() {
                             when (act) {
                                 "play" -> {
                                     play(Channel(-Math.abs(r.id.hashCode()) - 1, r.title, "", "", "Recordings", false, r.path, ""))
+                                    watchRec = r.id
                                     full = true; quietStart = false
                                     miniStart = false
                                     screen = ""
@@ -594,6 +597,25 @@ fun App() {
     }
 
     LaunchedEffect(Unit) { Dvr.cleanup(ctx) }
+    // Reprise de lecture et suivi de la position des enregistrements
+    LaunchedEffect(watchRec) {
+        val id = watchRec ?: return@LaunchedEffect
+        val r0 = loadRecs(ctx).firstOrNull { it.id == id } ?: return@LaunchedEffect
+        val saved = Watch.get(ctx, id)
+        var waited = 0
+        delay(800)
+        while (exo.playbackState != androidx.media3.common.Player.STATE_READY && waited < 25000) { delay(300); waited += 300 }
+        if (saved != null && saved.first > 5000L && saved.second > 0 && saved.first < saved.second * 0.95) {
+            try { exo.seekTo(saved.first) } catch (ex: Exception) { }
+        }
+        while (true) {
+            delay(4000)
+            val pos = exo.currentPosition
+            var dur = exo.duration
+            if (dur == androidx.media3.common.C.TIME_UNSET || dur <= 0L) dur = r0.stop - r0.start
+            if (pos > 5000L && dur > 0L) Watch.set(ctx, id, pos, dur)
+        }
+    }
     LaunchedEffect(Unit) {
         while (true) {
             val now = System.currentTimeMillis()
@@ -866,7 +888,7 @@ fun App() {
                     sources.isNotEmpty(),
                     { screen = "" }
                 ) }
-                screen == "recs" -> Solid { CompositionLocalProvider(LocalThemed provides true) { RecordingsScreen(recs, { a, i -> recAct(a, i) }) { screen = "" } } }
+                screen == "recs" -> Solid { CompositionLocalProvider(LocalThemed provides true) { RecordingsScreen(recs, channels, epg, { a, i -> recAct(a, i) }) { screen = "" } } }
                 screen == "multi" -> MultiviewScreen(exo, shown, epg, cur) { screen = "" }
                 screen == "search" -> run {
                     SearchScreen(shown, epg, recs, cfg.remOn, cur?.id, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }, { screen = "recs" },
