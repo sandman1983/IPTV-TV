@@ -159,6 +159,13 @@ fun JSONObject.str(k: String): String = if (isNull(k)) "" else optString(k)
 
 fun hm(ms: Long): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
 
+// Heure précédée du jour quand ce n'est pas aujourd'hui.
+fun dayHm(ms: Long): String {
+    val f = SimpleDateFormat("yyyyMMdd", Locale.US)
+    return if (f.format(Date(ms)) == f.format(Date())) hm(ms)
+    else SimpleDateFormat("EEE d MMM HH:mm", Locale.ENGLISH).format(Date(ms))
+}
+
 fun parseDate(f: SimpleDateFormat, s: String?): Long =
     try { f.parse(s ?: "")?.time ?: 0L } catch (ex: Exception) { 0L }
 
@@ -699,6 +706,20 @@ fun App() {
     LaunchedEffect(channels.size, status, sources) {
         SplashState.ready = sources.none { it.enabled } ||
             (channels.isNotEmpty() && !status.startsWith("Loading"))
+    }
+
+    // Minuterie de mise en veille.
+    LaunchedEffect(SleepTimer.endAt) {
+        val e = SleepTimer.endAt
+        if (e > 0L) {
+            delay((e - System.currentTimeMillis()).coerceAtLeast(0L))
+            if (SleepTimer.endAt == e) {
+                SleepTimer.set(0)
+                exo.pause()
+                SplashState.done = false
+                activityOf(ctx)?.finishAndRemoveTask()
+            }
+        }
     }
 
     // Rafraîchit l'affichage "en cours / à suivre" toutes les 30 s.

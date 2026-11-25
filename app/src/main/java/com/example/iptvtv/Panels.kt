@@ -823,7 +823,13 @@ fun SettingsHub(
             item { PItem("Channels", "Rename, move, hide, categories", { page = "channels" }) }
             item { PItem("Player", "Preview, audio and subtitles", { page = "player" }) }
             item { PItem("DVR", "Recordings, reminders, storage", { page = "dvr" }) }
-            item { PItem("Display", "Weather in the info bar", { page = "display" }) }
+            item { PItem("Display", "Theme, channel numbers", { page = "display" }) }
+            item {
+                PItem(
+                    "Sleep timer", if (SleepTimer.endAt > 0L) "Stops at " + hm(SleepTimer.endAt) else "Disabled",
+                    { page = "sleep" }
+                )
+            }
             item { PItem("About", "", { page = "about" }) }
         }
         "sources" -> PanelShell("Sources", { back() }, actions = { PButton("Done", { back() }) }) {
@@ -1222,16 +1228,16 @@ fun SettingsHub(
                 )
             }
             item {
-                PItem(
-                    "Weather in the info bar", if (cfg.city.isBlank()) "Off" else cfg.city,
-                    { cityIn = cfg.city; page = "city" }
-                )
-            }
-            item {
                 PSwitch(
                     "Channel numbers", "Show numbers in the channel list", cfg.showNums,
                     { onCfg(cfg.copy(showNums = !cfg.showNums)) }
                 )
+            }
+        }
+        "sleep" -> PanelShell("Sleep timer", { back() }, actions = { PButton("Back", { back() }) }) {
+            val opts = listOf(0 to "Disabled", 15 to "15 minutes", 30 to "30 minutes", 60 to "1 hour", 120 to "2 hours", 180 to "3 hours")
+            items(opts, key = { it.first }) { (m, label) ->
+                PRadio(label, "", SleepTimer.mins == m, { SleepTimer.set(m); page = "" }, autoFocus = SleepTimer.mins == m)
             }
         }
         "theme" -> PanelShell("Theme", { back() }, actions = { PButton("Back", { back() }) }) {
@@ -1248,8 +1254,7 @@ fun SettingsHub(
             item { PInput("City (empty = off)", cityIn, { cityIn = it }, autoFocus = true) }
         }
         else -> PanelShell("About", { back() }, actions = { PButton("Back", { back() }) }) {
-            item { PInfo("IPTV TV · version 0.1") }
-            item { PInfo("${sources.size} source(s) · ${all.size} channels · ${guide.size} channels in guide") }
+            item { PInfo("Elite TV · version 1.0") }
             item { PItem("Back", "", { back() }, autoFocus = true) }
         }
     }

@@ -263,6 +263,16 @@ private fun MvCell(
 
 // Aperçu muet dans les cartes (accueil et mini-lecteur) : démarre dès qu'on se pose sur une carte
 // et dure tant qu'on reste dessus. OK ouvre la chaîne ; la chaîne d'arrière-plan ne change jamais toute seule.
+// Minuterie de mise en veille : à l'échéance, la lecture s'arrête et l'application se ferme.
+object SleepTimer {
+    var mins by mutableStateOf(0)
+    var endAt by mutableStateOf(0L)
+    fun set(m: Int) {
+        mins = m
+        endAt = if (m > 0) System.currentTimeMillis() + m * 60000L else 0L
+    }
+}
+
 class CardPreview(val player: ExoPlayer) {
     var focusId by mutableStateOf<Int?>(null)
     var pvId by mutableStateOf<Int?>(null)

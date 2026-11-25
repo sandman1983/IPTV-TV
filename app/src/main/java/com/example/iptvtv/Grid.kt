@@ -522,7 +522,7 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
                 )
                 if (pr != null) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                        Text("${hm(pr.start)} - ${hm(pr.stop)}", color = Th.time, fontSize = 13.sp)
+                        Text("${dayHm(pr.start)} - ${hm(pr.stop)}", color = Th.time, fontSize = 13.sp)
                         if (pr.start <= nowMs && nowMs < pr.stop) {
                             Bar(fracOf(pr, nowMs), Modifier.padding(start = 10.dp).weight(1f), 8.dp)
                         }
@@ -648,11 +648,19 @@ fun EpgGrid(
                         modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)
                     )
                     val first = ((winStart + slot - 1) / slot) * slot
+                    val ymd = SimpleDateFormat("yyyyMMdd", Locale.US)
+                    val todayKey = ymd.format(Date(winStart))
+                    var skipK = -1
                     for (k in 0 until TOTAL_MIN / 30) {
                         val t = first + k * slot
+                        if (k == skipK) continue
                         if (t < winEnd && t - winStart >= 22 * 60000L) {
+                            // Premier créneau d'un nouveau jour : on affiche aussi la date.
+                            val newDay = ymd.format(Date(t)) != todayKey && ymd.format(Date(t)) != ymd.format(Date(t - slot))
+                            if (newDay) skipK = k + 1
                             Text(
-                                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(t)),
+                                if (newDay) SimpleDateFormat("EEE d MMM, HH:mm", Locale.ENGLISH).format(Date(t)).uppercase()
+                                else SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(t)),
                                 color = M_GRAY, fontSize = 13.sp,
                                 modifier = Modifier.align(Alignment.CenterStart)
                                     .offset(x = ((t - winStart) / 60000f * DPM).dp)
