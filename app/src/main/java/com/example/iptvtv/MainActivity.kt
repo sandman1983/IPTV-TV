@@ -708,20 +708,6 @@ fun App() {
             (channels.isNotEmpty() && !status.startsWith("Loading"))
     }
 
-    // Minuterie de mise en veille.
-    LaunchedEffect(SleepTimer.endAt) {
-        val e = SleepTimer.endAt
-        if (e > 0L) {
-            delay((e - System.currentTimeMillis()).coerceAtLeast(0L))
-            if (SleepTimer.endAt == e) {
-                SleepTimer.set(0)
-                exo.pause()
-                SplashState.done = false
-                activityOf(ctx)?.finishAndRemoveTask()
-            }
-        }
-    }
-
     // Rafraîchit l'affichage "en cours / à suivre" toutes les 30 s.
     LaunchedEffect(Unit) {
         while (true) {
@@ -1710,7 +1696,7 @@ fun BottomInfo(
                                 Text("Now ${hm(nowMs)}", color = Th.time, fontSize = 14.sp)
                                 Text("  |  ", color = Th.sub, fontSize = 15.sp)
                                 Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.time, fontSize = 15.sp)
-                                Bar(fracOf(sp, nowMs), Modifier.padding(horizontal = 14.dp).width(150.dp), 8.dp)
+                                Bar(fracOf(sp, nowMs), Modifier.padding(horizontal = 14.dp).weight(1f, fill = false).widthIn(min = 40.dp, max = 150.dp), 8.dp)
                                 Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Th.time, fontSize = 14.sp, maxLines = 1, softWrap = false)
                             } else {
                                 Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.time, fontSize = 15.sp)
@@ -1735,7 +1721,7 @@ fun BottomInfo(
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(c.cat, color = Th.sub, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
             Text(
-                "\u2191\u2193  zap     OK  list",
+                "\u2191\u2193  zap     OK  mini player",
                 color = Th.sub, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
             )
         }

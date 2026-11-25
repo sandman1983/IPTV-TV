@@ -824,12 +824,6 @@ fun SettingsHub(
             item { PItem("Player", "Preview, audio and subtitles", { page = "player" }) }
             item { PItem("DVR", "Recordings, reminders, storage", { page = "dvr" }) }
             item { PItem("Display", "Theme, channel numbers", { page = "display" }) }
-            item {
-                PItem(
-                    "Sleep timer", if (SleepTimer.endAt > 0L) "Stops at " + hm(SleepTimer.endAt) else "Disabled",
-                    { page = "sleep" }
-                )
-            }
             item { PItem("About", "", { page = "about" }) }
         }
         "sources" -> PanelShell("Sources", { back() }, actions = { PButton("Done", { back() }) }) {
@@ -1178,7 +1172,6 @@ fun SettingsHub(
                 )
             }
             item { PItem("Recordings and reminders", "${recs.size} item(s)", { page = "recs" }) }
-            item { PInfo("Recording works while the app is running. Keep the TV on and the app open.") }
             if (msg.isNotBlank()) item { PInfo(msg) }
         }
         "recs" -> PanelShell("Recordings and reminders", { back() }, actions = { PButton("Back", { back() }) }) {
@@ -1234,12 +1227,6 @@ fun SettingsHub(
                 )
             }
         }
-        "sleep" -> PanelShell("Sleep timer", { back() }, actions = { PButton("Back", { back() }) }) {
-            val opts = listOf(0 to "Disabled", 15 to "15 minutes", 30 to "30 minutes", 60 to "1 hour", 120 to "2 hours", 180 to "3 hours")
-            items(opts, key = { it.first }) { (m, label) ->
-                PRadio(label, "", SleepTimer.mins == m, { SleepTimer.set(m); page = "" }, autoFocus = SleepTimer.mins == m)
-            }
-        }
         "theme" -> PanelShell("Theme", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PRadio("Dark", "Dark blue-grey panels, white text", Th.mode == 0, { Th.set(ctx, 0); page = "display" }, autoFocus = Th.mode == 0) }
             item { PRadio("Black", "Pure black background (OLED)", Th.mode == 2, { Th.set(ctx, 2); page = "display" }, autoFocus = Th.mode == 2) }
@@ -1255,7 +1242,6 @@ fun SettingsHub(
         }
         else -> PanelShell("About", { back() }, actions = { PButton("Back", { back() }) }) {
             item { PInfo("Elite TV · version 1.0") }
-            item { PItem("Back", "", { back() }, autoFocus = true) }
         }
     }
 
