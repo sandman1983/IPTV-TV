@@ -1071,7 +1071,7 @@ fun TabGlyph(kind: Int, col: Color) {
 }
 
 @Composable
-fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: Int = -1, onClick: () -> Unit) {
+fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: Int = -1, hPad: androidx.compose.ui.unit.Dp = 16.dp, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) 1.12f else 1f, label = "tab")
     Box(
@@ -1083,7 +1083,7 @@ fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: 
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 7.dp),
+            .padding(horizontal = hPad, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
         val tc = if (f) Th.focusText else if (selected) Th.text else Th.sub
@@ -1149,8 +1149,8 @@ fun HeaderClock() {
     var t by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { t = System.currentTimeMillis(); delay(1000) } }
     Column(horizontalAlignment = Alignment.End) {
-        Text(hm(t), color = Th.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-        Text(SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date(t)), color = Th.sub, fontSize = 12.sp)
+        Text(hm(t), color = Th.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        Text(SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date(t)), color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false)
     }
 }
 

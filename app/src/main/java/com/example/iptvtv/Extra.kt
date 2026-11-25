@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -79,20 +80,21 @@ private fun durTxt(ms: Long): String {
 private fun bytesTxt(b: Long): String =
     if (b >= 1_000_000_000L) "%.1f GB".format(b / 1e9) else "${b / 1_000_000L} MB"
 
-// Logo de chaîne dans un petit badge blanc (coin haut gauche)
+// Logo de chaîne, sans fond, en bas à gauche de la vignette
 @Composable
 private fun LogoBadge(ch: Channel?, name: String, modifier: Modifier = Modifier, logo: String = "") {
-    Box(
-        modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFFF4F4F4))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        val lg = if (ch != null && ch.icon.isNotBlank()) ch.icon else logo
-        if (lg.isNotBlank()) {
-            AsyncImage(model = lg, contentDescription = null, modifier = Modifier.size(34.dp, 16.dp), contentScale = ContentScale.Fit)
-        } else {
-            Text(name.take(5).uppercase(), color = Color(0xFF14213D), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        }
+    val lg = if (ch != null && ch.icon.isNotBlank()) ch.icon else logo
+    if (lg.isNotBlank()) {
+        AsyncImage(
+            model = lg, contentDescription = null, colorFilter = invFilter(ch?.invert == true),
+            modifier = modifier.size(50.dp, 26.dp), contentScale = ContentScale.Fit, alignment = Alignment.BottomStart
+        )
+    } else {
+        Text(
+            name.take(8).uppercase(), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+            style = androidx.compose.ui.text.TextStyle(shadow = androidx.compose.ui.graphics.Shadow(Color.Black, androidx.compose.ui.geometry.Offset(1f, 1f), 4f)),
+            modifier = modifier
+        )
     }
 }
 
@@ -134,7 +136,7 @@ private fun RecCard(
         ) {
             Box(Modifier.fillMaxSize().clip(RoundedCornerShape(9.dp))) {
                 Thumb(ch, thumb, r.title, Modifier.fillMaxSize())
-                LogoBadge(ch, r.chName, Modifier.align(Alignment.TopStart).padding(8.dp), r.logo)
+                LogoBadge(ch, r.chName, Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 12.dp), r.logo)
                 if (topRight.isNotBlank()) {
                     Text(
                         topRight, color = if (tagKind == 1) Color(0xFF1A1A1A) else Color.White,
@@ -152,11 +154,19 @@ private fun RecCard(
                 }
                 if (f) {
                     Box(
-                        Modifier.align(Alignment.Center).size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("▶", color = Color(0xFF14213D), fontSize = 16.sp)
-                    }
+                        Modifier.align(Alignment.Center).size(28.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color.White)
+                            .drawBehind {
+                                // Triangle "play" centré dans le cercle (léger décalage vers la droite pour l'équilibre optique)
+                                val tw = size.width * 0.34f
+                                val th = size.height * 0.42f
+                                val x0 = (size.width - tw) / 2f + tw * 0.08f
+                                val y0 = (size.height - th) / 2f
+                                val p = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(x0, y0); lineTo(x0 + tw, size.height / 2f); lineTo(x0, y0 + th); close()
+                                }
+                                drawPath(p, Color(0xFF14213D))
+                            }
+                    )
                 }
                 if (frac != null) {
                     Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Th.barTrack)) {
@@ -250,7 +260,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     }
     val gap = 14.dp
 
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Th.gradTop, 0.35f to Th.gradMid, 1f to Th.scrim))) {
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Th.header, 0.25f to Th.bgMid, 1f to Th.bgMid))) {
     Column(Modifier.fillMaxSize()) {
         // En-tête identique à l'accueil : logo, onglets, stockage, heure
         Row(
@@ -263,10 +273,10 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
             Box(Modifier.width(1.dp).height(22.dp).background(Th.divider))
             Spacer(Modifier.width(10.dp))
             listOf("All", "Continue watching", "Scheduled", "Recorded").forEachIndexed { i, l ->
-                TopTab(l, tab == i) { tab = i }
+                TopTab(l, tab == i, hPad = 10.dp) { tab = i }
             }
             Spacer(Modifier.weight(1f))
-            Column(Modifier.width(170.dp)) {
+            Column(Modifier.weight(1f, fill = false).widthIn(max = 160.dp)) {
                 Row(Modifier.fillMaxWidth()) {
                     Text("Storage", color = Th.sub, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
@@ -276,7 +286,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                     Box(Modifier.fillMaxWidth(if (total > 0) (used.toFloat() / total).coerceIn(0f, 1f) else 0f).fillMaxHeight().background(X_GOLD))
                 }
             }
-            Spacer(Modifier.width(20.dp))
+            Spacer(Modifier.width(16.dp))
             HeaderClock()
         }
         Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 48.dp).padding(top = 14.dp)) {
