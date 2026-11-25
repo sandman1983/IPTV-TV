@@ -128,6 +128,32 @@ class Epg(val progs: Map<String, List<Prog>>, val chans: List<GuideCh> = emptyLi
     fun touch(): Epg = Epg(progs, chans)
 }
 
+// Doublons d'un même guide : deux programmes qui commencent à la même heure, ou à moins de 2 minutes d'écart avec
+// des titres qui se ressemblent ("La sélection" / "La sélection CNEWS"). On garde celui qui a une image, puis la plus
+// longue description. Un vrai programme court avec un titre différent n'est jamais masqué.
+private fun sameTitle(a: String, b: String): Boolean {
+    val x = a.lowercase().filter { it.isLetterOrDigit() }
+    val y = b.lowercase().filter { it.isLetterOrDigit() }
+    return x.isNotEmpty() && y.isNotEmpty() && (x.contains(y) || y.contains(x))
+}
+
+fun dedupEpg(e: Epg): Epg = Epg(
+    e.progs.mapValues { (_, l) ->
+        val out = ArrayList<Prog>()
+        val cmp = compareBy<Prog>({ it.icon.isNotBlank() }, { it.desc.length }, { it.title.length })
+        for (p in l.sortedBy { it.start }) {
+            val q = out.lastOrNull()
+            if (q != null && (p.start == q.start || (p.start - q.start <= 120000L && sameTitle(p.title, q.title)))) {
+                if (cmp.compare(p, q) > 0) out[out.size - 1] = p
+            } else {
+                out.add(p)
+            }
+        }
+        out
+    },
+    e.chans
+)
+
 // Fusionne deux guides : le premier a la priorité.
 fun mergeEpg(a: Epg, b: Epg): Epg {
     val ids = a.chans.map { it.id }.toHashSet()
@@ -281,7 +307,7 @@ suspend fun loadEpg(url: String): Epg = withContext(Dispatchers.IO) {
     }
     input.close()
     for (l in progs.values) l.sortBy { it.start }
-    Epg(progs, chans)
+    dedupEpg(Epg(progs, chans))
 }
 
 class MainActivity : ComponentActivity() {
@@ -695,7 +721,7 @@ fun App() {
             val ce = withContext(Dispatchers.IO) { GuideCache.loadEpg(ctx, cacheKey) }
             if (cc != null && ce != null) {
                 channels = cc.first
-                epg = ce.first
+                epg = dedupEpg(ce.first)
                 lastSync = ce.second
                 haveCache = true
                 fresh = System.currentTimeMillis() - ce.second < maxAge && !(cfg.updateOnStart && firstRun)
