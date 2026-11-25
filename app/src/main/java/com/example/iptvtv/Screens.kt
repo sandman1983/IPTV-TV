@@ -791,7 +791,8 @@ private fun SearchTab(label: String, count: Int, sel: Boolean, onFocus: () -> Un
 @Composable
 private fun SearchRow(
     c: Channel?, num: Int, title: String, line1: String, frac: Float?, next: String?,
-    live: Boolean, thumb: String, onClick: () -> Unit
+    live: Boolean, thumb: String, onClick: () -> Unit,
+    pv: ExoPlayer? = null, pvReady: Boolean = false, onFocusState: (Boolean) -> Unit = {}
 ) {
     var f by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
@@ -801,7 +802,7 @@ private fun SearchRow(
         Modifier.fillMaxWidth().height(104.dp).clip(shape)
             .background(if (f) Th.focusBg else Th.cardBg)
             .border(if (f) 2.dp else 0.dp, if (f) GOLD else Color.Transparent, shape)
-            .onFocusChanged { f = it.isFocused }
+            .onFocusChanged { f = it.isFocused; onFocusState(it.isFocused) }
             .clickable { onClick() }
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -809,6 +810,12 @@ private fun SearchRow(
         Box(Modifier.size(150.dp, 84.dp).clip(RoundedCornerShape(8.dp)).background(Th.iconBg)) {
             if (thumb.isNotBlank()) {
                 AsyncImage(model = thumb, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            }
+            if (pv != null && f) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { cx -> android.view.TextureView(cx).also { tv -> pv.setVideoTextureView(tv) } },
+                    modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (pvReady) 1f else 0f }
+                )
             }
             Box(
                 Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 8.dp).size(38.dp, 26.dp),
@@ -863,11 +870,13 @@ private fun SearchRow(
 
 @Composable
 fun SearchScreen(
-    chans: List<Channel>, epg: Epg, recs: List<Rec>, remOn: Boolean,
+    chans: List<Channel>, epg: Epg, recs: List<Rec>, remOn: Boolean, curId: Int?,
     onPlay: (Channel) -> Unit, onRecs: () -> Unit, onDvr: (Channel, Prog, String) -> Unit, onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
+    val prev = rememberCardPreview(chans, curId)
+    var focIdx by remember { mutableStateOf(0) }
     var q by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf(0) }
     val fr = remember { FocusRequester() }
@@ -1012,6 +1021,16 @@ fun SearchScreen(
                 Spacer(Modifier.weight(1f))
             } else {
                 val ls = rememberLazyListState()
+                // La sélection reste vers la 2e carte et c'est la liste qui défile (comme dans la liste des chaînes).
+                LaunchedEffect(tab, t) { focIdx = 0; try { ls.scrollToItem(0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
+                LaunchedEffect(Unit) {
+                    snapshotFlow { focIdx }.collect { i ->
+                        val target = (i - 1).coerceAtLeast(0)
+                        if (target != ls.firstVisibleItemIndex || ls.firstVisibleItemScrollOffset != 0) {
+                            try { ls.scrollToItem(target) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                        }
+                    }
+                }
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth()
                         .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
@@ -1034,7 +1053,7 @@ fun SearchScreen(
                     state = ls, verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp)
                 ) {
                     when (tab) {
-                        0 -> items(chRes, key = { it.second.id }) { (n, c) ->
+                        0 -> itemsIndexed(chRes, key = { _, it -> it.second.id }) { ix, (n, c) ->
                             val p = epg.now(c.epgId)
                             val nx = if (p != null) epg.upcoming(c.epgId, 1).firstOrNull() else null
                             SearchRow(
@@ -1042,24 +1061,27 @@ fun SearchScreen(
                                 if (p != null) "${hm(p.start)} – ${hm(p.stop)}" else "",
                                 if (p != null) fracOf(p, now) else null,
                                 null,
-                                p != null, p?.icon ?: "", { onPlay(c) }
+                                p != null, p?.icon ?: "", { onPlay(c) },
+                                if (prev.pvId == c.id) prev.player else null, prev.ready, { if (it) focIdx = ix; if (p != null) prev.focus(c.id, it) }
                             )
                         }
-                        1 -> items(prRes) { (n, c, p) ->
+                        1 -> itemsIndexed(prRes) { ix, (n, c, p) ->
                             val live = p.start <= now && now < p.stop
                             val day = if (java.text.SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(java.util.Date(p.start)) ==
                                 java.text.SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(java.util.Date(now))) ""
                                 else java.text.SimpleDateFormat("EEE d  ", Locale.getDefault()).format(java.util.Date(p.start))
                             SearchRow(
                                 c, n, p.title, "$day${hm(p.start)} – ${hm(p.stop)}",
-                                if (live) fracOf(p, now) else null, null, live, p.icon, { if (live) onPlay(c) else dvrFor = Pair(c, p) }
+                                if (live) fracOf(p, now) else null, null, live, p.icon, { if (live) onPlay(c) else dvrFor = Pair(c, p) },
+                                if (live && prev.pvId == c.id) prev.player else null, prev.ready, { if (it) focIdx = ix; if (live) prev.focus(c.id, it) }
                             )
                         }
-                        else -> items(recRes, key = { it.id }) { r ->
+                        else -> itemsIndexed(recRes, key = { _, it -> it.id }) { ix, r ->
                             val c = chans.firstOrNull { it.id == r.chId }
                             SearchRow(
                                 c, 0, r.title, "${hm(r.start)} – ${hm(r.stop)}  ·  ${r.state}",
-                                null, null, false, "", { onRecs() }
+                                null, null, false, "", { onRecs() },
+                                onFocusState = { if (it) focIdx = ix }
                             )
                         }
                     }
