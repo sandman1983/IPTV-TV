@@ -276,6 +276,42 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     }
     val gap = 14.dp
 
+    @Composable
+    fun SchedCard(w4: androidx.compose.ui.unit.Dp, r: Rec, ix: Int, n: Int, ls: androidx.compose.foundation.lazy.LazyListState) {
+        val rec = r.kind == "rec"
+        val live = r.state == "recording"
+        CardWrap(w4) {
+            RecCard(
+                w4 - 12.dp, chById[r.chId], r, thumbOf(r),
+                if (rec) (if (live) "● Recording" else "● Record") else "⏰ Reminder", if (rec) 2 else 0,
+                "${hm(r.start)} - ${hm(r.stop)}", null,
+                r.title,
+                androidx.compose.ui.text.buildAnnotatedString {
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = X_GOLD)) { append(if (live) "Now" else whenTxt(r.start)) }
+                    append(" · " + r.chName)
+                },
+                { menu = r }, { menu = r },
+                showPlay = false, onFocus = { if (it && ix >= 0) snap(ls, ix, n) }
+            )
+        }
+    }
+
+    @Composable
+    fun DoneCard(w4: androidx.compose.ui.unit.Dp, r: Rec, ix: Int, n: Int, ls: androidx.compose.foundation.lazy.LazyListState) {
+        val isNew = watch[r.id] == null && r.state == "done"
+        CardWrap(w4) {
+            RecCard(
+                w4 - 12.dp, chById[r.chId], r, thumbOf(r),
+                if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", if (isNew) 1 else 0,
+                durTxt(r.stop - r.start), null,
+                r.title,
+                androidx.compose.ui.text.AnnotatedString("${r.chName} · ${dfRec.format(Date(r.start))}"),
+                { if (r.state == "done" && r.path.isNotBlank()) onAct("play", r.id) else menu = r }, { menu = r },
+                onFocus = { if (it && ix >= 0) snap(ls, ix, n) }
+            )
+        }
+    }
+
     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Th.header, 0.25f to Th.bgMid, 1f to Th.bgMid))) {
     Column(Modifier.fillMaxSize()) {
         // En-tête identique à l'accueil : logo, onglets, stockage, heure
@@ -348,46 +384,35 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                     }
                 }
                 if (showSched) {
-                    item(key = "sched_h") { SecHead("Scheduled", "${sched.size} upcoming") }
-                    items(sched.chunked(4), key = { "s_" + it.first().id }) { rowItems ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                            for (r in rowItems) {
-                                val rec = r.kind == "rec"
-                                val live = r.state == "recording"
-                                CardWrap(w4) {
-                                    RecCard(
-                                        w4 - 12.dp, chById[r.chId], r, thumbOf(r),
-                                        if (rec) (if (live) "● Recording" else "● Record") else "⏰ Reminder", if (rec) 2 else 0,
-                                        "${hm(r.start)} - ${hm(r.stop)}", null,
-                                        r.title,
-                                        androidx.compose.ui.text.buildAnnotatedString {
-                                            withStyle(androidx.compose.ui.text.SpanStyle(color = X_GOLD)) { append(if (live) "Now" else whenTxt(r.start)) }
-                                            append(" · " + r.chName)
-                                        },
-                                        { menu = r }, { menu = r },
-                                        showPlay = false
-                                    )
-                                }
+                    if (tab == 0) item(key = "sched") {
+                        Column {
+                            SecHead("Scheduled", "${sched.size} upcoming")
+                            androidx.compose.foundation.lazy.LazyRow(state = lsSched, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(vertical = 6.dp)) {
+                                itemsIndexed(sched, key = { _, it -> it.id }) { ix, r -> SchedCard(w4, r, ix, 4, lsSched) }
+                            }
+                        }
+                    } else {
+                        item(key = "sched_h") { SecHead("Scheduled", "${sched.size} upcoming") }
+                        items(sched.chunked(4), key = { "s_" + it.first().id }) { rowItems ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                                for (r in rowItems) SchedCard(w4, r, -1, 4, lsSched)
                             }
                         }
                     }
                 }
                 if (showDone) {
-                    item(key = "done_h") { SecHead("Recorded", "Newest first · Hold OK to delete or rename") }
-                    items(done.chunked(4), key = { "d_" + it.first().id }) { rowItems ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                            for (r in rowItems) {
-                                val isNew = watch[r.id] == null && r.state == "done"
-                                CardWrap(w4) {
-                                    RecCard(
-                                        w4 - 12.dp, chById[r.chId], r, thumbOf(r),
-                                        if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", if (isNew) 1 else 0,
-                                        durTxt(r.stop - r.start), null,
-                                        r.title,
-                                        androidx.compose.ui.text.AnnotatedString("${r.chName} · ${dfRec.format(Date(r.start))}"),
-                                        { if (r.state == "done" && r.path.isNotBlank()) onAct("play", r.id) else menu = r }, { menu = r }
-                                    )
-                                }
+                    if (tab == 0) item(key = "done") {
+                        Column {
+                            SecHead("Recorded", "Newest first · Hold OK to delete or rename")
+                            androidx.compose.foundation.lazy.LazyRow(state = lsDone, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(vertical = 6.dp)) {
+                                itemsIndexed(done, key = { _, it -> it.id }) { ix, r -> DoneCard(w4, r, ix, 4, lsDone) }
+                            }
+                        }
+                    } else {
+                        item(key = "done_h") { SecHead("Recorded", "Newest first · Hold OK to delete or rename") }
+                        items(done.chunked(4), key = { "d_" + it.first().id }) { rowItems ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                                for (r in rowItems) DoneCard(w4, r, -1, 4, lsDone)
                             }
                         }
                     }
