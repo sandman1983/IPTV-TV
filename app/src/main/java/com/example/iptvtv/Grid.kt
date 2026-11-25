@@ -117,7 +117,7 @@ private fun MiniItem(
         Text(
             title, color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
             overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
-            modifier = (if (f) Modifier.basicMarquee() else Modifier).padding(top = 6.dp, start = 3.dp)
+            modifier = Modifier.padding(top = 6.dp, start = 3.dp, end = 8.dp).then(if (f) Modifier.basicMarquee() else Modifier)
         )
         Text(sub, color = M_GRAY, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 3.dp))
     }

@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -1320,6 +1321,7 @@ fun CardRow(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ChannelCard(
     c: Channel, epg: Epg, onClick: () -> Unit, onLong: () -> Unit, req: FocusRequester? = null,
@@ -1381,7 +1383,9 @@ fun ChannelCard(
         }
         Text(
             p?.title ?: c.name, color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 3.dp)
+            maxLines = 1, softWrap = false, overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp, start = 3.dp, end = 6.dp)
+                .then(if (f) Modifier.basicMarquee() else Modifier)
         )
         Text(
             if (p != null) "${hm(p.start)} - ${hm(p.stop)}" else "",
