@@ -829,7 +829,7 @@ fun App() {
                 screen == "recs" -> Solid { CompositionLocalProvider(LocalThemed provides true) { RecordingsScreen(recs, { a, i -> recAct(a, i) }) { screen = "" } } }
                 screen == "multi" -> MultiviewScreen(exo, shown, epg, cur) { screen = "" }
                 screen == "search" -> run {
-                    SearchScreen(shown, epg, recs, cfg.remOn, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }, { screen = "recs" },
+                    SearchScreen(shown, epg, recs, cfg.remOn, cur?.id, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }, { screen = "recs" },
                         { ch, p, act ->
                             when (act) {
                                 "rec" -> Dvr.schedule(ctx, ch, p, "rec")
