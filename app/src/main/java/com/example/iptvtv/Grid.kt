@@ -189,6 +189,7 @@ fun MiniPlayer(
     onTracks: () -> Unit = {},
     onClose: () -> Unit = {}
 ) {
+    DarkZone()
     val prev = rememberCardPreview(channels, c.id)
     var clearFor by remember { mutableStateOf<Channel?>(null) }
     val clr = remember { FocusRequester() }

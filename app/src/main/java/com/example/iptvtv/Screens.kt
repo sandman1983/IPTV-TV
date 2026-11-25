@@ -650,7 +650,7 @@ fun ChannelPanel(
             }
             if (ups.isNotEmpty()) {
                 val browsing = upIdx >= 0
-                val ltUp = Th.mode == 1
+                val ltUp = Th.light
                 val upTxt = if (ltUp) Color(0xFF14213D) else Color.White
                 val upSub = if (ltUp) Color(0xFF45557A) else GRAY
                 val upGold = if (ltUp) Color(0xFF8A6100) else GOLD

@@ -351,6 +351,7 @@ fun activityOf(c: Context): Activity? {
 // Boîte de confirmation de sortie, en bas à droite.
 @Composable
 fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
+    DarkZone()
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         delay(100)
@@ -368,6 +369,7 @@ fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
 
 @Composable
 fun ReminderBox(r: Rec, modifier: Modifier, onWatch: () -> Unit, onClose: () -> Unit) {
+    DarkZone()
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         delay(100)
@@ -1041,6 +1043,7 @@ fun Home(
     onEdit: (Channel) -> Unit, onGuide: () -> Unit, onRecs: () -> Unit, onMulti: () -> Unit, merge: Boolean = false,
     onSwitch: (Channel) -> Unit = {}
 ) {
+    DarkZone()
     val cp = cur?.let { epg.now(it.epgId) }
     val pvc = rememberCardPreview(ch, cur?.id)
     val recent = remember(hist, ch) { hist.mapNotNull { id -> ch.firstOrNull { it.id == id } } }
@@ -1573,6 +1576,7 @@ fun BottomInfo(
     c: Channel, num: Int, p: Prog?, ups: List<Prog>, evIdx: Int, dir: Int, nowMs: Long, res: String,
     weather: String, codec: String, quality: String, audioN: Int, subN: Int
 ) {
+    DarkZone()
     val slide = remember { Animatable(0f) }
     val first = remember { BooleanArray(1) { true } }
     LaunchedEffect(evIdx, c.id) {

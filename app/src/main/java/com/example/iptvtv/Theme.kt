@@ -13,12 +13,19 @@ val LocalThemed = androidx.compose.runtime.compositionLocalOf { true }
 object Th {
     var mode by mutableStateOf(0)
 
-    val light: Boolean get() = mode == 1
+    // Zones sombres : Accueil, mini lecteur et boîtes popup restent sombres même en thème clair.
+    private var zones by mutableStateOf(0)
+    fun enterDark() { zones++ }
+    fun leaveDark() { if (zones > 0) zones-- }
+    private val eff: Int get() = if (mode == 1 && zones > 0) 0 else mode
+
+    val light: Boolean get() = eff == 1
     val black: Boolean get() = mode == 2
 
     fun load(ctx: Context) {
         mode = when (ctx.getSharedPreferences("iptv_player", 0).getString("theme", "dark")) {
             "black" -> 2
+            "light" -> 1
             else -> 0
         }
     }
@@ -30,7 +37,7 @@ object Th {
     }
 
     private fun pick(dark: Long, light: Long, black: Long): Color =
-        Color(when (mode) { 1 -> light; 2 -> black; else -> dark })
+        Color(when (eff) { 1 -> light; 2 -> black; else -> dark })
 
     val text: Color get() = pick(0xFFFFFFFF, 0xFF14213D, 0xFFFFFFFF)
     val sub: Color get() = pick(0xFFB0B8C8, 0xFF55627A, 0xFFA9ADB6)
@@ -96,4 +103,11 @@ object Th {
             else -> c
         }
     }
+}
+
+// À appeler au début d'un écran ou d'une boîte qui doit rester sombre en thème clair.
+@androidx.compose.runtime.Composable
+fun DarkZone() {
+    androidx.compose.runtime.remember { Th.enterDark(); true }
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { Th.leaveDark() } }
 }
