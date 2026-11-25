@@ -865,7 +865,7 @@ private fun SearchRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(line1, color = sb, fontSize = 13.sp, maxLines = 1)
                     if (frac != null) {
-                        Box(Modifier.padding(horizontal = 8.dp).weight(1f).height(3.dp).background(Th.barTrack)) {
+                        Box(Modifier.padding(horizontal = 8.dp).weight(1f).height(3.dp).background(if (f) Color(0x66000000) else Th.barTrack)) {
                             Box(Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).fillMaxHeight().background(GOLD))
                         }
                         Text("${(frac * 100).toInt().coerceIn(0, 100)}%", color = sb, fontSize = 13.sp)

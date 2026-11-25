@@ -1179,9 +1179,6 @@ fun SettingsHub(
             }
             item { PHeader("Advanced") }
             item { PrefSwitch("Allow insecure streams", "Skip verification of SSL certificates", "insecure", false) }
-            item {
-                PInfo("While watching: Up/Down = zap, OK = channel list, Right = up next.")
-            }
         }
         "dvr" -> PanelShell("DVR", { back() }, actions = { PButton("Done", { back() }) }) {
             item {

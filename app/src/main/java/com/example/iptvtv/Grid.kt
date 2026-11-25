@@ -678,6 +678,8 @@ fun EpgGrid(
                             if (newDay) skipK = k + 1
                             Text(
                                 if (newDay) SimpleDateFormat("EEE d MMM, HH:mm", Locale.ENGLISH).format(Date(t)).uppercase()
+                                else if (ymd.format(Date(t)) != todayKey && Date(t).minutes == 0)
+                                    SimpleDateFormat("EEE d, HH:mm", Locale.ENGLISH).format(Date(t)).uppercase()
                                 else SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(t)),
                                 color = M_GRAY, fontSize = 13.sp,
                                 modifier = Modifier.align(Alignment.CenterStart)
