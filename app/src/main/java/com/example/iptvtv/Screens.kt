@@ -642,7 +642,8 @@ fun ChannelPanel(
                         }
                         AutoScrollText(
                             shownP.desc.ifBlank { shownP.sub },
-                            Modifier.fillMaxWidth().weight(1f).padding(top = 10.dp)
+                            Modifier.fillMaxWidth().weight(1f).padding(top = 10.dp),
+                            speed = 4.5f
                         )
                     }
                 }
