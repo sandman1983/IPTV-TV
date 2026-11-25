@@ -81,14 +81,15 @@ private fun bytesTxt(b: Long): String =
 
 // Logo de chaîne dans un petit badge blanc (coin haut gauche)
 @Composable
-private fun LogoBadge(ch: Channel?, name: String, modifier: Modifier = Modifier) {
+private fun LogoBadge(ch: Channel?, name: String, modifier: Modifier = Modifier, logo: String = "") {
     Box(
         modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFFF4F4F4))
             .padding(horizontal = 6.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (ch != null && ch.icon.isNotBlank()) {
-            AsyncImage(model = ch.icon, contentDescription = null, modifier = Modifier.size(34.dp, 16.dp), contentScale = ContentScale.Fit)
+        val lg = if (ch != null && ch.icon.isNotBlank()) ch.icon else logo
+        if (lg.isNotBlank()) {
+            AsyncImage(model = lg, contentDescription = null, modifier = Modifier.size(34.dp, 16.dp), contentScale = ContentScale.Fit)
         } else {
             Text(name.take(5).uppercase(), color = Color(0xFF14213D), fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
@@ -111,7 +112,7 @@ private fun Thumb(ch: Channel?, thumb: String, name: String, modifier: Modifier 
 @Composable
 private fun RecCard(
     w: androidx.compose.ui.unit.Dp, ch: Channel?, r: Rec, thumb: String,
-    topRight: String, topRightGold: Boolean, bottomRight: String, frac: Float?,
+    topRight: String, tagKind: Int, bottomRight: String, frac: Float?,
     line1: String, line2: androidx.compose.ui.text.AnnotatedString,
     onClick: () -> Unit, onLong: () -> Unit, req: FocusRequester? = null
 ) {
@@ -133,13 +134,13 @@ private fun RecCard(
         ) {
             Box(Modifier.fillMaxSize().clip(RoundedCornerShape(9.dp))) {
                 Thumb(ch, thumb, r.title, Modifier.fillMaxSize())
-                LogoBadge(ch, r.chName, Modifier.align(Alignment.TopStart).padding(8.dp))
+                LogoBadge(ch, r.chName, Modifier.align(Alignment.TopStart).padding(8.dp), r.logo)
                 if (topRight.isNotBlank()) {
                     Text(
-                        topRight, color = if (topRightGold) Color(0xFF1A1A1A) else Color.White,
+                        topRight, color = if (tagKind == 1) Color(0xFF1A1A1A) else Color.White,
                         fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).clip(RoundedCornerShape(6.dp))
-                            .background(if (topRightGold) X_GOLD else Color(0xB3000000)).padding(horizontal = 7.dp, vertical = 3.dp)
+                            .background(if (tagKind == 1) X_GOLD else if (tagKind == 2) Color(0xDDB3262B) else Color(0xB3000000)).padding(horizontal = 7.dp, vertical = 3.dp)
                     )
                 }
                 if (bottomRight.isNotBlank()) {
@@ -173,50 +174,6 @@ private fun RecCard(
     }
 }
 
-// Tuile compacte (Scheduled)
-@Composable
-private fun SchedTile(
-    w: androidx.compose.ui.unit.Dp, ch: Channel?, r: Rec, thumb: String, whenTxt: String,
-    onClick: () -> Unit, req: FocusRequester? = null
-) {
-    var f by remember { mutableStateOf(false) }
-    val rec = r.kind == "rec"
-    val live = r.state == "recording"
-    Row(
-        Modifier.width(w).height(72.dp).clip(RoundedCornerShape(10.dp))
-            .background(if (f) Th.focusBg else Th.tile)
-            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(10.dp)) else Modifier)
-            .then(if (req != null) Modifier.focusRequester(req) else Modifier)
-            .onFocusChanged { f = it.isFocused }
-            .clickable { onClick() }
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(52.dp, 56.dp).clip(RoundedCornerShape(8.dp))) {
-            Thumb(ch, thumb, "", Modifier.fillMaxSize())
-            LogoBadge(ch, r.chName, Modifier.align(Alignment.TopStart).padding(3.dp).scale(0.7f))
-        }
-        Column(Modifier.weight(1f).padding(start = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(whenTxt, color = if (f) Color(0xFF8A6100) else X_GOLD, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                Spacer(Modifier.weight(1f))
-                Row(
-                    Modifier.clip(RoundedCornerShape(50)).background(if (rec) Color(0x33E5484D) else Color(0x33808080)).padding(horizontal = 7.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (rec) Box(Modifier.size(6.dp).clip(androidx.compose.foundation.shape.CircleShape).background(X_RED))
-                    Text(
-                        (if (rec) (if (live) " Recording" else " Record") else "🔔 Reminder"),
-                        color = if (f) Th.focusText else (if (rec) Color(0xFFFFB4A9) else Th.text), fontSize = 10.sp, maxLines = 1
-                    )
-                }
-            }
-            Text(r.title, color = if (f) Th.focusText else Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(r.chName, color = if (f) Th.focusSub else Th.sub, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
 @Composable
 private fun SecHead(title: String, sub: String) {
     Row(Modifier.padding(bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
@@ -225,25 +182,11 @@ private fun SecHead(title: String, sub: String) {
     }
 }
 
-@Composable
-private fun TabPill(label: String, sel: Boolean, onClick: () -> Unit) {
-    var f by remember { mutableStateOf(false) }
-    Text(
-        label, color = if (sel) Th.focusText else Th.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1,
-        modifier = Modifier.clip(RoundedCornerShape(50))
-            .background(if (sel) Th.focusBg else Color.Transparent)
-            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(50)) else Modifier)
-            .onFocusChanged { f = it.isFocused }
-            .clickable { onClick() }
-            .padding(horizontal = 16.dp, vertical = 7.dp)
-    )
-}
-
 // ---------------------------------------------------------------------------
 // Enregistrements : onglets, reprise de lecture, programmés, enregistrés
 // ---------------------------------------------------------------------------
 @Composable
-fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: (String, String) -> Unit, onBack: () -> Unit) {
+fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri: String, onAct: (String, String) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
     val ctx = LocalContext.current
     var tab by remember { mutableStateOf(0) }
@@ -254,8 +197,10 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: 
     LaunchedEffect(Unit) { while (true) { clock = System.currentTimeMillis(); delay(10000) } }
     val chById = remember(channels) { channels.associateBy { it.id } }
     fun thumbOf(r: Rec): String {
+        if (r.thumb.isNotBlank()) return r.thumb
         val ep = chById[r.chId]?.epgId.orEmpty()
-        return epg.progs[ep]?.firstOrNull { it.start == r.start }?.icon.orEmpty()
+        val l = epg.progs[ep] ?: return ""
+        return (l.firstOrNull { it.start == r.start } ?: l.firstOrNull { it.start <= r.start && r.start < it.stop })?.icon.orEmpty()
     }
 
     val done = remember(recs) { recs.filter { it.kind == "rec" && (it.state == "done" || it.state == "failed") }.sortedByDescending { it.start } }
@@ -267,18 +212,29 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: 
             r.state == "done" && w != null && w.second > 0 && w.first > 5000L && w.first < w.second * 0.95
         }.sortedByDescending { watch[it.id]!!.third }
     }
-    val used = remember(recs) {
-        var s = 0L
-        for (r in done) try {
-            val u = android.net.Uri.parse(r.path)
-            if (u.scheme == "file") s += java.io.File(u.path ?: "").length()
-        } catch (e: Exception) { }
-        s
+    // Stockage : le disque où sont enregistrés les fichiers (clé USB si choisie), pas la mémoire interne
+    val vol = remember(recs, dvrUri) {
+        fun stat(path: String): Pair<Long, Long>? = try {
+            val st = android.os.StatFs(path); Pair(st.totalBytes, st.availableBytes)
+        } catch (e: Exception) { null }
+        var res: Pair<Long, Long>? = null
+        if (dvrUri.isNotBlank()) {
+            try {
+                val id = android.provider.DocumentsContract.getTreeDocumentId(android.net.Uri.parse(dvrUri))
+                val v = id.substringBefore(':')
+                res = if (v == "primary") stat(android.os.Environment.getExternalStorageDirectory().path) else stat("/storage/$v")
+                if (res == null) {
+                    val sm = ctx.getSystemService(android.content.Context.STORAGE_SERVICE) as android.os.storage.StorageManager
+                    for (sv in sm.storageVolumes) {
+                        if (sv.uuid == v && android.os.Build.VERSION.SDK_INT >= 30) { sv.directory?.path?.let { res = stat(it) } }
+                    }
+                }
+            } catch (e: Exception) { }
+        }
+        res ?: stat((ctx.getExternalFilesDir(null) ?: ctx.filesDir).path) ?: Pair(0L, 0L)
     }
-    val free = remember(recs) {
-        try { android.os.StatFs((ctx.getExternalFilesDir(null) ?: ctx.filesDir).path).availableBytes } catch (e: Exception) { 0L }
-    }
-    val total = used + free
+    val total = vol.first
+    val used = (vol.first - vol.second).coerceAtLeast(0L)
 
     val dfDay = remember { SimpleDateFormat("EEE d", Locale.ENGLISH) }
     val dfRec = remember { SimpleDateFormat("EEE d MMM", Locale.ENGLISH) }
@@ -294,30 +250,36 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: 
     }
     val gap = 14.dp
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 48.dp, vertical = 24.dp)) {
-        // Barre du haut : titre, onglets, stockage, heure
-        Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Recordings", color = Th.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(24.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("All", "Continue watching", "Scheduled", "Recorded").forEachIndexed { i, l ->
-                    TabPill(l, tab == i) { tab = i }
-                }
+    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Th.gradTop, 0.35f to Th.gradMid, 1f to Th.scrim))) {
+    Column(Modifier.fillMaxSize()) {
+        // En-tête identique à l'accueil : logo, onglets, stockage, heure
+        Row(
+            Modifier.fillMaxWidth().background(Th.header).padding(horizontal = 24.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            EliteLogo(Modifier.padding(end = 28.dp).size(44.dp))
+            TopTab("Recordings", true, icon = 2) { }
+            Spacer(Modifier.width(14.dp))
+            Box(Modifier.width(1.dp).height(22.dp).background(Th.divider))
+            Spacer(Modifier.width(10.dp))
+            listOf("All", "Continue watching", "Scheduled", "Recorded").forEachIndexed { i, l ->
+                TopTab(l, tab == i) { tab = i }
             }
             Spacer(Modifier.weight(1f))
-            Column(Modifier.width(190.dp)) {
+            Column(Modifier.width(170.dp)) {
                 Row(Modifier.fillMaxWidth()) {
-                    Text("Storage", color = Th.sub, fontSize = 11.sp)
+                    Text("Storage", color = Th.sub, fontSize = 10.sp)
                     Spacer(Modifier.weight(1f))
-                    Text("${bytesTxt(used)} of ${bytesTxt(total)}", color = Th.sub, fontSize = 11.sp)
+                    Text("${bytesTxt(used)} of ${bytesTxt(total)}", color = Th.sub, fontSize = 10.sp, maxLines = 1, softWrap = false)
                 }
-                Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(3.dp).background(Th.barTrack)) {
+                Box(Modifier.padding(top = 3.dp).fillMaxWidth().height(3.dp).background(Th.barTrack)) {
                     Box(Modifier.fillMaxWidth(if (total > 0) (used.toFloat() / total).coerceIn(0f, 1f) else 0f).fillMaxHeight().background(X_GOLD))
                 }
             }
             Spacer(Modifier.width(20.dp))
-            Text(hm(clock), color = Th.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            HeaderClock()
         }
+        Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 48.dp).padding(top = 14.dp)) {
 
         val showCont = (tab == 0 || tab == 1) && cont.isNotEmpty()
         val showSched = (tab == 0 || tab == 2) && sched.isNotEmpty()
@@ -344,7 +306,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: 
                                 val left = (wt.second - wt.first).coerceAtLeast(0L)
                                 CardWrap(w4) {
                                     RecCard(
-                                        w4 - 12.dp, chById[r.chId], r, thumbOf(r), "$pct%", false, "", fr,
+                                        w4 - 12.dp, chById[r.chId], r, thumbOf(r), "$pct%", 0, "", fr,
                                         r.title,
                                         androidx.compose.ui.text.buildAnnotatedString {
                                             append(r.chName + " · ")
@@ -363,7 +325,21 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: 
                         SecHead("Scheduled", "${sched.size} upcoming")
                         androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
                             items(sched, key = { it.id }) { r ->
-                                SchedTile(w4 - 12.dp, chById[r.chId], r, thumbOf(r), if (r.state == "recording") "Now · until ${hm(r.stop)}" else whenTxt(r.start), { menu = r })
+                                val rec = r.kind == "rec"
+                                val live = r.state == "recording"
+                                CardWrap(w4) {
+                                    RecCard(
+                                        w4 - 12.dp, chById[r.chId], r, thumbOf(r),
+                                        if (rec) (if (live) "● Recording" else "● Record") else "⏰ Reminder", if (rec) 2 else 0,
+                                        "${hm(r.start)} - ${hm(r.stop)}", null,
+                                        r.title,
+                                        androidx.compose.ui.text.buildAnnotatedString {
+                                            withStyle(androidx.compose.ui.text.SpanStyle(color = X_GOLD)) { append(if (live) "Now" else whenTxt(r.start)) }
+                                            append(" · " + r.chName)
+                                        },
+                                        { menu = r }, { menu = r }
+                                    )
+                                }
                             }
                         }
                     }
@@ -377,7 +353,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: 
                                 CardWrap(w5) {
                                     RecCard(
                                         w5 - 12.dp, chById[r.chId], r, thumbOf(r),
-                                        if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", isNew,
+                                        if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", if (isNew) 1 else 0,
                                         durTxt(r.stop - r.start), null,
                                         r.title,
                                         androidx.compose.ui.text.AnnotatedString("${r.chName} · ${dfRec.format(Date(r.start))}"),
@@ -390,6 +366,8 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, onAct: 
                 }
             }
         }
+        }
+    }
     }
 
     val r = menu

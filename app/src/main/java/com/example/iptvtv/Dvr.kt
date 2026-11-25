@@ -32,7 +32,8 @@ import java.util.concurrent.ConcurrentHashMap
 data class Rec(
     val id: String, val chId: Int, val chName: String, val url: String, val title: String,
     val start: Long, val stop: Long, val kind: String, val state: String,
-    val path: String = "", val note: String = ""
+    val path: String = "", val note: String = "",
+    val thumb: String = "", val logo: String = ""
 )
 
 fun loadRecs(c: Context): List<Rec> {
@@ -44,7 +45,7 @@ fun loadRecs(c: Context): List<Rec> {
             Rec(
                 x.optString("i"), x.optInt("c"), x.optString("n"), x.optString("u"), x.optString("t"),
                 x.optLong("s"), x.optLong("e"), x.optString("k"), x.optString("st"),
-                x.optString("p"), x.optString("no")
+                x.optString("p"), x.optString("no"), x.optString("th"), x.optString("lg")
             )
         }
     } catch (ex: Exception) {
@@ -58,7 +59,7 @@ fun saveRecs(c: Context, l: List<Rec>) {
         a.put(
             JSONObject().put("i", r.id).put("c", r.chId).put("n", r.chName).put("u", r.url).put("t", r.title)
                 .put("s", r.start).put("e", r.stop).put("k", r.kind).put("st", r.state)
-                .put("p", r.path).put("no", r.note)
+                .put("p", r.path).put("no", r.note).put("th", r.thumb).put("lg", r.logo)
         )
     }
     c.getSharedPreferences("rec", 0).edit().putString("j", a.toString()).apply()
@@ -98,7 +99,7 @@ object Dvr {
         val l = loadRecs(ctx).filter { it.id != id }
         saveRecs(
             ctx,
-            l + Rec(id, ch.id, ch.name, ch.url, p.title, p.start, p.stop, kind, "scheduled")
+            l + Rec(id, ch.id, ch.name, ch.url, p.title, p.start, p.stop, kind, "scheduled", thumb = p.icon, logo = ch.icon)
         )
         tick++
     }

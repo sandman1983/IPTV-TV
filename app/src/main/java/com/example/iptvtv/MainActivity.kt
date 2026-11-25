@@ -888,7 +888,7 @@ fun App() {
                     sources.isNotEmpty(),
                     { screen = "" }
                 ) }
-                screen == "recs" -> Solid { CompositionLocalProvider(LocalThemed provides true) { RecordingsScreen(recs, channels, epg, { a, i -> recAct(a, i) }) { screen = "" } } }
+                screen == "recs" -> CompositionLocalProvider(LocalThemed provides true) { RecordingsScreen(recs, all, epg, cfg.dvrUri, { a, i -> recAct(a, i) }) { screen = "" } }
                 screen == "multi" -> MultiviewScreen(exo, shown, epg, cur) { screen = "" }
                 screen == "search" -> run {
                     SearchScreen(shown, epg, recs, cfg.remOn, cur?.id, { play(it); full = true; quietStart = false; miniStart = true; fromGuide = false; screen = "" }, { screen = "recs" },
