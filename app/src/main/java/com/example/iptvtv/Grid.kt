@@ -706,6 +706,13 @@ fun EpgGrid(
                             }
                             val tgt = progs.indexOfFirst { it.start <= nowMs && nowMs < it.stop }.coerceAtLeast(0)
                             val preqs = remember(progs.size) { List(progs.size) { FocusRequester() } }
+                            // Seules les tuiles proches de la zone visible sont créées (une ligne = 36 h de programmes) :
+                            // l'ouverture d'une catégorie et le défilement rapide deviennent beaucoup plus légers.
+                            val vwE = if (vw > 0) vw else 1800
+                            val half = (vwE / 2).coerceAtLeast(1)
+                            val chunk by remember(half) { derivedStateOf { hs.value / half } }
+                            val loPx = (chunk - 2) * half
+                            val hiPx = (chunk + 6) * half
                             Row(Modifier.fillMaxWidth().height(rowH)) {
                                 Box(
                                     Modifier.width(LW).fillMaxHeight().padding(5.dp)
@@ -741,6 +748,7 @@ fun EpgGrid(
                                                         val qe = minOf(q.stop, winEnd)
                                                         val x0 = with(density) { ((qs - winStart) / 60000f * DPM).dp.toPx() }
                                                         val x1 = with(density) { ((qe - winStart) / 60000f * DPM).dp.toPx() }.coerceAtLeast(x0 + 1f)
+                                                        if (qi != tgt && (x1 < hs.value - vwE || x0 > hs.value + 2 * vwE)) continue
                                                         val d0 = if (c < x0) x0 - c else if (c > x1) c - x1 else 0f
                                                         if (d0 < bd) { bd = d0; best = qi }
                                                     }
@@ -767,6 +775,7 @@ fun EpgGrid(
                                             val useReq = pi == tgt
                                             val xPx = with(density) { x.toPx().toInt() }
                                             val ePx = with(density) { (x + w).toPx().toInt() }
+                                            if (!useReq && (ePx < loPx || xPx > hiPx)) continue
                                             val mk = recs.firstOrNull {
                                                 it.chId == ch.id && it.start == p.start &&
                                                     (it.state == "scheduled" || it.state == "recording")
