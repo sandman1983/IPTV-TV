@@ -25,7 +25,6 @@ object Th {
     fun load(ctx: Context) {
         mode = when (ctx.getSharedPreferences("iptv_player", 0).getString("theme", "dark")) {
             "black" -> 2
-            "light" -> 1
             else -> 0
         }
     }
