@@ -51,6 +51,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.foundation.gestures.animateScrollBy
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,6 +69,10 @@ private val P_BAR = Color(0xFFFFFFFF)
 private val P_SUB: Color get() = Th.sub
 private val P_SUB_DARK: Color get() = Th.focusSub
 
+// Position de la liste du panneau : permet de garder l'élément sélectionné entièrement visible (hors fondu).
+class PanelList(val state: androidx.compose.foundation.lazy.LazyListState) { var top = 0f; var bottom = 0f }
+val LocalPanelList = androidx.compose.runtime.compositionLocalOf<PanelList?> { null }
+
 @Composable
 fun PanelShell(
     title: String,
@@ -78,6 +86,8 @@ fun PanelShell(
     val lstate = androidx.compose.foundation.lazy.rememberLazyListState(
         initialFirstVisibleItemIndex = (scrollTo - 2).coerceAtLeast(0)
     )
+    val pl = remember { PanelList(lstate) }
+    CompositionLocalProvider(LocalPanelList provides pl) {
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
         Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
@@ -94,6 +104,7 @@ fun PanelShell(
                 }
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth()
+                        .onGloballyPositioned { val r = it.boundsInWindow(); pl.top = r.top; pl.bottom = r.bottom }
                         .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                         .drawWithContent {
                             drawContent()
@@ -124,6 +135,7 @@ fun PanelShell(
                 ) { actions() }
             }
         }
+    }
     }
 }
 
@@ -164,6 +176,10 @@ fun PItem(
     var f by remember { mutableStateOf(false) }
     val fired = remember { booleanArrayOf(true) }
     val fr = remember { FocusRequester() }
+    val pl = LocalPanelList.current
+    val scope = rememberCoroutineScope()
+    val dens = androidx.compose.ui.platform.LocalDensity.current
+    val co = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     val mem = LocalPMem.current
     val saved = mem?.last?.get(mem.page())
     val autoFocus = if (mem != null && saved != null) saved == title else autoFocus
@@ -179,7 +195,25 @@ fun PItem(
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
             .background(if (f) Th.focusBg else Color.Transparent)
             .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(6.dp)) else Modifier)
-            .onFocusChanged { f = it.isFocused }
+            .onGloballyPositioned { co[0] = it }
+            .onFocusChanged {
+                f = it.isFocused
+                if (it.isFocused && pl != null) scope.launch {
+                    // Garde l'élément sélectionné entièrement visible, loin du bord et du fondu.
+                    delay(90)
+                    val c = co[0]
+                    if (c != null && c.isAttached) {
+                        val r = c.boundsInWindow()
+                        val m = with(dens) { 30.dp.toPx() }
+                        val over = r.bottom - (pl.bottom - m)
+                        val under = (pl.top + m) - r.top
+                        try {
+                            if (over > 1f) pl.state.animateScrollBy(over)
+                            else if (under > 1f && pl.state.canScrollBackward) pl.state.animateScrollBy(-under)
+                        } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+                    }
+                }
+            }
             .onPreviewKeyEvent { if (holdGuard(it)) true else if (onLong != null) okLong(it, fired, onClick, onLong) else false }
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp),

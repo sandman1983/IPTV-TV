@@ -831,11 +831,20 @@ private fun SearchRow(
                 }
             }
             if (live) {
-                Text(
-                    "● LIVE", color = Color.White, fontSize = 7.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).clip(RoundedCornerShape(2.dp))
-                        .background(Color(0xFFE5484D)).padding(horizontal = 3.dp, vertical = 1.dp)
-                )
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(5.dp).height(10.dp).width(30.dp)
+                        .clip(RoundedCornerShape(50)).background(Color(0xFFE5484D)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "● LIVE", color = Color.White, fontSize = 6.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, softWrap = false,
+                        style = androidx.compose.ui.text.TextStyle(
+                            lineHeight = 6.sp,
+                            platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false)
+                        )
+                    )
+                }
             }
             if (frac != null) {
                 Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Th.barTrack)) {
@@ -1039,7 +1048,8 @@ fun SearchScreen(
                             .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                             .drawWithContent {
                                 drawContent()
-                                drawRect(
+                                // Fondu seulement s'il reste des résultats en dessous
+                                if (ls.canScrollForward) drawRect(
                                     Brush.verticalGradient(
                                         0.78f to Color.Black, 1f to Color.Transparent
                                     ),
