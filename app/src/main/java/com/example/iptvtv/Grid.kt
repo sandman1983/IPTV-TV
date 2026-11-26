@@ -217,6 +217,9 @@ fun MiniPlayer(
         }
         l.take(10)
     }
+    var removed by remember { mutableStateOf(setOf<Int>()) }
+    var removedAll by remember { mutableStateOf(false) }
+    val shownRecent = if (removedAll) emptyList() else recent.filter { it.id !in removed }
     val gr = remember { FocusRequester() }
     val curReq = remember { FocusRequester() }
     var ctrl by remember { mutableStateOf(false) }
@@ -357,7 +360,7 @@ fun MiniPlayer(
                         }
                     }
                 }
-                itemsIndexed(recent, key = { _, ch -> ch.id }) { ri, ch ->
+                itemsIndexed(shownRecent, key = { _, ch -> ch.id }) { ri, ch ->
                     val pr = epg.now(ch.epgId)
                     val num = channels.indexOfFirst { it.id == ch.id } + 1
                     MiniItem(
@@ -383,19 +386,20 @@ fun MiniPlayer(
         val cf = clearFor
         if (cf != null) {
             Column(
-                Modifier.align(Alignment.TopEnd).padding(24.dp).width(380.dp)
-                    .clip(RoundedCornerShape(12.dp)).background(Th.popup).padding(16.dp)
+                Modifier.align(Alignment.TopEnd).padding(24.dp).width(280.dp)
+                    .clip(RoundedCornerShape(14.dp)).background(Th.guideBg)
+                    .border(1.dp, Th.divider, RoundedCornerShape(14.dp)).padding(14.dp)
             ) {
-                Text("Clear recent channels", color = Th.text, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("CLEAR RECENT", color = Th.sel, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 Text(cf.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
-                FocusRow({ onClearHist(cf.id); clearFor = null }, Modifier.focusRequester(clr)) {
-                    Text("This channel", color = fcolor(Color.White), fontSize = 16.sp)
+                FocusRow({ onClearHist(cf.id); removed = removed + cf.id; clearFor = null }, Modifier.focusRequester(clr), tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true, pad = 12.dp) {
+                    Text("This channel", color = fcolor(Color.White), fontSize = 15.sp)
                 }
-                FocusRow({ onClearHist(null); clearFor = null }) {
-                    Text("Remove all", color = fcolor(Color.White), fontSize = 16.sp)
+                FocusRow({ onClearHist(null); removedAll = true; clearFor = null }, tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true, pad = 12.dp) {
+                    Text("Remove all", color = fcolor(Color.White), fontSize = 15.sp)
                 }
-                FocusRow({ clearFor = null }) {
-                    Text("Cancel", color = fcolor(Color.White), fontSize = 16.sp)
+                FocusRow({ clearFor = null }, tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true, pad = 12.dp) {
+                    Text("Cancel", color = fcolor(Color.White), fontSize = 15.sp)
                 }
             }
         }
