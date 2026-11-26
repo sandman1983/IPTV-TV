@@ -558,6 +558,19 @@ fun App() {
     DisposableEffect(exo) { onDispose { exo.release() } }
     // Réglages du lecteur appliqués au démarrage et à chaque retour des réglages
     LaunchedEffect(screen) { applyPlayerPrefs(ctx, exo) }
+    // Pendant les enregistrements, la chaîne en direct est en pause ; elle reprend à la sortie (sauf si une lecture d'enregistrement l'a arrêtée)
+    val wasRecs = remember { booleanArrayOf(false) }
+    LaunchedEffect(screen) {
+        if (screen == "recs" || screen == "recplay") {
+            wasRecs[0] = true
+            exo.playWhenReady = false
+        } else if (wasRecs[0]) {
+            wasRecs[0] = false
+            if (bg != null) {
+                try { exo.seekToDefaultPosition(); exo.prepare(); exo.playWhenReady = true } catch (e: Exception) { }
+            }
+        }
+    }
 
     val all = remember(channels, cfg, epg.chans) { applyCfg(channels, cfg, epg.icons) }
     // Rapprochement automatique des chaînes sans ID EPG valide, à chaque chargement du guide.

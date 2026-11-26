@@ -189,9 +189,9 @@ private fun RecCard(
 
 @Composable
 private fun SecHead(title: String, sub: String) {
-    Row(Modifier.padding(bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
-        Text(title, color = Th.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text(sub, color = Th.sub, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp, bottom = 2.dp))
+    Row(Modifier.padding(start = 14.dp, top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.Bottom) {
+        Text(title.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Text(sub, color = Th.sub, fontSize = 12.sp, modifier = Modifier.padding(start = 12.dp))
     }
 }
 
@@ -254,14 +254,10 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     val lsCont = androidx.compose.foundation.lazy.rememberLazyListState()
     val lsSched = androidx.compose.foundation.lazy.rememberLazyListState()
     val lsDone = androidx.compose.foundation.lazy.rememberLazyListState()
-    // Chaque rangée montre un nombre entier de cartes : le défilement se cale sur la carte sélectionnée
+    // Comme à l'accueil : la carte sélectionnée avance, la précédente reste visible à gauche, la suivante dépasse à droite
     fun snap(ls: androidx.compose.foundation.lazy.LazyListState, idx: Int, n: Int) {
         scope.launch {
-            try {
-                val first = ls.firstVisibleItemIndex
-                if (idx < first) ls.scrollToItem(idx) else if (idx > first + n - 1) ls.scrollToItem(idx - n + 1)
-                else if (ls.firstVisibleItemScrollOffset != 0) ls.scrollToItem(first)
-            } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+            try { ls.animateScrollToItem((idx - 1).coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
         }
     }
     val dfDay = remember { SimpleDateFormat("EEE d", Locale.ENGLISH) }
@@ -276,27 +272,25 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         }
         return "$day · ${hm(t)}"
     }
-    val gap = 4.dp
+    val gap = 12.dp
+    val cw = 176.dp
+    var lastRow by remember { mutableStateOf(-1) }
     val showCont = (tab == 0 || tab == 1) && cont.isNotEmpty()
     val showSched = (tab == 0 || tab == 2) && sched.isNotEmpty()
     val showDone = (tab == 0 || tab == 3) && done.isNotEmpty()
     val idxSched = if (showCont) 1 else 0
     val idxDone = idxSched + (if (showSched) 1 else 0)
     val lc = androidx.compose.foundation.lazy.rememberLazyListState()
-    LaunchedEffect(tab) { try { lc.scrollToItem(0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
+    LaunchedEffect(tab) { lastRow = -1; try { lc.scrollToItem(0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
     // Si l'élément (titre de section ou rangée) n'est pas entièrement visible, on le ramène en haut :
     // le titre ne reste jamais caché et la rangée suivante apparaît à moitié en bas.
     fun reveal(idx: Int) {
-        scope.launch {
-            try {
-                // On attend la fin du défilement automatique du focus avant de vérifier
-                delay(60)
-                while (lc.isScrollInProgress) delay(30)
-                val li = lc.layoutInfo
-                val info = li.visibleItemsInfo.firstOrNull { it.index == idx }
-                val ok = info != null && info.offset >= 0 && info.offset + info.size <= li.viewportEndOffset - li.afterContentPadding
-                if (!ok) lc.animateScrollToItem(idx)
-            } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+        val aligned = lc.firstVisibleItemIndex == idx && lc.firstVisibleItemScrollOffset == 0
+        if (idx != lastRow || !aligned) {
+            lastRow = idx
+            scope.launch {
+                try { delay(70); lc.animateScrollToItem(idx) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+            }
         }
     }
 
@@ -306,7 +300,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         val live = r.state == "recording"
         CardWrap(w4) {
             RecCard(
-                w4 - 10.dp, chById[r.chId], r, thumbOf(r),
+                w4, chById[r.chId], r, thumbOf(r),
                 if (rec) (if (live) "● Recording" else "● Record") else "⏰ Reminder", if (rec) 2 else 0,
                 "${hm(r.start)} - ${hm(r.stop)}", null,
                 r.title,
@@ -325,7 +319,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         val isNew = watch[r.id] == null && r.state == "done"
         CardWrap(w4) {
             RecCard(
-                w4 - 10.dp, chById[r.chId], r, thumbOf(r),
+                w4, chById[r.chId], r, thumbOf(r),
                 if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", if (isNew) 1 else 0,
                 durTxt(r.stop - r.start), null,
                 r.title,
@@ -337,6 +331,19 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     }
 
     Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Th.header, 0.25f to Th.bgMid, 1f to Th.bgMid))) {
+    // Fond discret : lueur dorée en haut à droite et anneaux fins comme le logo
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val gold = Th.sel
+        drawCircle(
+            androidx.compose.ui.graphics.Brush.radialGradient(
+                listOf(gold.copy(alpha = 0.13f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.12f), radius = size.width * 0.45f
+            ),
+            radius = size.width * 0.45f, center = androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.12f)
+        )
+        val c = androidx.compose.ui.geometry.Offset(size.width * 0.96f, size.height * 1.02f)
+        for (i in 1..3) drawCircle(gold.copy(alpha = 0.07f - i * 0.015f), radius = size.height * (0.30f + i * 0.17f), center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+    }
     Column(Modifier.fillMaxSize()) {
         // En-tête identique à l'accueil : logo, onglets, stockage, heure
         Row(
@@ -365,7 +372,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
             Spacer(Modifier.width(16.dp))
             HeaderClock()
         }
-        Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 48.dp).padding(top = 14.dp)) {
+        Column(Modifier.weight(1f).fillMaxWidth().padding(start = 40.dp).padding(top = 8.dp)) {
 
         if (!showCont && !showSched && !showDone) {
             Text(
@@ -374,34 +381,45 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                 color = Th.sub, fontSize = 16.sp, modifier = Modifier.padding(top = 12.dp)
             )
         }
+        // Regroupement par jour pour les onglets Scheduled et Recorded
+        fun dayLabel(t: Long, past: Boolean): String {
+            val k = dfKey.format(Date(t))
+            return when {
+                k == dfKey.format(Date(clock)) -> "Today"
+                !past && k == dfKey.format(Date(clock + 86400000L)) -> "Tomorrow"
+                past && k == dfKey.format(Date(clock - 86400000L)) -> "Yesterday"
+                else -> dfDay.format(Date(t))
+            }
+        }
+        val schedGroups = remember(sched, clock / 3600000L) { sched.groupBy { dfKey.format(Date(it.start)) }.values.toList() }
+        val doneGroups = remember(done, clock / 3600000L) { done.groupBy { dfKey.format(Date(it.start)) }.values.toList() }
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            val w4 = (maxWidth - gap * 3) / 4
-            val w5 = (maxWidth - gap * 4) / 5
+            val rowPad = PaddingValues(start = 8.dp, end = 70.dp, top = 8.dp, bottom = 10.dp)
             LazyColumn(
                 Modifier.fillMaxSize()
                     .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
                     .drawWithContent {
                         drawContent()
-                        // Fondu en bas seulement s'il reste du contenu en dessous
+                        // Aperçu de la rangée suivante, avec un fondu tant qu'il reste des rangées en dessous
                         if (lc.canScrollForward) drawRect(
-                            androidx.compose.ui.graphics.Brush.verticalGradient(0.8f to androidx.compose.ui.graphics.Color.Black, 1f to androidx.compose.ui.graphics.Color.Transparent),
+                            androidx.compose.ui.graphics.Brush.verticalGradient(0.78f to androidx.compose.ui.graphics.Color.Black, 1f to androidx.compose.ui.graphics.Color.Transparent),
                             blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
                         )
                     },
-                state = lc, verticalArrangement = Arrangement.spacedBy(18.dp), contentPadding = PaddingValues(top = 4.dp, bottom = 40.dp)
+                state = lc, contentPadding = PaddingValues(top = 4.dp, bottom = maxHeight)
             ) {
                 if (showCont) item(key = "cont") {
                     Column {
                         SecHead("Continue watching", "Resume where you stopped")
-                        androidx.compose.foundation.lazy.LazyRow(state = lsCont, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(vertical = 6.dp)) {
+                        androidx.compose.foundation.lazy.LazyRow(state = lsCont, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
                             itemsIndexed(cont, key = { _, it -> it.id }) { ix, r ->
                                 val wt = watch[r.id]!!
                                 val fr = wt.first.toFloat() / wt.second
                                 val pct = (fr * 100).toInt()
                                 val left = (wt.second - wt.first).coerceAtLeast(0L)
-                                CardWrap(w4) {
+                                CardWrap(cw) {
                                     RecCard(
-                                        w4 - 10.dp, chById[r.chId], r, thumbOf(r), "$pct%", 0, "", fr,
+                                        cw, chById[r.chId], r, thumbOf(r), "$pct%", 0, "", fr,
                                         r.title,
                                         androidx.compose.ui.text.buildAnnotatedString {
                                             append(r.chName + " · ")
@@ -409,7 +427,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                                             append(" · ${durTxt(left)} left")
                                         },
                                         { onAct("play", r.id) }, { menu = r },
-                                        onFocus = { if (it) { snap(lsCont, ix, 4); reveal(0) } }
+                                        onFocus = { if (it) { snap(lsCont, ix, 0); reveal(0) } }
                                     )
                                 }
                             }
@@ -420,15 +438,16 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                     if (tab == 0) item(key = "sched") {
                         Column {
                             SecHead("Scheduled", "${sched.size} upcoming")
-                            androidx.compose.foundation.lazy.LazyRow(state = lsSched, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(vertical = 6.dp)) {
-                                itemsIndexed(sched, key = { _, it -> it.id }) { ix, r -> SchedCard(w4, r, ix, 4, lsSched, idxSched) }
+                            androidx.compose.foundation.lazy.LazyRow(state = lsSched, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
+                                itemsIndexed(sched, key = { _, it -> it.id }) { ix, r -> SchedCard(cw, r, ix, 0, lsSched, idxSched) }
                             }
                         }
-                    } else {
-                        item(key = "sched_h") { SecHead("Scheduled", "${sched.size} upcoming") }
-                        itemsIndexed(sched.chunked(4), key = { _, it -> "s_" + it.first().id }) { k, rowItems ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                                for (r in rowItems) SchedCard(w4, r, -1, 4, lsSched, 1 + k)
+                    } else itemsIndexed(schedGroups, key = { _, g -> "s_" + g.first().id }) { gi, g ->
+                        val st = androidx.compose.foundation.lazy.rememberLazyListState()
+                        Column {
+                            SecHead(dayLabel(g.first().start, false), "${g.size} scheduled")
+                            androidx.compose.foundation.lazy.LazyRow(state = st, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
+                                itemsIndexed(g, key = { _, it -> it.id }) { ix, r -> SchedCard(cw, r, ix, 0, st, gi) }
                             }
                         }
                     }
@@ -437,15 +456,16 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                     if (tab == 0) item(key = "done") {
                         Column {
                             SecHead("Recorded", "Newest first · Hold OK to delete or rename")
-                            androidx.compose.foundation.lazy.LazyRow(state = lsDone, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = PaddingValues(vertical = 6.dp)) {
-                                itemsIndexed(done, key = { _, it -> it.id }) { ix, r -> DoneCard(w4, r, ix, 4, lsDone, idxDone) }
+                            androidx.compose.foundation.lazy.LazyRow(state = lsDone, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
+                                itemsIndexed(done, key = { _, it -> it.id }) { ix, r -> DoneCard(cw, r, ix, 0, lsDone, idxDone) }
                             }
                         }
-                    } else {
-                        item(key = "done_h") { SecHead("Recorded", "Newest first · Hold OK to delete or rename") }
-                        itemsIndexed(done.chunked(4), key = { _, it -> "d_" + it.first().id }) { k, rowItems ->
-                            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                                for (r in rowItems) DoneCard(w4, r, -1, 4, lsDone, 1 + k)
+                    } else itemsIndexed(doneGroups, key = { _, g -> "d_" + g.first().id }) { gi, g ->
+                        val st = androidx.compose.foundation.lazy.rememberLazyListState()
+                        Column {
+                            SecHead(dayLabel(g.first().start, true), if (gi == 0) "Newest first · Hold OK to delete or rename" else "${g.size} recorded")
+                            androidx.compose.foundation.lazy.LazyRow(state = st, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
+                                itemsIndexed(g, key = { _, it -> it.id }) { ix, r -> DoneCard(cw, r, ix, 0, st, gi) }
                             }
                         }
                     }
