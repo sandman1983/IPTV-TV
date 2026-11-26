@@ -123,8 +123,8 @@ private fun MiniItem(
         Text(
             if (sx in 1..4 && sub.substring(0, sx).all { it.isDigit() })
                 androidx.compose.ui.text.buildAnnotatedString {
-                    androidx.compose.ui.text.withStyle(androidx.compose.ui.text.SpanStyle(color = Th.sel, fontWeight = FontWeight.Bold)) { append(sub.substring(0, sx)) }
-                    append(sub.substring(sx))
+                    append(sub)
+                    addStyle(androidx.compose.ui.text.SpanStyle(color = Th.sel, fontWeight = FontWeight.Bold), 0, sx)
                 }
             else androidx.compose.ui.text.AnnotatedString(sub),
             color = M_GRAY, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 3.dp)
