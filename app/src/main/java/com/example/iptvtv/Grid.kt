@@ -92,9 +92,9 @@ private fun MiniItem(
         // The selection frame is drawn around the picture, so it never hides the progress bar.
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f)
-                .border(3.dp, if (f) Th.sel else Color.Transparent, RoundedCornerShape(10.dp)).padding(3.dp)
+                .border(3.dp, if (f) Th.sel else Color.Transparent, RoundedCornerShape(12.dp)).padding(3.dp)
         ) {
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(7.dp)).background(tileBg ?: M_TILE)) {
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(9.dp)).background(tileBg ?: M_TILE)) {
                 thumb()
                 if (pv != null && f) {
                     androidx.compose.ui.viewinterop.AndroidView(
@@ -119,7 +119,16 @@ private fun MiniItem(
             overflow = if (f) TextOverflow.Clip else TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp, start = 3.dp, end = 8.dp).then(if (f) Modifier.basicMarquee() else Modifier)
         )
-        Text(sub, color = M_GRAY, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 3.dp))
+        val sx = sub.indexOf(" - ")
+        Text(
+            if (sx in 1..4 && sub.substring(0, sx).all { it.isDigit() })
+                androidx.compose.ui.text.buildAnnotatedString {
+                    androidx.compose.ui.text.withStyle(androidx.compose.ui.text.SpanStyle(color = Th.sel, fontWeight = FontWeight.Bold)) { append(sub.substring(0, sx)) }
+                    append(sub.substring(sx))
+                }
+            else androidx.compose.ui.text.AnnotatedString(sub),
+            color = M_GRAY, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 3.dp)
+        )
     }
 }
 
@@ -171,13 +180,14 @@ private fun CtrlIcon(kind: Int, col: Color, modifier: Modifier = Modifier) {
 @Composable
 private fun CtrlCircle(kind: Int, selected: Boolean, onClick: () -> Unit) {
     Box(
-        Modifier.size(36.dp).clip(CircleShape)
-            .background(if (selected) Th.focusBg else Th.ovCtl)
+        Modifier.size(34.dp).clip(CircleShape)
+            .background(Th.ovCtl)
+            .then(if (selected) Modifier.background(if (Th.light) Color(0x14000000) else Color(0x33FFFFFF)) else Modifier)
             .then(if (selected) Modifier.border(2.dp, Th.sel, CircleShape) else Modifier)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        CtrlIcon(kind, if (selected) Th.focusText else Th.text)
+        CtrlIcon(kind, if (selected) Th.sel else Th.text)
     }
 }
 
@@ -286,11 +296,12 @@ fun MiniPlayer(
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Th.ovMid, Th.ovEnd)))
                 .padding(start = 40.dp, end = 40.dp, top = 90.dp, bottom = 22.dp)
         ) {
-            Text(c.name, color = M_GRAY, fontSize = 16.sp, maxLines = 1)
+            Text(c.name.uppercase(), color = Th.sel, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, maxLines = 1)
             Text(
-                p?.title ?: "", color = Th.text, fontSize = 30.sp, fontWeight = FontWeight.Light,
+                p?.title ?: "", color = Th.text, fontSize = 30.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+            if (p != null) Text("${hm(p.start)} - ${hm(p.stop)}", color = M_GRAY, fontSize = 14.sp, maxLines = 1)
             if (ctrl) {
                 // Play/pause au centre, audio + sous-titres à droite
                 Row(Modifier.padding(top = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -313,11 +324,11 @@ fun MiniPlayer(
                     Text(hm(p.start), color = M_GRAY, fontSize = 13.sp)
                     Bar(fracOf(p, nowMs), Modifier.weight(1f).padding(horizontal = 12.dp), 8.dp)
                     val left = ((p.stop - nowMs) / 60000L).coerceAtLeast(0)
-                    Text("+$left min", color = M_GRAY, fontSize = 13.sp)
+                    Text("+$left min", color = Th.sel, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
             }
             Text(
-                "Channels", color = Th.gold, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                "CHANNELS", color = Th.sel, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp,
                 modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
             )
             LazyRow(
@@ -333,7 +344,7 @@ fun MiniPlayer(
                 contentPadding = PaddingValues(start = 14.dp, end = 60.dp, top = 12.dp, bottom = 14.dp)
             ) {
                 item {
-                    MiniItem(onGuide, gr, "Program guide", "", null, null, { focusItem(0) }, tileBg = Color.Black) {
+                    MiniItem(onGuide, gr, "Program guide", "", null, null, { focusItem(0) }) {
                         Column(
                             Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
