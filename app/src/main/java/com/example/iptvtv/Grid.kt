@@ -475,7 +475,6 @@ private fun GBlock(
             .background(Th.cell)
             .then(if (live) Modifier.background(G_GOLD.copy(alpha = 0.13f)) else Modifier)
             .then(if (f) Modifier.background(Color(0x22FFFFFF)) else Modifier)
-            .then(if (live) Modifier.drawBehind { drawRect(G_GOLD, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) } else Modifier)
             .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(9.dp)) else Modifier)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onSel() }
@@ -675,7 +674,7 @@ fun EpgGrid(
         Row(Modifier.fillMaxWidth().height(26.dp)) {
             Spacer(Modifier.width(LW))
             Box(Modifier.weight(1f).fillMaxHeight().onSizeChanged { vw = it.width - with(density) { 260.dp.toPx().toInt() } }.horizontalScroll(hs, enabled = false)) {
-                Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
+                Box(Modifier.padding(start = 8.dp).width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
                     Text(
                         "ON NOW", color = ACCENT, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
                         modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)
@@ -808,7 +807,7 @@ fun EpgGrid(
                                         .focusGroup()
                                         .horizontalScroll(hs)
                                 ) {
-                                    Box(Modifier.width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
+                                    Box(Modifier.padding(start = 8.dp).width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
                                         if (progs.isEmpty()) {
                                             GBlock(
                                                 null, 0.dp, (TOTAL_MIN * DPM).dp, nowMs, rr, "",
@@ -838,17 +837,12 @@ fun EpgGrid(
                                                     mids[1] = -1f
                                                     val vs = hs.value
                                                     if (xPx < vs || xPx > vs + (vw * 0.7f).toInt() || ePx < vs + 80) {
-                                                        scope.launch { hs.animateScrollTo((xPx - 40).coerceAtLeast(0)) }
+                                                        scope.launch { hs.animateScrollTo((xPx - vw / 5).coerceAtLeast(0)) }
                                                     }
                                                 },
                                                 {
                                                     if (p.start > nowMs) {
-                                                        if (dvrSet) {
-                                                            // Dossier d'enregistrement défini : OK programme / annule directement l'enregistrement.
-                                                            val has = recs.any { it.id == "${ch.id}_${p.start}_rec" && (it.state == "scheduled" || it.state == "recording") }
-                                                            onDvr(ch, p, if (has) "unrec" else "rec")
-                                                            toast = Pair(if (has) "Removed schedule" else "Scheduled recording", p.title)
-                                                        } else dvrFor = Pair(ch, p)
+                                                        dvrFor = Pair(ch, p)
                                                     } else play(ch)
                                                 },
                                                 { onEdit(ch) }
