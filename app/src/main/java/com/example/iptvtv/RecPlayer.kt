@@ -86,6 +86,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
     LaunchedEffect(Unit) { try { main.stop() } catch (e: Exception) { } }
     var confirm by remember { mutableStateOf(false) }
     val contReq = remember { FocusRequester() }
+    val audioReq = remember { FocusRequester() }
     var tracksOpen by remember { mutableStateOf(false) }
     var tracks by remember { mutableStateOf(Tracks.EMPTY) }
     val okFired = remember { booleanArrayOf(true) }
@@ -293,8 +294,26 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Th.ovMid, 1f to Th.ovEnd))
-                    .padding(start = 48.dp, end = 48.dp, top = 40.dp, bottom = 10.dp)
+                    .padding(start = 48.dp, end = 48.dp, top = 40.dp, bottom = 0.dp)
             ) {
+                // Haut de la barre : audio et sous-titres (accessibles avec la flèche haut)
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 2.dp)
+                        .onPreviewKeyEvent { ev ->
+                            if (ev.type == KeyEventType.KeyDown) {
+                                when (ev.key) {
+                                    Key.DirectionUp -> { try { root.requestFocus() } catch (e: Exception) { }; poke(); true }
+                                    Key.DirectionDown -> { try { btn.requestFocus() } catch (e: Exception) { }; true }
+                                    else -> { touch++; false }
+                                }
+                            } else false
+                        },
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RpBtn(7, "", audioReq) { tracksOpen = true; poke() }
+                    RpBtn(8, "CC") { tracksOpen = true; poke() }
+                }
                 val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
                 BoxWithConstraints(Modifier.fillMaxWidth().height(16.dp)) {
                     Box(Modifier.align(Alignment.CenterStart).fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(Th.barTrack))
@@ -310,10 +329,10 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     Text("-" + clockTxt((dur - pos).coerceAtLeast(0L)) + "  /  " + clockTxt(dur), color = Th.sub, fontSize = 13.sp)
                 }
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 8.dp)
+                    Modifier.fillMaxWidth().padding(top = 4.dp)
                         .onPreviewKeyEvent { ev ->
                             if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionUp) {
-                                try { root.requestFocus() } catch (e: Exception) { }
+                                try { audioReq.requestFocus() } catch (e: Exception) { }
                                 poke(); true
                             } else {
                                 if (ev.type == KeyEventType.KeyDown) touch++
@@ -335,8 +354,6 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     }
                     Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                         if (next != null) RpBtn(4, "") { onPick(next.id) }
-                        RpBtn(7, "") { tracksOpen = true; poke() }
-                        RpBtn(8, "CC") { tracksOpen = true; poke() }
                     }
                 }
             }
