@@ -94,10 +94,10 @@ fun PanelShell(
     val act = remember { ActScope(FocusRequester()) }
     CompositionLocalProvider(LocalPanelList provides pl, LocalActScope provides act) {
     Row(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(0.46f).fillMaxHeight().background(Th.scrim))
+        Box(Modifier.weight(0.48f).fillMaxHeight().background(Th.scrim))
         Box(Modifier.width(1.dp).fillMaxHeight().background(Th.divider))
         Row(
-            Modifier.weight(0.54f).fillMaxHeight().background(Th.guideBg)
+            Modifier.weight(0.52f).fillMaxHeight().background(Th.guideBg)
         ) {
             Column(Modifier.weight(1f).fillMaxHeight().padding(start = 24.dp, end = 16.dp, top = 28.dp)) {
                 if (title.isNotEmpty()) {
