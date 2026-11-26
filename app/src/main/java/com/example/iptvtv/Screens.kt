@@ -1086,7 +1086,7 @@ fun SearchScreen(
                             val c = chans.firstOrNull { it.id == r.chId }
                             SearchRow(
                                 c, 0, r.title, "${hm(r.start)} – ${hm(r.stop)}  ·  ${r.state}",
-                                null, null, false, "", { onRecs() },
+                                null, null, false, r.thumb, { onRecs() },
                                 onFocusState = { if (it) focIdx = ix }
                             )
                         }

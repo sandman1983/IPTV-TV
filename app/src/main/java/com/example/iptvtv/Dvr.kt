@@ -73,6 +73,38 @@ object Dvr {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val jobs = ConcurrentHashMap<String, Job>()
     var tick by mutableStateOf(0)
+    private val caching = ConcurrentHashMap.newKeySet<String>()
+    private val cacheFailed = ConcurrentHashMap.newKeySet<String>()
+
+    private fun thumbFile(ctx: Context, id: String): File =
+        File(File(ctx.filesDir, "thumbs"), id.replace(Regex("[^A-Za-z0-9_-]"), "_") + ".img")
+
+    // Copie l'image du programme dans le stockage de l'app : elle reste disponible même si le guide ou le site l'oublie
+    fun cacheThumb(ctx: Context, id: String) {
+        val app = ctx.applicationContext
+        if (cacheFailed.contains(id) || !caching.add(id)) return
+        scope.launch {
+            try {
+                val r = loadRecs(app).firstOrNull { it.id == id }
+                val url = r?.thumb.orEmpty()
+                if (url.startsWith("http")) {
+                    val f = thumbFile(app, id)
+                    f.parentFile?.mkdirs()
+                    val c = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                    c.connectTimeout = 10000
+                    c.readTimeout = 15000
+                    c.instanceFollowRedirects = true
+                    c.inputStream.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
+                    if (f.length() > 500L) update(app, id) { it.copy(thumb = Uri.fromFile(f).toString()) }
+                    else { f.delete(); cacheFailed.add(id) }
+                }
+            } catch (e: Exception) {
+                cacheFailed.add(id)
+            } finally {
+                caching.remove(id)
+            }
+        }
+    }
 
     @Synchronized
     fun update(ctx: Context, id: String, f: (Rec) -> Rec) {
@@ -104,11 +136,13 @@ object Dvr {
             l + Rec(id, ch.id, ch.name, ch.url, p.title, p.start, p.stop, kind, "scheduled", thumb = p.icon, logo = ch.icon)
         )
         tick++
+        if (p.icon.startsWith("http")) cacheThumb(ctx, id)
     }
 
     @Synchronized
     fun remove(ctx: Context, id: String) {
         jobs[id]?.cancel()
+        try { thumbFile(ctx, id).delete() } catch (e: Exception) { }
         saveRecs(ctx, loadRecs(ctx).filter { it.id != id })
         tick++
     }

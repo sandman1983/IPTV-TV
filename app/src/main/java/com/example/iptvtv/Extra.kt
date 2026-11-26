@@ -220,9 +220,11 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     }
     // Garde l'image dans l'enregistrement tant que le guide la connaît encore (le guide oublie les programmes passés)
     LaunchedEffect(recs, epg) {
-        recs.filter { it.thumb.isBlank() }.forEach { r ->
-            val t = thumbOf(r)
-            if (t.isNotBlank()) Dvr.update(ctx, r.id) { it.copy(thumb = t) }
+        recs.forEach { r ->
+            if (r.thumb.isBlank()) {
+                val t = thumbOf(r)
+                if (t.isNotBlank()) { Dvr.update(ctx, r.id) { it.copy(thumb = t) }; Dvr.cacheThumb(ctx, r.id) }
+            } else if (r.thumb.startsWith("http")) Dvr.cacheThumb(ctx, r.id)
         }
     }
 
