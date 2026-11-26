@@ -182,7 +182,6 @@ fun ColTitle(t: String) {
             t.uppercase(), color = GOLD, fontSize = 15.sp, fontWeight = FontWeight.Bold,
             letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
         )
-        Box(Modifier.padding(top = 3.dp).width(22.dp).height(2.dp).background(GOLD))
     }
 }
 
@@ -471,7 +470,6 @@ fun ChannelPanel(
                         letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 4.dp)
                     )
-                    Box(Modifier.padding(top = 3.dp).width(22.dp).height(2.dp).background(GOLD))
                 }
                 Text("›", color = Th.sub, fontSize = 24.sp, lineHeight = 26.sp, modifier = Modifier.padding(horizontal = 8.dp))
             }

@@ -582,7 +582,7 @@ fun EpgGrid(
         }
     }
     val slot = 30 * 60000L
-    val winStart = remember { (System.currentTimeMillis() / 60000L) * 60000L }
+    val winStart = remember { (System.currentTimeMillis() / slot) * slot }
     val winEnd = winStart + TOTAL_MIN * 60000L
     // La catégorie n'est mémorisée que si on lance une chaîne depuis le guide ; sinon on revient sur la chaîne en cours.
     var cat by remember {
@@ -677,7 +677,7 @@ fun EpgGrid(
                 Box(Modifier.padding(start = 8.dp).width((TOTAL_MIN * DPM).dp).fillMaxHeight()) {
                     Text(
                         "ON NOW", color = ACCENT, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
-                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 4.dp)
+                        modifier = Modifier.align(Alignment.CenterStart).offset(x = nowX + 4.dp)
                     )
                     val first = ((winStart + slot - 1) / slot) * slot
                     val ymd = SimpleDateFormat("yyyyMMdd", Locale.US)
@@ -686,7 +686,7 @@ fun EpgGrid(
                     for (k in 0 until TOTAL_MIN / 30) {
                         val t = first + k * slot
                         if (k == skipK) continue
-                        if (t < winEnd && t - winStart >= 22 * 60000L) {
+                        if (t < winEnd && Math.abs(t - nowMs) >= 22 * 60000L) {
                             // Premier créneau d'un nouveau jour : on affiche aussi la date.
                             val newDay = ymd.format(Date(t)) != todayKey && ymd.format(Date(t)) != ymd.format(Date(t - slot))
                             if (newDay) skipK = k + 1
