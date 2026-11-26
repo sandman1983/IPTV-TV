@@ -221,7 +221,8 @@ fun MiniPlayer(
     var removedAll by remember { mutableStateOf(false) }
     val shownRecent = if (removedAll) emptyList() else recent.filter { it.id !in removed }
     val gr = remember { FocusRequester() }
-    val curReq = remember { FocusRequester() }
+    val itemReqs = remember { HashMap<Int, FocusRequester>() }
+    var pendId by remember { mutableStateOf<Int?>(null) }
     var ctrl by remember { mutableStateOf(false) }
     var sel by remember { mutableStateOf(0) }
     val st = rememberLazyListState()
@@ -246,7 +247,15 @@ fun MiniPlayer(
             delay(100)
             try { clr.requestFocus() } catch (ex: Exception) { }
         } else if (clearFor == null) {
-            try { gr.requestFocus() } catch (ex: Exception) { }
+            val t = pendId
+            if (t != null) {
+                pendId = null
+                delay(90)
+                val r = itemReqs[t]
+                try { if (r != null) r.requestFocus() else gr.requestFocus() } catch (ex: Exception) { try { gr.requestFocus() } catch (e2: Exception) { } }
+            } else {
+                try { gr.requestFocus() } catch (ex: Exception) { }
+            }
         }
     }
     Box(
@@ -364,7 +373,7 @@ fun MiniPlayer(
                     val pr = epg.now(ch.epgId)
                     val num = channels.indexOfFirst { it.id == ch.id } + 1
                     MiniItem(
-                        { onPick(ch) }, if (ri == 0) curReq else null,
+                        { onPick(ch) }, itemReqs.getOrPut(ch.id) { FocusRequester() },
                         pr?.title ?: ch.name, "$num - ${ch.name.uppercase()}",
                         if (pr != null) fracOf(pr, nowMs) else null,
                         if (pr?.icon.isNullOrBlank()) null else ch.icon,
@@ -392,7 +401,11 @@ fun MiniPlayer(
             ) {
                 Text("CLEAR RECENT", color = Th.sel, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 Text(cf.name, color = M_GRAY, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
-                FocusRow({ onClearHist(cf.id); removed = removed + cf.id; clearFor = null }, Modifier.focusRequester(clr), tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true, pad = 12.dp) {
+                FocusRow({
+                    val ix = shownRecent.indexOfFirst { it.id == cf.id }
+                    pendId = (shownRecent.getOrNull(ix + 1) ?: shownRecent.getOrNull(ix - 1))?.takeIf { it.id != cf.id }?.id
+                    onClearHist(cf.id); removed = removed + cf.id; clearFor = null
+                }, Modifier.focusRequester(clr), tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true, pad = 12.dp) {
                     Text("This channel", color = fcolor(Color.White), fontSize = 15.sp)
                 }
                 FocusRow({ onClearHist(null); removedAll = true; clearFor = null }, tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true, pad = 12.dp) {
