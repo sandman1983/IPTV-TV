@@ -248,7 +248,10 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                             Key.DirectionLeft -> { seekBy(-step); true }
                             Key.DirectionRight -> { seekBy(step); true }
                             Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (rep == 0) toggle(); true }
-                            Key.DirectionUp -> { poke(); true }
+                            Key.DirectionUp -> {
+                                if (show) { try { audioReq.requestFocus() } catch (e: Exception) { } }
+                                poke(); true
+                            }
                             Key.DirectionDown -> {
                                 if (show) { try { btn.requestFocus() } catch (e: Exception) { } } else poke()
                                 true
@@ -294,7 +297,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Th.ovMid, 1f to Th.ovEnd))
-                    .padding(start = 48.dp, end = 48.dp, top = 40.dp, bottom = 0.dp)
+                    .padding(start = 48.dp, end = 48.dp, top = 40.dp, bottom = 8.dp)
             ) {
                 // Haut de la barre : audio et sous-titres (accessibles avec la flèche haut)
                 Row(
@@ -302,8 +305,8 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                         .onPreviewKeyEvent { ev ->
                             if (ev.type == KeyEventType.KeyDown) {
                                 when (ev.key) {
-                                    Key.DirectionUp -> { try { root.requestFocus() } catch (e: Exception) { }; poke(); true }
-                                    Key.DirectionDown -> { try { btn.requestFocus() } catch (e: Exception) { }; true }
+                                    Key.DirectionUp -> { poke(); true }
+                                    Key.DirectionDown -> { try { root.requestFocus() } catch (e: Exception) { }; poke(); true }
                                     else -> { touch++; false }
                                 }
                             } else false
@@ -332,7 +335,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     Modifier.fillMaxWidth().padding(top = 4.dp)
                         .onPreviewKeyEvent { ev ->
                             if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionUp) {
-                                try { audioReq.requestFocus() } catch (e: Exception) { }
+                                try { root.requestFocus() } catch (e: Exception) { }
                                 poke(); true
                             } else {
                                 if (ev.type == KeyEventType.KeyDown) touch++
@@ -417,8 +420,8 @@ private fun RpBtn(kind: Int, label: String, req: FocusRequester? = null, big: Bo
                 Text(label, color = ink, fontSize = 8.sp, fontWeight = FontWeight.Bold)
             }
             6 -> Text(label, color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            8 -> Box(Modifier.size(sz * 0.56f, sz * 0.42f).border(1.5.dp, ink, RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
-                Text(label, color = ink, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            8 -> Box(Modifier.size(24.dp, 17.dp).border(1.5.dp, ink, RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
+                Text(label, color = ink, fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
             else -> Canvas(Modifier.size(sz * (if (kind == 7) 0.5f else 0.42f))) { rpGlyph(kind, ink) }
         }
