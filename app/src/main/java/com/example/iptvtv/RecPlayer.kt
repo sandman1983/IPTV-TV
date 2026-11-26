@@ -87,6 +87,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
     }
     val idx = list.indexOfFirst { it.id == rec.id }
     val next = if (idx >= 0) list.getOrNull(idx + 1) else null
+    val prev = if (idx > 0) list.getOrNull(idx - 1) else null
 
     var show by remember { mutableStateOf(true) }
     var touch by remember { mutableStateOf(0) }
@@ -175,7 +176,18 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
         try { if (confirm) contReq.requestFocus() else root.requestFocus() } catch (e: Exception) { }
     }
     // Retour : demande confirmation avant d'arrêter la lecture
-    BackHandler { confirm = !confirm }
+    val backAt = remember { longArrayOf(0L) }
+    BackHandler {
+        // Ignore un second appui reçu quasi en même temps (doublon de la télécommande)
+        val now = System.currentTimeMillis()
+        if (now - backAt[0] > 300L) { backAt[0] = now; confirm = !confirm }
+    }
+    fun cycleSpeed() {
+        val opts = listOf(1f, 1.25f, 1.5f, 2f)
+        speed = opts[(opts.indexOf(speed).coerceAtLeast(0) + 1) % opts.size]
+        player.setPlaybackSpeed(speed)
+        poke()
+    }
 
     val df = remember { SimpleDateFormat("EEE d MMM · HH:mm", Locale.ENGLISH) }
     Box(
@@ -184,24 +196,34 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             .onFocusChanged { rootFocused = it.isFocused }
             .focusable()
             .onPreviewKeyEvent { ev ->
-                if (!rootFocused || ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (confirm || ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 val rep = ev.nativeKeyEvent.repeatCount
+                val step = if (rep > 10) 60_000L else if (rep > 3) 30_000L else 10_000L
                 when (ev.key) {
-                    Key.DirectionLeft, Key.DirectionRight -> {
-                        val step = if (rep > 10) 60_000L else if (rep > 3) 30_000L else 10_000L
-                        seekBy(if (ev.key == Key.DirectionLeft) -step else step); true
-                    }
-                    Key.MediaRewind -> { seekBy(-60_000L); true }
-                    Key.MediaFastForward -> { seekBy(60_000L); true }
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter, Key.MediaPlayPause -> { if (rep == 0) toggle(); true }
+                    // Touches média de la télécommande : actives quel que soit le bouton sélectionné
+                    Key.MediaRewind -> { seekBy(-step); true }
+                    Key.MediaFastForward -> { seekBy(step); true }
+                    Key.MediaPlayPause -> { if (rep == 0) toggle(); true }
                     Key.MediaPlay -> { if (!player.isPlaying) toggle(); true }
                     Key.MediaPause -> { if (player.isPlaying) toggle(); true }
-                    Key.DirectionUp -> { poke(); true }
-                    Key.DirectionDown -> {
-                        if (show) { try { btn.requestFocus() } catch (e: Exception) { } } else poke()
-                        true
+                    Key.MediaStop -> { confirm = true; true }
+                    Key.MediaNext, Key.ChannelUp -> { if (rep == 0) next?.let { onPick(it.id) }; true }
+                    Key.MediaPrevious, Key.ChannelDown -> { if (rep == 0) prev?.let { onPick(it.id) }; true }
+                    Key.MediaRecord -> { if (rep == 0) cycleSpeed(); true }
+                    else -> {
+                        if (!rootFocused) return@onPreviewKeyEvent false
+                        when (ev.key) {
+                            Key.DirectionLeft -> { seekBy(-step); true }
+                            Key.DirectionRight -> { seekBy(step); true }
+                            Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (rep == 0) toggle(); true }
+                            Key.DirectionUp -> { poke(); true }
+                            Key.DirectionDown -> {
+                                if (show) { try { btn.requestFocus() } catch (e: Exception) { } } else poke()
+                                true
+                            }
+                            else -> false
+                        }
                     }
-                    else -> false
                 }
             }
     ) {
@@ -267,37 +289,34 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                                 false
                             }
                         },
-                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    RpBtn(0, "60") { seekBy(-60_000L) }
-                    RpBtn(0, "10") { seekBy(-10_000L) }
-                    RpBtn(if (playing) 3 else 2, "", btn, big = true) { toggle() }
-                    RpBtn(1, "10") { seekBy(10_000L) }
-                    RpBtn(1, "60") { seekBy(60_000L) }
-                    Spacer(Modifier.width(28.dp))
-                    RpBtn(
-                        6, (if (speed == speed.toInt().toFloat()) "${speed.toInt()}" else "$speed") + "x"
-                    ) {
-                        val opts = listOf(1f, 1.25f, 1.5f, 2f)
-                        speed = opts[(opts.indexOf(speed).coerceAtLeast(0) + 1) % opts.size]
-                        player.setPlaybackSpeed(speed)
-                        poke()
+                    // Bouton lecture exactement au centre : vitesse à gauche, suivant à droite
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                        RpBtn(6, (if (speed == speed.toInt().toFloat()) "${speed.toInt()}" else "$speed") + "x") { cycleSpeed() }
                     }
-                    if (next != null) RpBtn(4, "") { onPick(next.id) }
-                    RpBtn(5, "") { confirm = true }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RpBtn(0, "60") { seekBy(-60_000L) }
+                        RpBtn(0, "10") { seekBy(-10_000L) }
+                        RpBtn(if (playing) 3 else 2, "", btn, big = true) { toggle() }
+                        RpBtn(1, "10") { seekBy(10_000L) }
+                        RpBtn(1, "60") { seekBy(60_000L) }
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (next != null) RpBtn(4, "") { onPick(next.id) }
+                    }
                 }
             }
         }
         if (confirm) {
             Box(Modifier.fillMaxSize().background(Color(0xB3000000)), contentAlignment = Alignment.Center) {
                 Column(
-                    Modifier.clip(RoundedCornerShape(16.dp)).background(Th.cardBg).padding(horizontal = 40.dp, vertical = 28.dp),
+                    Modifier.clip(RoundedCornerShape(12.dp)).background(Th.cardBg).padding(horizontal = 24.dp, vertical = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Stop playing?", color = Th.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text(rec.title, color = Th.sub, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp, bottom = 22.dp).widthIn(max = 420.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text("Stop playing?", color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(rec.title, color = Th.sub, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp).widthIn(max = 260.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         RpPill("Continue watching", contReq) { confirm = false }
                         RpPill("Stop", null) { onBack() }
                     }
@@ -314,13 +333,13 @@ private fun RpPill(label: String, req: FocusRequester?, onClick: () -> Unit) {
         Modifier
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(if (f) RP_GOLD else Color(0x22FFFFFF))
             .clickable { onClick() }
-            .padding(horizontal = 26.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = if (f) Color(0xFF1A1A1A) else Th.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = if (f) Color(0xFF1A1A1A) else Th.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -329,25 +348,25 @@ private fun RpPill(label: String, req: FocusRequester?, onClick: () -> Unit) {
 @Composable
 private fun RpBtn(kind: Int, label: String, req: FocusRequester? = null, big: Boolean = false, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val sz = if (big) 68.dp else 50.dp
+    val sz = if (big) 44.dp else 34.dp
     val sc by animateFloatAsState(if (f) 1.12f else 1f, label = "rpb")
     val ink = if (f) Color(0xFF1A1A1A) else Color.White
     Box(
-        Modifier.padding(horizontal = 7.dp).size(sz).scale(sc)
+        Modifier.padding(horizontal = 5.dp).size(sz).scale(sc)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clip(CircleShape)
-            .background(if (f) RP_GOLD else if (big) Color(0x40FFFFFF) else Color(0x26FFFFFF))
+            .background(if (f) RP_GOLD else Color.Transparent)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         when (kind) {
             0, 1 -> {
                 Canvas(Modifier.size(sz * 0.8f)) { rpSeek(kind == 1, ink) }
-                Text(label, color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(label, color = ink, fontSize = 8.sp, fontWeight = FontWeight.Bold)
             }
-            6 -> Text(label, color = ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-            else -> Canvas(Modifier.size(sz * 0.46f)) { rpGlyph(kind, ink) }
+            6 -> Text(label, color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            else -> Canvas(Modifier.size(sz * 0.42f)) { rpGlyph(kind, ink) }
         }
     }
 }
