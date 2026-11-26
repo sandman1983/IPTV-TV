@@ -647,18 +647,8 @@ fun EpgGrid(
     }
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
-    Box(
-        Modifier.fillMaxSize().background(if (Th.light) Color(0xFFF2F2F2) else Color.Black)
-            .background(Brush.verticalGradient(0f to Th.header, 0.25f to Th.bgMid, 1f to Th.bgMid))
-    ) {
-    // Fond discret : lueur dorée en haut à droite et anneaux fins comme le logo
-    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
-        val gold = Th.sel
-        val c0 = androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.12f)
-        drawCircle(Brush.radialGradient(listOf(gold.copy(alpha = 0.13f), Color.Transparent), center = c0, radius = size.width * 0.45f), radius = size.width * 0.45f, center = c0)
-        val c1 = androidx.compose.ui.geometry.Offset(size.width * 0.96f, size.height * 1.02f)
-        for (i in 1..3) drawCircle(gold.copy(alpha = 0.07f - i * 0.015f), radius = size.height * (0.30f + i * 0.17f), center = c1, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
-    }
+    // Fond translucide comme avant : le direct reste visible derrière le guide
+    Box(Modifier.fillMaxSize().background(Th.guideBg)) {
     Column(Modifier.fillMaxSize()) {
         // En-tête identique aux autres écrans : logo, onglet, catégories, heure
         Row(
@@ -770,6 +760,11 @@ fun EpgGrid(
                                 Box(
                                     Modifier.width(LW).fillMaxHeight().padding(horizontal = 3.dp, vertical = 4.dp)
                                         .clip(RoundedCornerShape(9.dp))
+                                        // Boîte du logo : sombre et neutre, au ton du thème
+                                        .background(
+                                            if (Th.light) Brush.verticalGradient(listOf(Th.logoA, Th.logoB))
+                                            else Brush.verticalGradient(listOf(Color(0xFF25282E), Color(0xFF16181C)))
+                                        )
                                         // Chaîne sélectionnée : léger voile doré (lu au dessin, sans recomposer la ligne)
                                         .drawBehind { if (sel?.first?.id == ch.id) drawRect(G_GOLD.copy(alpha = 0.13f)) },
                                     contentAlignment = Alignment.Center
