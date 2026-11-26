@@ -66,10 +66,10 @@ import java.util.Locale
 // ---------------------------------------------------------------------------
 private val P_TOP = Color(0xFF14224A)
 private val P_BOTTOM = Color(0xFF2D6199)
-private val P_DARK: Color get() = Th.focusText
+private val P_DARK: Color get() = Th.text
 private val P_BAR = Color(0xFFFFFFFF)
 private val P_SUB: Color get() = Th.sub
-private val P_SUB_DARK: Color get() = Th.focusSub
+private val P_SUB_DARK: Color get() = Th.sub
 
 // Position de la liste du panneau : permet de garder l'élément sélectionné entièrement visible (hors fondu).
 class ActScope(val req: FocusRequester) { var used = false }
@@ -95,14 +95,14 @@ fun PanelShell(
     CompositionLocalProvider(LocalPanelList provides pl, LocalActScope provides act) {
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
-        Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
+        Box(Modifier.width(1.dp).fillMaxHeight().background(Th.divider))
         Row(
-            Modifier.weight(0.50f).fillMaxHeight().background(Th.panel)
+            Modifier.weight(0.50f).fillMaxHeight().background(Th.guideBg)
         ) {
             Column(Modifier.weight(1f).fillMaxHeight().padding(start = 24.dp, end = 16.dp, top = 28.dp)) {
                 if (title.isNotEmpty()) {
                     Text(
-                        title, color = Th.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                        title, color = Th.sel, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
                     )
@@ -134,7 +134,7 @@ fun PanelShell(
             }
             if (actions != null) {
                 Column(
-                    Modifier.width(130.dp).fillMaxHeight().background(Th.panel2)
+                    Modifier.width(130.dp).fillMaxHeight().background(if (Th.light) Color(0x0F000000) else Color(0x14FFFFFF))
                         .focusProperties { enter = { act.req } }
                         .focusGroup()
                         .padding(start = 8.dp, end = 8.dp, top = 70.dp),
@@ -198,10 +198,11 @@ fun PItem(
         }
     }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(6.dp))
+        Modifier.fillMaxWidth().padding(vertical = 3.dp).clip(RoundedCornerShape(9.dp))
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
-            .background(if (f) Th.focusBg else Color.Transparent)
-            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(6.dp)) else Modifier)
+            .background(Th.cell)
+            .then(if (f) Modifier.background(if (Th.light) Color(0x14000000) else Color(0x22FFFFFF)) else Modifier)
+            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(9.dp)) else Modifier)
             .onGloballyPositioned { co[0] = it }
             .onFocusChanged {
                 f = it.isFocused
@@ -265,7 +266,7 @@ fun PSwitch(title: String, sub: String, on: Boolean, onToggle: () -> Unit, autoF
         trailing = { _ ->
             Box(
                 Modifier.size(38.dp, 20.dp).clip(RoundedCornerShape(10.dp))
-                    .background(if (on) Color(0xFF2F7FC1) else Color(0xFF8A94A8))
+                    .background(if (on) Th.sel else Color(0xFF8A94A8))
             ) {
                 Box(
                     Modifier.align(if (on) Alignment.CenterEnd else Alignment.CenterStart)
@@ -281,7 +282,7 @@ fun PRadio(title: String, sub: String, selected: Boolean, onClick: () -> Unit, a
     PItem(
         title, sub, onClick, autoFocus = autoFocus,
         leading = { f ->
-            val c = if (f) P_DARK else Th.text
+            val c = if (selected) Th.sel else Th.text
             Box(Modifier.size(18.dp).border(2.dp, c, CircleShape).padding(4.dp)) {
                 if (selected) Box(Modifier.fillMaxSize().clip(CircleShape).background(c))
             }
@@ -306,7 +307,7 @@ fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
             .then(if (autoFocus) Modifier.focusRequester(fr) else Modifier)
             .then(if (first && actSc != null) Modifier.focusRequester(actSc.req) else Modifier)
-            .background(if (f) Th.focusBg else Color.Transparent)
+            .background(if (f) (if (Th.light) Color(0x14000000) else Color(0x22FFFFFF)) else Color.Transparent)
             .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(6.dp)) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .onPreviewKeyEvent { holdGuard(it) }
@@ -320,7 +321,7 @@ fun PButton(label: String, onClick: () -> Unit, autoFocus: Boolean = false) {
 @Composable
 fun PHeader(t: String) {
     Text(
-        t.uppercase(), color = Th.accentSoft, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        t.uppercase(), color = Th.sel, fontSize = 12.sp, fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp)
     )
 }
@@ -385,8 +386,8 @@ fun PInput(label: String, value: String, onChange: (String) -> Unit, autoFocus: 
                 },
             decorationBox = { inner ->
                 Box(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
-                        .border(if (foc) 2.dp else 1.dp, if (foc) Th.sel else Color(0xFF6F7A8C), RoundedCornerShape(6.dp))
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Th.cell)
+                        .border(if (foc) 2.dp else 1.dp, if (foc) Th.sel else Th.divider, RoundedCornerShape(9.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) { inner() }
             }
