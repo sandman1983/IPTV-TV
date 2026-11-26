@@ -1806,16 +1806,13 @@ fun BottomInfo(
             Box(Modifier.weight(1f)) {
                 Text(
                     c.cat.uppercase(), color = Th.sel, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, maxLines = 1,
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0x22E0B85A)).padding(horizontal = 8.dp, vertical = 2.dp)
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
                 for (hint in listOf("\u2191\u2193  zap", "OK  mini player")) {
                     Text(
-                        hint, color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false,
-                        modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                            .background(if (Th.light) Color(0x14000000) else Color(0x22FFFFFF))
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                        hint, color = Th.sel.copy(alpha = 0.85f), fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false
                     )
                 }
             }

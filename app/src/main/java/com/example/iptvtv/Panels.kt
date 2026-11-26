@@ -134,7 +134,7 @@ fun PanelShell(
             }
             if (actions != null) {
                 Column(
-                    Modifier.width(130.dp).fillMaxHeight().background(if (Th.light) Color(0x0F000000) else Color(0x14FFFFFF))
+                    Modifier.width(130.dp).fillMaxHeight().background(if (Th.light) Color(0x1A000000) else Color(0xB3000000))
                         .focusProperties { enter = { act.req } }
                         .focusGroup()
                         .padding(start = 8.dp, end = 8.dp, top = 70.dp),
