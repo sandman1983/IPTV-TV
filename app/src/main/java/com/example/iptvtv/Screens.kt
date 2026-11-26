@@ -758,22 +758,24 @@ fun resetTracks(exo: ExoPlayer) {
 @Composable
 private fun SearchTab(label: String, count: Int, sel: Boolean, onFocus: () -> Unit, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(5.dp)
-    Box(
+    val shape = RoundedCornerShape(9.dp)
+    Column(
         Modifier.clip(shape)
-            .background(if (sel) Th.focusBg else Color.Transparent)
+            .background(if (f) (if (Th.light) Color(0x14000000) else Color(0x22FFFFFF)) else Color.Transparent)
             .border(if (f) 2.dp else 0.dp, if (f) GOLD else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 4.dp)
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             androidx.compose.ui.text.buildAnnotatedString {
-                withStyle(androidx.compose.ui.text.SpanStyle(color = if (sel) Th.focusText else Th.text, fontWeight = FontWeight.Medium)) { append(label) }
-                withStyle(androidx.compose.ui.text.SpanStyle(color = if (sel) Th.focusSub else Th.sub)) { append("  $count") }
+                withStyle(androidx.compose.ui.text.SpanStyle(color = if (sel) GOLD else Th.text, fontWeight = FontWeight.Bold)) { append(label) }
+                withStyle(androidx.compose.ui.text.SpanStyle(color = Th.sub)) { append("  $count") }
             },
             fontSize = 15.sp, maxLines = 1
         )
+        Box(Modifier.padding(top = 3.dp).width(22.dp).height(2.dp).background(if (sel && !f) GOLD else Color.Transparent))
     }
 }
 
@@ -781,15 +783,16 @@ private fun SearchTab(label: String, count: Int, sel: Boolean, onFocus: () -> Un
 private fun SearchRow(
     c: Channel?, num: Int, title: String, line1: String, frac: Float?, next: String?,
     live: Boolean, thumb: String, onClick: () -> Unit,
-    pv: ExoPlayer? = null, pvReady: Boolean = false, onFocusState: (Boolean) -> Unit = {}
+    pv: ExoPlayer? = null, pvReady: Boolean = false, onFocusState: (Boolean) -> Unit = {}, rec: Boolean = false
 ) {
     var f by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(12.dp)
-    val tx = if (f) Th.focusText else Th.text
-    val sb = if (f) Th.focusSub else Th.sub
+    val shape = RoundedCornerShape(9.dp)
+    val tx = Th.text
+    val sb = Th.sub
     Row(
         Modifier.fillMaxWidth().height(104.dp).clip(shape)
-            .background(if (f) Th.focusBg else Th.cardBg)
+            .background(Th.cell)
+            .then(if (f) Modifier.background(if (Th.light) Color(0x14000000) else Color(0x22FFFFFF)) else Modifier)
             .border(if (f) 2.dp else 0.dp, if (f) GOLD else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; onFocusState(it.isFocused) }
             .clickable { onClick() }
@@ -845,16 +848,21 @@ private fun SearchRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (num > 0) Text("$num  ", color = sb, fontSize = 15.sp)
                 Text(
-                    c?.name ?: "", color = if (f) Color(0xFF8A6100) else GOLD, fontSize = 16.sp,
+                    c?.name ?: "", color = GOLD, fontSize = 16.sp,
                     fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             Text(title, color = tx, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (line1.isNotBlank() || frac != null) {
+            if (line1.isNotBlank() || frac != null || rec) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(line1, color = sb, fontSize = 13.sp, maxLines = 1)
+                    if (rec) {
+                        val tr = androidx.compose.animation.core.rememberInfiniteTransition(label = "srec")
+                        val a by tr.animateFloat(1f, 0.15f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(650), androidx.compose.animation.core.RepeatMode.Reverse), label = "srecA")
+                        Box(Modifier.padding(end = 6.dp).size(9.dp).graphicsLayer { alpha = a }.clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xFFE5242B)))
+                    }
+                    Text(line1, color = GOLD, fontSize = 13.sp, maxLines = 1)
                     if (frac != null) {
-                        Box(Modifier.padding(horizontal = 8.dp).weight(1f).height(3.dp).background(if (f) Color(0x66000000) else Th.barTrack)) {
+                        Box(Modifier.padding(horizontal = 8.dp).weight(1f).height(3.dp).background(Th.barTrack)) {
                             Box(Modifier.fillMaxWidth(frac.coerceIn(0f, 1f)).fillMaxHeight().background(GOLD))
                         }
                         Text("${(frac * 100).toInt().coerceIn(0, 100)}%", color = sb, fontSize = 13.sp)
@@ -958,12 +966,12 @@ fun SearchScreen(
 
     Row(Modifier.fillMaxSize()) {
         Box(Modifier.weight(0.50f).fillMaxHeight().background(Th.scrim))
-        Box(Modifier.width(2.dp).fillMaxHeight().background(Color(0xFFD6DEEC)))
-        Column(Modifier.weight(0.50f).fillMaxHeight().background(Th.panel).padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 10.dp)) {
+        Box(Modifier.width(1.dp).fillMaxHeight().background(Th.divider))
+        Column(Modifier.weight(0.50f).fillMaxHeight().background(Th.guideBg).padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     Modifier.weight(1f).height(42.dp).clip(shape).background(Th.cell)
-                        .border(if (ff) 2.dp else 1.dp, if (ff) GOLD else GOLD.copy(alpha = 0.55f), shape)
+                        .border(if (ff) 2.dp else 1.dp, if (ff) GOLD else Th.divider, shape)
                         .padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1068,7 +1076,8 @@ fun SearchScreen(
                             SearchRow(
                                 c, n, p.title, "$day${hm(p.start)} – ${hm(p.stop)}",
                                 if (live) fracOf(p, now) else null, null, live, p.icon, { if (live) onPlay(c) else dvrFor = Pair(c, p) },
-                                if (live && prev.pvId == c.id) prev.player else null, prev.ready, { if (it) focIdx = ix; if (live) prev.focus(c.id, it) }
+                                if (live && prev.pvId == c.id) prev.player else null, prev.ready, { if (it) focIdx = ix; if (live) prev.focus(c.id, it) },
+                                recs.any { it.id == "${c.id}_${p.start}_rec" && (it.state == "scheduled" || it.state == "recording") }
                             )
                         }
                         else -> itemsIndexed(recRes, key = { _, it -> it.id }) { ix, r ->
