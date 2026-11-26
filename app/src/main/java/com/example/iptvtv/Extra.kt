@@ -214,7 +214,16 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
         if (r.thumb.isNotBlank()) return r.thumb
         val ep = chById[r.chId]?.epgId.orEmpty()
         val l = epg.progs[ep] ?: return ""
-        return (l.firstOrNull { it.start == r.start } ?: l.firstOrNull { it.start <= r.start && r.start < it.stop })?.icon.orEmpty()
+        // Le programme qui recouvre le plus la durée de l'enregistrement (les minutes avant/après décalent le début)
+        return l.filter { it.icon.isNotBlank() && it.stop > r.start && it.start < r.stop }
+            .maxByOrNull { minOf(it.stop, r.stop) - maxOf(it.start, r.start) }?.icon.orEmpty()
+    }
+    // Garde l'image dans l'enregistrement tant que le guide la connaît encore (le guide oublie les programmes passés)
+    LaunchedEffect(recs, epg) {
+        recs.filter { it.thumb.isBlank() }.forEach { r ->
+            val t = thumbOf(r)
+            if (t.isNotBlank()) Dvr.update(ctx, r.id) { it.copy(thumb = t) }
+        }
     }
 
     val done = remember(recs) { recs.filter { it.kind == "rec" && (it.state == "done" || it.state == "failed") }.sortedByDescending { it.start } }
@@ -274,6 +283,39 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     }
     val gap = 12.dp
     val cw = 176.dp
+    // Après une suppression, la sélection passe à la carte voisine (suivante, sinon précédente)
+    var focusList by remember { mutableStateOf<List<Rec>>(emptyList()) }
+    var focusPre by remember { mutableStateOf("") }
+    var pend by remember { mutableStateOf("") }
+    val reqs = remember { mutableMapOf<String, FocusRequester>() }
+    fun pendFocus(id: String) {
+        val l = focusList
+        val i = l.indexOfFirst { it.id == id }
+        if (i >= 0) {
+            val nb = l.getOrNull(i + 1) ?: l.getOrNull(i - 1)
+            if (nb != null) pend = focusPre + nb.id
+            else {
+                // Rangée vide : on passe à la première carte d'une autre rangée visible
+                val cands = ArrayList<Pair<String, Rec>>()
+                if (tab == 0 || tab == 1) cont.firstOrNull { it.id != id }?.let { cands.add("c" to it) }
+                if (tab == 0 || tab == 2) sched.firstOrNull { it.id != id }?.let { cands.add("s" to it) }
+                if (tab == 0 || tab == 3) done.firstOrNull { it.id != id }?.let { cands.add("d" to it) }
+                val pick = cands.firstOrNull { it.first != focusPre } ?: cands.firstOrNull()
+                pend = if (pick != null) pick.first + pick.second.id else ""
+            }
+        }
+    }
+    LaunchedEffect(pend, recs) {
+        if (pend.isNotEmpty()) {
+            for (i in 0 until 8) {
+                delay(120)
+                var ok = false
+                try { reqs[pend]?.requestFocus(); ok = reqs[pend] != null } catch (e: Exception) { }
+                if (ok) break
+            }
+            pend = ""
+        }
+    }
     var lastRow by remember { mutableStateOf(-1) }
     val showCont = (tab == 0 || tab == 1) && cont.isNotEmpty()
     val showSched = (tab == 0 || tab == 2) && sched.isNotEmpty()
@@ -295,7 +337,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
     }
 
     @Composable
-    fun SchedCard(w4: androidx.compose.ui.unit.Dp, r: Rec, ix: Int, n: Int, ls: androidx.compose.foundation.lazy.LazyListState, li: Int) {
+    fun SchedCard(w4: androidx.compose.ui.unit.Dp, r: Rec, ix: Int, n: Int, ls: androidx.compose.foundation.lazy.LazyListState, li: Int, lst: List<Rec>) {
         val rec = r.kind == "rec"
         val live = r.state == "recording"
         CardWrap(w4) {
@@ -309,13 +351,14 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                     append(" · " + r.chName)
                 },
                 { menu = r }, { menu = r },
-                showPlay = false, onFocus = { if (it) { if (ix >= 0) snap(ls, ix, n); reveal(li) } }
+                showPlay = false, req = reqs.getOrPut("s" + r.id) { FocusRequester() },
+                onFocus = { if (it) { focusList = lst; focusPre = "s"; if (ix >= 0) snap(ls, ix, n); reveal(li) } }
             )
         }
     }
 
     @Composable
-    fun DoneCard(w4: androidx.compose.ui.unit.Dp, r: Rec, ix: Int, n: Int, ls: androidx.compose.foundation.lazy.LazyListState, li: Int) {
+    fun DoneCard(w4: androidx.compose.ui.unit.Dp, r: Rec, ix: Int, n: Int, ls: androidx.compose.foundation.lazy.LazyListState, li: Int, lst: List<Rec>) {
         val isNew = watch[r.id] == null && r.state == "done"
         CardWrap(w4) {
             RecCard(
@@ -325,12 +368,13 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                 r.title,
                 androidx.compose.ui.text.AnnotatedString("${r.chName} · ${dfRec.format(Date(r.start))}"),
                 { if (r.state == "done" && r.path.isNotBlank()) onAct("play", r.id) else menu = r }, { menu = r },
-                onFocus = { if (it) { if (ix >= 0) snap(ls, ix, n); reveal(li) } }
+                req = reqs.getOrPut("d" + r.id) { FocusRequester() },
+                onFocus = { if (it) { focusList = lst; focusPre = "d"; if (ix >= 0) snap(ls, ix, n); reveal(li) } }
             )
         }
     }
 
-    Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Th.header, 0.25f to Th.bgMid, 1f to Th.bgMid))) {
+    Box(Modifier.fillMaxSize().background(if (Th.light) Color(0xFFF2F2F2) else Color.Black).background(androidx.compose.ui.graphics.Brush.verticalGradient(0f to Th.header, 0.25f to Th.bgMid, 1f to Th.bgMid))) {
     // Fond discret : lueur dorée en haut à droite et anneaux fins comme le logo
     androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
         val gold = Th.sel
@@ -427,7 +471,8 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                                             append(" · ${durTxt(left)} left")
                                         },
                                         { onAct("play", r.id) }, { menu = r },
-                                        onFocus = { if (it) { snap(lsCont, ix, 0); reveal(0) } }
+                                        req = reqs.getOrPut("c" + r.id) { FocusRequester() },
+                                        onFocus = { if (it) { focusList = cont; focusPre = "c"; snap(lsCont, ix, 0); reveal(0) } }
                                     )
                                 }
                             }
@@ -439,7 +484,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                         Column {
                             SecHead("Scheduled", "${sched.size} upcoming")
                             androidx.compose.foundation.lazy.LazyRow(state = lsSched, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
-                                itemsIndexed(sched, key = { _, it -> it.id }) { ix, r -> SchedCard(cw, r, ix, 0, lsSched, idxSched) }
+                                itemsIndexed(sched, key = { _, it -> it.id }) { ix, r -> SchedCard(cw, r, ix, 0, lsSched, idxSched, sched) }
                             }
                         }
                     } else itemsIndexed(schedGroups, key = { _, g -> "s_" + g.first().id }) { gi, g ->
@@ -447,7 +492,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                         Column {
                             SecHead(dayLabel(g.first().start, false), "${g.size} scheduled")
                             androidx.compose.foundation.lazy.LazyRow(state = st, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
-                                itemsIndexed(g, key = { _, it -> it.id }) { ix, r -> SchedCard(cw, r, ix, 0, st, gi) }
+                                itemsIndexed(g, key = { _, it -> it.id }) { ix, r -> SchedCard(cw, r, ix, 0, st, gi, g) }
                             }
                         }
                     }
@@ -457,7 +502,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                         Column {
                             SecHead("Recorded", "Newest first · Hold OK to delete or rename")
                             androidx.compose.foundation.lazy.LazyRow(state = lsDone, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
-                                itemsIndexed(done, key = { _, it -> it.id }) { ix, r -> DoneCard(cw, r, ix, 0, lsDone, idxDone) }
+                                itemsIndexed(done, key = { _, it -> it.id }) { ix, r -> DoneCard(cw, r, ix, 0, lsDone, idxDone, done) }
                             }
                         }
                     } else itemsIndexed(doneGroups, key = { _, g -> "d_" + g.first().id }) { gi, g ->
@@ -465,7 +510,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                         Column {
                             SecHead(dayLabel(g.first().start, true), if (gi == 0) "Newest first · Hold OK to delete or rename" else "${g.size} recorded")
                             androidx.compose.foundation.lazy.LazyRow(state = st, horizontalArrangement = Arrangement.spacedBy(gap), contentPadding = rowPad) {
-                                itemsIndexed(g, key = { _, it -> it.id }) { ix, r -> DoneCard(cw, r, ix, 0, st, gi) }
+                                itemsIndexed(g, key = { _, it -> it.id }) { ix, r -> DoneCard(cw, r, ix, 0, st, gi, g) }
                             }
                         }
                     }
@@ -488,17 +533,17 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
                     if (Watch.get(ctx, cur.id) != null) item { PItem("Play from start", "", { Watch.clear(ctx, cur.id); menu = null; onAct("play", cur.id) }) }
                 }
                 if (cur.state == "recording") {
-                    item { PItem("Stop recording", "", { menu = null; onAct("stop", cur.id) }, autoFocus = true) }
+                    item { PItem("Stop recording", "", { pendFocus(cur.id); menu = null; onAct("stop", cur.id) }, autoFocus = true) }
                 }
                 if (cur.state == "scheduled") {
-                    item { PItem(if (cur.kind == "rec") "Cancel recording" else "Remove reminder", "", { menu = null; onAct("cancel", cur.id) }, autoFocus = true) }
+                    item { PItem(if (cur.kind == "rec") "Cancel recording" else "Remove reminder", "", { pendFocus(cur.id); menu = null; onAct("cancel", cur.id) }, autoFocus = true) }
                 }
                 if (cur.kind == "rec" && (cur.state == "done" || cur.state == "failed")) {
                     item { PItem("Rename", "", { renText = cur.title; ren = cur; menu = null }) }
                     item {
                         PItem(
                             "Delete", if (cur.path.isNotBlank()) "Also deletes the file" else "",
-                            { Watch.clear(ctx, cur.id); menu = null; onAct("delete", cur.id) }, autoFocus = cur.state == "failed"
+                            { pendFocus(cur.id); Watch.clear(ctx, cur.id); menu = null; onAct("delete", cur.id) }, autoFocus = cur.state == "failed"
                         )
                     }
                 }
