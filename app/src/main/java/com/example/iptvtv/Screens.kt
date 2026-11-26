@@ -74,6 +74,7 @@ private val TITLE = Color(0xFFFFD166)
 private val GOLD = Color(0xFFE0B85A)
 
 val LocalRowFocused = compositionLocalOf { false }
+val LocalRowSel = compositionLocalOf { false }
 
 // Couleur d'un texte dans une ligne : devient sombre quand la barre de sélection blanche est active.
 @Composable
@@ -95,6 +96,7 @@ fun FocusRow(
     tileCorner: androidx.compose.ui.unit.Dp = 3.dp,
     tileBorder: Color = GOLD,
     tileVPad: androidx.compose.ui.unit.Dp = 4.dp,
+    soft: Boolean = false,
     content: @Composable RowScope.() -> Unit
 ) {
     var f by remember { mutableStateOf(false) }
@@ -120,7 +122,8 @@ fun FocusRow(
             }
             .then(if (f) Modifier.shadow(12.dp, RoundedCornerShape(tileCorner)) else Modifier)
             .clip(RoundedCornerShape(tileCorner))
-            .background(if (f) fbg else tcol)
+            .background(if (f && !soft) fbg else tcol)
+            .then(if (f && soft) Modifier.background(if (Th.light) Color(0x14000000) else Color(0x22FFFFFF)) else Modifier)
             .then(if (f && tileBorder != Color.Unspecified) Modifier.border(2.dp, tileBorder, RoundedCornerShape(tileCorner)) else Modifier)
     }
     Row(
@@ -130,7 +133,7 @@ fun FocusRow(
             .clickable { onClick() }.padding(pad),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CompositionLocalProvider(LocalRowFocused provides f) { content() }
+        CompositionLocalProvider(LocalRowFocused provides (f && !soft), LocalRowSel provides f) { content() }
     }
 }
 
@@ -174,17 +177,12 @@ fun leftText(p: Prog, nowMs: Long): String {
 
 @Composable
 fun ColTitle(t: String) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-        Box(
-            Modifier.fillMaxWidth().height(32.dp).clip(RoundedCornerShape(16.dp)).background(Th.iconBg),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                t.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 10.dp)
-            )
-        }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            t.uppercase(), color = GOLD, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+            letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center
+        )
+        Box(Modifier.padding(top = 3.dp).width(22.dp).height(2.dp).background(GOLD))
     }
 }
 
@@ -423,7 +421,7 @@ fun ChannelPanel(
                 delay(120)
                 try { catFr.requestFocus() } catch (ex: Exception) { }
             }
-            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Color(0xE6000000))) {
+            if (srcIds.size > 1) Column(Modifier.width(200.dp).fillMaxHeight().background(Th.guideBg)) {
                 ColTitle("Sources")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
@@ -433,14 +431,14 @@ fun ChannelPanel(
                             FocusRow({ selSrc = sid }, Modifier.height(rowH2), {
                                 selSrc = sid
                                 if (!all.any { it.src == sid && it.cat == selCat }) selCat = all.first { it.src == sid }.cat
-                            }, tile = true, tileCorner = 10.dp, tileVPad = 3.dp) {
+                            }, tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true) {
                                 Text(nm, color = fcolor(if (sid == selSrc) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
                 }
             }
-            Column(Modifier.width(280.dp).fillMaxHeight().background(Color(0xE6000000))) {
+            Column(Modifier.width(280.dp).fillMaxHeight().background(Th.guideBg)) {
                 ColTitle("Categories")
                 BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                     val rowH2 = maxHeight / 8
@@ -455,7 +453,7 @@ fun ChannelPanel(
                                 (if (cat == selCat) Modifier.focusRequester(catFr) else Modifier).height(rowH2),
                                 { selCat = cat },
                                 { onEditCat(cat) },
-                                tile = true, tileCorner = 10.dp, tileVPad = 3.dp
+                                tile = true, tileCorner = 9.dp, tileVPad = 3.dp, soft = true
                             ) {
                                 Text(cat, color = fcolor(if (cat == selCat) Color.White else GRAY), fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
@@ -464,25 +462,18 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(450.dp).fillMaxHeight().background(Color(0xE6000000))) {
+        Column(Modifier.width(450.dp).fillMaxHeight().background(Th.guideBg)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Th.iconBg), contentAlignment = Alignment.Center) {
-                    Text("‹", color = Th.text, fontSize = 22.sp, lineHeight = 24.sp)
-                }
-                Box(
-                    Modifier.weight(1f).padding(horizontal = 8.dp).height(32.dp)
-                        .clip(RoundedCornerShape(16.dp)).background(Th.iconBg),
-                    contentAlignment = Alignment.Center
-                ) {
+                Text("‹", color = Th.sub, fontSize = 24.sp, lineHeight = 26.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        selCat.uppercase(), color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Medium,
+                        selCat.uppercase(), color = GOLD, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                         letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 12.dp)
+                        modifier = Modifier.padding(horizontal = 4.dp)
                     )
+                    Box(Modifier.padding(top = 3.dp).width(22.dp).height(2.dp).background(GOLD))
                 }
-                Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Th.iconBg), contentAlignment = Alignment.Center) {
-                    Text("›", color = Th.text, fontSize = 22.sp, lineHeight = 24.sp)
-                }
+                Text("›", color = Th.sub, fontSize = 24.sp, lineHeight = 26.sp, modifier = Modifier.padding(horizontal = 8.dp))
             }
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 val rowH = maxHeight / 8
@@ -495,9 +486,9 @@ fun ChannelPanel(
                             { focused = c; upIdx = -1 },
                             { onEdit(c) },
                             0.dp, 0.dp, tile = true,
-                            tileColor = Th.tile, tileCorner = 10.dp, tileBorder = GOLD, tileVPad = 3.dp
+                            tileColor = Th.cell, tileCorner = 9.dp, tileBorder = GOLD, tileVPad = 3.dp, soft = true
                         ) {
-                            val rf = LocalRowFocused.current
+                            val rf = LocalRowSel.current
                             Row(
                                 Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -536,7 +527,7 @@ fun ChannelPanel(
                                                 val e1 by eq.animateFloat(3f, 10f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(420), androidx.compose.animation.core.RepeatMode.Reverse), label = "e1")
                                                 val e2 by eq.animateFloat(10f, 4f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(540), androidx.compose.animation.core.RepeatMode.Reverse), label = "e2")
                                                 val e3 by eq.animateFloat(5f, 10f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(340), androidx.compose.animation.core.RepeatMode.Reverse), label = "e3")
-                                                val ec = if (rf) Color(0xFF8A6100) else GOLD
+                                                val ec = GOLD
                                                 Row(Modifier.height(10.dp), verticalAlignment = Alignment.Bottom) {
                                                     Box(Modifier.width(2.dp).height(e1.dp).background(ec))
                                                     Spacer(Modifier.width(1.dp))
@@ -545,7 +536,7 @@ fun ChannelPanel(
                                                     Box(Modifier.width(2.dp).height(e3.dp).background(ec))
                                                 }
                                                 Text(
-                                                    " PLAYING", color = if (rf) Color(0xFF8A6100) else GOLD, fontSize = 10.sp, lineHeight = 12.sp,
+                                                    " PLAYING", color = GOLD, fontSize = 10.sp, lineHeight = 12.sp,
                                                     fontWeight = FontWeight.Bold, letterSpacing = 1.sp, maxLines = 1, softWrap = false
                                                 )
                                             }
@@ -573,7 +564,7 @@ fun ChannelPanel(
                 }
             }
         }
-        if (!cols) Box(Modifier.weight(1f).fillMaxHeight().background(Color(0xE6000000))) {
+        if (!cols) Box(Modifier.weight(1f).fillMaxHeight().background(Th.guideBg)) {
             Column(Modifier.fillMaxSize().padding(24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 110.dp)) {
                 if (fc.icon.isNotBlank()) {
@@ -658,9 +649,9 @@ fun ChannelPanel(
                 val boxScale by animateFloatAsState(if (browsing) 1.03f else 1f, label = "upBox")
                 Column(
                     Modifier.fillMaxWidth().graphicsLayer { scaleX = boxScale; scaleY = boxScale }
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (ltUp) Th.tile else if (browsing) Color(0xF2101010) else Color(0xCC0C0C0C))
-                        .then(if (browsing) Modifier.border(1.5.dp, if (ltUp) GOLD else Color(0x99FFFFFF), RoundedCornerShape(10.dp)) else Modifier)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Th.cell)
+                        .then(if (browsing) Modifier.border(1.5.dp, GOLD, RoundedCornerShape(14.dp)) else Modifier)
                         .padding(12.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -678,12 +669,12 @@ fun ChannelPanel(
                             val chipScale by animateFloatAsState(if (sel) 1.07f else 1f, label = "chip")
                             Column(
                                 Modifier.weight(1f).graphicsLayer { scaleX = chipScale; scaleY = chipScale }
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (sel) Th.focusBg else Color.Transparent)
-                                    .then(if (sel) Modifier.border(2.dp, GOLD, RoundedCornerShape(6.dp)) else Modifier).padding(4.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(if (sel) (if (ltUp) Color(0x14000000) else Color(0x22FFFFFF)) else Color.Transparent)
+                                    .then(if (sel) Modifier.border(2.dp, GOLD, RoundedCornerShape(9.dp)) else Modifier).padding(4.dp)
                             ) {
                                 Box(
-                                    Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(4.dp))
+                                    Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(7.dp))
                                         .background(Color(0xFF1B2230))
                                 ) {
                                     if (u.icon.isNotBlank()) {
@@ -694,11 +685,11 @@ fun ChannelPanel(
                                     }
                                 }
                                 Text(
-                                    hm(u.start), color = if (sel) Th.focusText else upGold,
+                                    hm(u.start), color = upGold,
                                     fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1
                                 )
                                 Text(
-                                    u.title, color = if (sel) Th.focusSub else upSub, fontSize = 13.sp, lineHeight = 17.sp,
+                                    u.title, color = if (sel) upTxt else upSub, fontSize = 13.sp, lineHeight = 17.sp,
                                     minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis
                                 )
                             }
