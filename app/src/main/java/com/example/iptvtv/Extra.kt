@@ -364,7 +364,7 @@ fun RecordingsScreen(recs: List<Rec>, channels: List<Channel>, epg: Epg, dvrUri:
             RecCard(
                 w4, chById[r.chId], r, thumbOf(r),
                 if (r.state == "failed") "FAILED" else if (isNew) "NEW" else "", if (isNew) 1 else 0,
-                durTxt(r.stop - r.start), null,
+                durTxt(((if (r.trimOut > 0L) r.trimOut else r.stop - r.start) - r.trimIn).coerceAtLeast(0L)), null,
                 r.title,
                 androidx.compose.ui.text.AnnotatedString("${r.chName} · ${dfRec.format(Date(r.start))}"),
                 { if (r.state == "done" && r.path.isNotBlank()) onAct("play", r.id) else menu = r }, { menu = r },

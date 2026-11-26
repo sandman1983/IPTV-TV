@@ -33,7 +33,8 @@ data class Rec(
     val id: String, val chId: Int, val chName: String, val url: String, val title: String,
     val start: Long, val stop: Long, val kind: String, val state: String,
     val path: String = "", val note: String = "",
-    val thumb: String = "", val logo: String = ""
+    val thumb: String = "", val logo: String = "",
+    val trimIn: Long = 0L, val trimOut: Long = 0L
 )
 
 fun loadRecs(c: Context): List<Rec> {
@@ -45,7 +46,8 @@ fun loadRecs(c: Context): List<Rec> {
             Rec(
                 x.optString("i"), x.optInt("c"), x.optString("n"), x.optString("u"), x.optString("t"),
                 x.optLong("s"), x.optLong("e"), x.optString("k"), x.optString("st"),
-                x.optString("p"), x.optString("no"), x.optString("th"), x.optString("lg")
+                x.optString("p"), x.optString("no"), x.optString("th"), x.optString("lg"),
+                x.optLong("ti"), x.optLong("to")
             )
         }
     } catch (ex: Exception) {
@@ -59,7 +61,7 @@ fun saveRecs(c: Context, l: List<Rec>) {
         a.put(
             JSONObject().put("i", r.id).put("c", r.chId).put("n", r.chName).put("u", r.url).put("t", r.title)
                 .put("s", r.start).put("e", r.stop).put("k", r.kind).put("st", r.state)
-                .put("p", r.path).put("no", r.note).put("th", r.thumb).put("lg", r.logo)
+                .put("p", r.path).put("no", r.note).put("th", r.thumb).put("lg", r.logo).put("ti", r.trimIn).put("to", r.trimOut)
         )
     }
     c.getSharedPreferences("rec", 0).edit().putString("j", a.toString()).apply()

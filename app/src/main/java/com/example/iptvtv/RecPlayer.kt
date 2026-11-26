@@ -118,15 +118,22 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
     val root = remember { FocusRequester() }
     val btn = remember { FocusRequester() }
     val ended = remember(rec.id) { booleanArrayOf(false) }
+    var trimOpen by remember { mutableStateOf(false) }
+    // Rognage non destructif : la lecture reste entre le début et la fin choisis, le fichier n'est pas modifié
+    val trimNow by rememberUpdatedState(Pair(rec.trimIn, rec.trimOut))
+    val vs = trimNow.first.coerceAtLeast(0L)
+    val ve = if (trimNow.second > 0L && dur > 0L) minOf(trimNow.second, dur) else dur
+    val vdur = (ve - vs).coerceAtLeast(0L)
+    val vpos = (pos - vs).coerceIn(0L, vdur)
 
     fun poke() { show = true; touch++ }
     fun seekBy(d: Long) {
-        val total = if (dur > 0) dur else Long.MAX_VALUE
-        player.seekTo((player.currentPosition + d).coerceIn(0L, (total - 500L).coerceAtLeast(0L)))
+        val hi = if (dur > 0) (ve - 500L).coerceAtLeast(vs) else Long.MAX_VALUE
+        player.seekTo((player.currentPosition + d).coerceIn(vs, hi))
         poke()
     }
     fun toggle() {
-        if (ended[0]) { ended[0] = false; player.seekTo(0L); player.play() }
+        if (ended[0]) { ended[0] = false; player.seekTo(vs); player.play() }
         else if (player.isPlaying) player.pause() else player.play()
         poke()
     }
@@ -152,8 +159,11 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
         player.setMediaItem(MediaItem.fromUri(rec.path))
         player.prepare()
         val saved = Watch.get(ctx, rec.id)
+        val tvs0 = trimNow.first.coerceAtLeast(0L)
         if (saved != null && saved.first > 5000L && saved.second > 0 && saved.first < saved.second * 0.95) {
-            player.seekTo(saved.first)
+            player.seekTo(saved.first + tvs0)
+        } else if (tvs0 > 0L) {
+            player.seekTo(tvs0)
         }
         player.playWhenReady = true
         var n = 0
@@ -162,8 +172,18 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             val d = player.duration
             dur = if (d != C.TIME_UNSET && d > 0) d else (rec.stop - rec.start).coerceAtLeast(0L)
             playing = player.isPlaying
+            val tvs = trimNow.first.coerceAtLeast(0L)
+            val tve = if (trimNow.second > 0L && dur > 0L) minOf(trimNow.second, dur) else dur
+            // Fin de la plage choisie : comme une fin normale
+            if (trimNow.second > 0L && tve > 0L && pos >= tve - 300L && !ended[0]) {
+                ended[0] = true
+                player.pause()
+                Watch.set(ctx, rec.id, tve - tvs, tve - tvs)
+                if (next != null) onPick(next.id) else show = true
+            }
+            if (tvs > 0L && pos < tvs - 1000L && !ended[0]) player.seekTo(tvs)
             n++
-            if (n % 10 == 0 && pos > 5000L && dur > 0L && !ended[0]) Watch.set(ctx, rec.id, pos, dur)
+            if (n % 10 == 0 && (pos - tvs) > 5000L && (tve - tvs) > 0L && !ended[0]) Watch.set(ctx, rec.id, pos - tvs, tve - tvs)
             delay(400)
         }
     }
@@ -172,14 +192,16 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             try {
                 val p = player.currentPosition
                 val d = player.duration
-                if (p > 5000L && d > 0 && !ended[0]) Watch.set(ctx, rec.id, p, d)
+                val tvs = trimNow.first.coerceAtLeast(0L)
+                val tve = if (trimNow.second > 0L && d > 0) minOf(trimNow.second, d) else d
+                if (p - tvs > 5000L && d > 0 && !ended[0]) Watch.set(ctx, rec.id, p - tvs, (tve - tvs).coerceAtLeast(1L))
                 player.release()
             } catch (e: Exception) { }
         }
     }
     // Les commandes se cachent d'elles-mêmes pendant la lecture
-    LaunchedEffect(show, touch, playing, confirm, tracksOpen) {
-        if (show && playing && !confirm && !tracksOpen) {
+    LaunchedEffect(show, touch, playing, confirm, tracksOpen, trimOpen) {
+        if (show && playing && !confirm && !tracksOpen && !trimOpen) {
             delay(4500)
             show = false
             try { root.requestFocus() } catch (e: Exception) { }
@@ -189,9 +211,15 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
         delay(150)
         try { root.requestFocus() } catch (e: Exception) { }
     }
-    LaunchedEffect(confirm, tracksOpen) {
+    // La lecture se met en pause pendant le choix des points de rognage
+    val resumeTrim = remember { booleanArrayOf(false) }
+    LaunchedEffect(trimOpen) {
+        if (trimOpen) { resumeTrim[0] = player.isPlaying; player.pause() }
+        else if (resumeTrim[0]) { resumeTrim[0] = false; if (!ended[0]) player.play() }
+    }
+    LaunchedEffect(confirm, tracksOpen, trimOpen) {
         delay(80)
-        try { if (confirm) contReq.requestFocus() else if (!tracksOpen) root.requestFocus() } catch (e: Exception) { }
+        try { if (confirm) contReq.requestFocus() else if (!tracksOpen && !trimOpen) root.requestFocus() } catch (e: Exception) { }
     }
     // Retour : demande confirmation avant d'arrêter la lecture
     val backAt = remember { longArrayOf(0L) }
@@ -224,7 +252,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     return@onPreviewKeyEvent true
                 }
                 // OK maintenu = vitesse (la touche ● de la télécommande est le bouton Home du système, on ne peut pas l'utiliser)
-                if (!confirm && rootFocused && !tracksOpen) {
+                if (!confirm && rootFocused && !tracksOpen && !trimOpen) {
                     if (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter) {
                         return@onPreviewKeyEvent okLong(ev, okFired, { toggle() }, { cycleSpeed() })
                     }
@@ -289,7 +317,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             ) {
                 Text(rec.title, color = Th.text, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    rec.chName + " · " + df.format(Date(rec.start)), color = Th.sub, fontSize = 13.sp,
+                    rec.chName + " · " + df.format(Date(rec.start)) + (if (rec.trimIn > 0L || rec.trimOut > 0L) " · Trimmed" else ""), color = Th.sub, fontSize = 13.sp,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
@@ -316,8 +344,9 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                 ) {
                     RpBtn(7, "", audioReq) { tracksOpen = true; poke() }
                     RpBtn(8, "CC") { tracksOpen = true; poke() }
+                    RpBtn(9, "") { trimOpen = true; poke() }
                 }
-                val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+                val frac = if (vdur > 0) (vpos.toFloat() / vdur).coerceIn(0f, 1f) else 0f
                 BoxWithConstraints(Modifier.fillMaxWidth().height(16.dp)) {
                     Box(Modifier.align(Alignment.CenterStart).fillMaxWidth().height(5.dp).clip(RoundedCornerShape(3.dp)).background(Th.barTrack))
                     Box(Modifier.align(Alignment.CenterStart).fillMaxWidth(frac).height(5.dp).clip(RoundedCornerShape(3.dp)).background(RP_GOLD))
@@ -327,9 +356,9 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     )
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    Text(clockTxt(pos), color = Th.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(clockTxt(vpos), color = Th.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.weight(1f))
-                    Text("-" + clockTxt((dur - pos).coerceAtLeast(0L)) + "  /  " + clockTxt(dur), color = Th.sub, fontSize = 13.sp)
+                    Text("-" + clockTxt((vdur - vpos).coerceAtLeast(0L)) + "  /  " + clockTxt(vdur), color = Th.sub, fontSize = 13.sp)
                 }
                 Row(
                     Modifier.fillMaxWidth().padding(top = 4.dp)
@@ -362,6 +391,36 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             }
         }
         if (tracksOpen) TracksDialog(tracks, player) { tracksOpen = false }
+        if (trimOpen) {
+            val cur = player.currentPosition
+            val trimmed = rec.trimIn > 0L || rec.trimOut > 0L
+            PanelDialog("Trim", { trimOpen = false }, actions = { PButton("Close", { trimOpen = false }) }) {
+                item { PInfo("Now " + clockTxt(cur) + "   ·   Start " + clockTxt(vs) + "   ·   End " + clockTxt(ve) + "   (the file itself is not changed)") }
+                item {
+                    PItem("Set start here", clockTxt(cur), {
+                        val out = if (rec.trimOut in 1L..(cur + 1000L)) 0L else rec.trimOut
+                        Dvr.update(ctx, rec.id) { it.copy(trimIn = cur, trimOut = out) }
+                        trimOpen = false
+                    }, autoFocus = true)
+                }
+                item {
+                    PItem("Set end here", clockTxt(cur), {
+                        if (cur > vs + 1000L) {
+                            Dvr.update(ctx, rec.id) { it.copy(trimOut = cur) }
+                            // On recule un peu pour voir la fin de la plage plutôt que de sauter à la suite
+                            player.seekTo((cur - 5000L).coerceAtLeast(vs))
+                        }
+                        trimOpen = false
+                    })
+                }
+                if (trimmed) item {
+                    PItem("Clear trim", "Play the whole recording", {
+                        Dvr.update(ctx, rec.id) { it.copy(trimIn = 0L, trimOut = 0L) }
+                        trimOpen = false
+                    })
+                }
+            }
+        }
         if (confirm) {
             Box(Modifier.fillMaxSize().background(Color(0xB3000000)), contentAlignment = Alignment.Center) {
                 Column(
@@ -423,7 +482,7 @@ private fun RpBtn(kind: Int, label: String, req: FocusRequester? = null, big: Bo
             8 -> Box(Modifier.size(24.dp, 17.dp).border(1.5.dp, ink, RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
                 Text(label, color = ink, fontSize = 9.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
-            else -> Canvas(Modifier.size(sz * (if (kind == 7) 0.5f else 0.42f))) { rpGlyph(kind, ink) }
+            else -> Canvas(Modifier.size(sz * (if (kind == 7 || kind == 9) 0.5f else 0.42f))) { rpGlyph(kind, ink) }
         }
     }
 }
@@ -462,6 +521,13 @@ private fun DrawScope.rpGlyph(kind: Int, col: Color) {
         4 -> {
             tri(0.04f, 0.06f, 0.04f, 0.94f, 0.72f, 0.5f)
             drawRect(col, Offset(0.78f * s, 0.06f * s), Size(0.17f * s, 0.88f * s))
+        }
+        9 -> {
+            // Ciseaux : deux anneaux et deux lames croisées
+            drawCircle(col, 0.14f * s, Offset(0.18f * s, 0.2f * s), style = Stroke(s * 0.08f))
+            drawCircle(col, 0.14f * s, Offset(0.18f * s, 0.8f * s), style = Stroke(s * 0.08f))
+            drawLine(col, Offset(0.3f * s, 0.28f * s), Offset(0.96f * s, 0.74f * s), s * 0.08f, StrokeCap.Round)
+            drawLine(col, Offset(0.3f * s, 0.72f * s), Offset(0.96f * s, 0.26f * s), s * 0.08f, StrokeCap.Round)
         }
         7 -> {
             // Haut-parleur : boîtier + cône + deux ondes
