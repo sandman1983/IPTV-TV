@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -42,6 +43,10 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -81,6 +86,17 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
     LaunchedEffect(Unit) { try { main.stop() } catch (e: Exception) { } }
     var confirm by remember { mutableStateOf(false) }
     val contReq = remember { FocusRequester() }
+    var tracksOpen by remember { mutableStateOf(false) }
+    var tracks by remember { mutableStateOf(Tracks.EMPTY) }
+    val okFired = remember { booleanArrayOf(true) }
+
+    // Bouton Home de la télécommande : l'enregistrement se met en pause quand l'app passe en arrière-plan
+    val lifeOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifeOwner, player) {
+        val obs = LifecycleEventObserver { _, ev -> if (ev == Lifecycle.Event.ON_STOP) { try { player.pause() } catch (e: Exception) { } } }
+        lifeOwner.lifecycle.addObserver(obs)
+        onDispose { lifeOwner.lifecycle.removeObserver(obs) }
+    }
 
     val list = remember(recs) {
         recs.filter { it.kind == "rec" && it.state == "done" && it.path.isNotBlank() }.sortedByDescending { it.start }
@@ -121,6 +137,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                 err = "This recording can't be played."
                 show = true
             }
+            override fun onTracksChanged(t: Tracks) { tracks = t }
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_ENDED) {
@@ -160,8 +177,8 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
         }
     }
     // Les commandes se cachent d'elles-mêmes pendant la lecture
-    LaunchedEffect(show, touch, playing, confirm) {
-        if (show && playing && !confirm) {
+    LaunchedEffect(show, touch, playing, confirm, tracksOpen) {
+        if (show && playing && !confirm && !tracksOpen) {
             delay(4500)
             show = false
             try { root.requestFocus() } catch (e: Exception) { }
@@ -171,9 +188,9 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
         delay(150)
         try { root.requestFocus() } catch (e: Exception) { }
     }
-    LaunchedEffect(confirm) {
+    LaunchedEffect(confirm, tracksOpen) {
         delay(80)
-        try { if (confirm) contReq.requestFocus() else root.requestFocus() } catch (e: Exception) { }
+        try { if (confirm) contReq.requestFocus() else if (!tracksOpen) root.requestFocus() } catch (e: Exception) { }
     }
     // Retour : demande confirmation avant d'arrêter la lecture
     val backAt = remember { longArrayOf(0L) }
@@ -196,6 +213,21 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             .onFocusChanged { rootFocused = it.isFocused }
             .focusable()
             .onPreviewKeyEvent { ev ->
+                // Retour : géré ici (avant le système) pour que la fenêtre se ferme au premier appui,
+                // sans que le focus soit simplement retiré du bouton
+                if (ev.key == Key.Back) {
+                    if (ev.type == KeyEventType.KeyDown && ev.nativeKeyEvent.repeatCount == 0) {
+                        val now = System.currentTimeMillis()
+                        if (now - backAt[0] > 300L) { backAt[0] = now; confirm = !confirm }
+                    }
+                    return@onPreviewKeyEvent true
+                }
+                // OK maintenu = vitesse (la touche ● de la télécommande est le bouton Home du système, on ne peut pas l'utiliser)
+                if (!confirm && rootFocused && !tracksOpen) {
+                    if (ev.key == Key.DirectionCenter || ev.key == Key.Enter || ev.key == Key.NumPadEnter) {
+                        return@onPreviewKeyEvent okLong(ev, okFired, { toggle() }, { cycleSpeed() })
+                    }
+                }
                 if (confirm || ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 val rep = ev.nativeKeyEvent.repeatCount
                 val step = if (rep > 10) 60_000L else if (rep > 3) 30_000L else 10_000L
@@ -209,7 +241,6 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     Key.MediaStop -> { confirm = true; true }
                     Key.MediaNext, Key.ChannelUp -> { if (rep == 0) next?.let { onPick(it.id) }; true }
                     Key.MediaPrevious, Key.ChannelDown -> { if (rep == 0) prev?.let { onPick(it.id) }; true }
-                    Key.MediaRecord -> { if (rep == 0) cycleSpeed(); true }
                     else -> {
                         if (!rootFocused) return@onPreviewKeyEvent false
                         when (ev.key) {
@@ -262,7 +293,7 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Th.ovMid, 1f to Th.ovEnd))
-                    .padding(start = 48.dp, end = 48.dp, top = 40.dp, bottom = 28.dp)
+                    .padding(start = 48.dp, end = 48.dp, top = 40.dp, bottom = 10.dp)
             ) {
                 val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
                 BoxWithConstraints(Modifier.fillMaxWidth().height(16.dp)) {
@@ -304,10 +335,13 @@ fun RecPlayerScreen(main: ExoPlayer, rec: Rec?, recs: List<Rec>, onPick: (String
                     }
                     Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                         if (next != null) RpBtn(4, "") { onPick(next.id) }
+                        RpBtn(7, "") { tracksOpen = true; poke() }
+                        RpBtn(8, "CC") { tracksOpen = true; poke() }
                     }
                 }
             }
         }
+        if (tracksOpen) TracksDialog(tracks, player) { tracksOpen = false }
         if (confirm) {
             Box(Modifier.fillMaxSize().background(Color(0xB3000000)), contentAlignment = Alignment.Center) {
                 Column(
@@ -366,7 +400,10 @@ private fun RpBtn(kind: Int, label: String, req: FocusRequester? = null, big: Bo
                 Text(label, color = ink, fontSize = 8.sp, fontWeight = FontWeight.Bold)
             }
             6 -> Text(label, color = ink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            else -> Canvas(Modifier.size(sz * 0.42f)) { rpGlyph(kind, ink) }
+            8 -> Box(Modifier.size(sz * 0.56f, sz * 0.42f).border(1.5.dp, ink, RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
+                Text(label, color = ink, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+            }
+            else -> Canvas(Modifier.size(sz * (if (kind == 7) 0.5f else 0.42f))) { rpGlyph(kind, ink) }
         }
     }
 }
@@ -405,6 +442,14 @@ private fun DrawScope.rpGlyph(kind: Int, col: Color) {
         4 -> {
             tri(0.04f, 0.06f, 0.04f, 0.94f, 0.72f, 0.5f)
             drawRect(col, Offset(0.78f * s, 0.06f * s), Size(0.17f * s, 0.88f * s))
+        }
+        7 -> {
+            // Haut-parleur : boîtier + cône + deux ondes
+            drawRect(col, Offset(0.04f * s, 0.36f * s), Size(0.22f * s, 0.28f * s))
+            val cone = Path().apply { moveTo(0.26f * s, 0.36f * s); lineTo(0.56f * s, 0.12f * s); lineTo(0.56f * s, 0.88f * s); lineTo(0.26f * s, 0.64f * s); close() }
+            drawPath(cone, col)
+            drawArc(col, -40f, 80f, false, topLeft = Offset(0.40f * s, 0.30f * s), size = Size(0.40f * s, 0.40f * s), style = Stroke(s * 0.07f))
+            drawArc(col, -50f, 100f, false, topLeft = Offset(0.38f * s, 0.14f * s), size = Size(0.62f * s, 0.72f * s), style = Stroke(s * 0.07f))
         }
         5 -> {
             drawLine(col, Offset(0.1f * s, 0.1f * s), Offset(0.9f * s, 0.9f * s), s * 0.14f, StrokeCap.Round)

@@ -689,7 +689,8 @@ fun App() {
         }
     }
     LaunchedEffect(bg?.id, resumeTick) {
-        val c = bg
+        // Pas de chaîne en direct pendant les enregistrements (ex. retour de l'écran d'accueil Android)
+        val c = if (screen == "recs" || screen == "recplay") null else bg
         if (c != null) {
             resetTracks(exo)
             retries[0] = 0
