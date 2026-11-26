@@ -64,6 +64,7 @@ import android.content.ContextWrapper
 import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.zIndex
 import androidx.compose.animation.core.Animatable
@@ -1239,9 +1240,19 @@ fun Home(
                 }
             }
             BoxWithConstraints(Modifier.weight(0.58f).fillMaxWidth()) {
-            val rowH = maxHeight / 1.6f
+            val rowH = maxHeight / 2.3f
             LazyColumn(
-                Modifier.fillMaxSize(), state = listState,
+                Modifier.fillMaxSize()
+                    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+                    .drawWithContent {
+                        drawContent()
+                        // Aperçu de la rangée suivante, avec un fondu tant qu'il reste des rangées en dessous
+                        if (listState.canScrollForward) drawRect(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(0.78f to Color.Black, 1f to Color.Transparent),
+                            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+                        )
+                    },
+                state = listState,
                 contentPadding = PaddingValues(start = 32.dp, end = 32.dp, top = 4.dp, bottom = maxHeight)
             ) {
                 if (status.isNotBlank()) {
@@ -1252,7 +1263,7 @@ fun Home(
                         Column(Modifier.heightIn(min = rowH)) {
                             Text(
                                 "CONTINUE WATCHING", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 6.dp)
+                                modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 2.dp)
                             )
                             CardRow(recent, epg, onPlay, onEdit, { rowFocus(baseIdx - 1) }, pvc.player, pvc.pvId, pvc.ready) { c, fo -> pvc.focus(c.id, fo) }
                         }
@@ -1262,14 +1273,14 @@ fun Home(
                     if (r.header) {
                         Text(
                             r.title.uppercase(), color = Th.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 22.dp, bottom = 2.dp)
+                            modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
                         )
                         Box(Modifier.fillMaxWidth().height(2.dp).background(Th.accent))
                     } else {
                         Column(Modifier.heightIn(min = rowH)) {
                             Text(
                                 r.title.uppercase(), color = Th.text, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 6.dp)
+                                modifier = Modifier.padding(start = 14.dp, top = 6.dp, bottom = 2.dp)
                             )
                             CardRow(r.chans, epg, onPlay, onEdit, { rowFocus(baseIdx + ri - (if (ri > 0 && rows[ri - 1].header) 1 else 0)) }, pvc.player, pvc.pvId, pvc.ready) { c, fo -> pvc.focus(c.id, fo) }
                         }
@@ -1304,8 +1315,8 @@ fun CardRow(
                 if (hadFocus && !it.hasFocus) sc.launch { try { st.scrollToItem(0) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
                 hadFocus = it.hasFocus
             },
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(start = 8.dp, end = 70.dp, top = 14.dp, bottom = 30.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(start = 8.dp, end = 70.dp, top = 8.dp, bottom = 10.dp)
     ) {
         itemsIndexed(list, key = { i, c -> "${c.id}_$i" }) { i, c ->
             if (i == 0) {
@@ -1335,7 +1346,7 @@ fun ChannelCard(
     val outer = RoundedCornerShape(12.dp)
     val inner = RoundedCornerShape(9.dp)
     Column(
-        Modifier.width(200.dp)
+        Modifier.width(176.dp)
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
