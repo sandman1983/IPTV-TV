@@ -1659,9 +1659,10 @@ fun SlideIn(visible: Boolean, fromTop: Boolean, modifier: Modifier, content: @Co
 @Composable
 fun Badge(t: String) {
     Text(
-        t, color = Th.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
-        modifier = Modifier.padding(start = 8.dp).border(1.dp, Th.sub, RoundedCornerShape(4.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+        t, color = Th.sub, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
+        modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(6.dp))
+            .background(if (Th.light) Color(0x14000000) else Color(0x22FFFFFF))
+            .padding(horizontal = 7.dp, vertical = 2.dp)
     )
 }
 
@@ -1738,7 +1739,7 @@ fun BottomInfo(
                 },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.padding(start = 24.dp).width(150.dp).height(84.dp).clip(RoundedCornerShape(4.dp)).background(Th.cardBg)) {
+                Box(Modifier.padding(start = 24.dp).width(150.dp).height(84.dp).clip(RoundedCornerShape(9.dp)).background(Th.cardBg)) {
                     if (sp != null && sp.icon.isNotBlank()) {
                         AsyncImage(
                             model = sp.icon, contentDescription = null,
@@ -1753,7 +1754,7 @@ fun BottomInfo(
                 }
                 Column(Modifier.width(96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.size(22.dp, 11.dp).chevron(true, Th.sub))
-                    Text("$num", color = Th.lime, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                    Text("$num", color = Th.sel, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                     Box(Modifier.size(22.dp, 11.dp).chevron(false, Th.sub))
                 }
                 Column(Modifier.weight(1f).height(88.dp)) {
@@ -1776,13 +1777,13 @@ fun BottomInfo(
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                             if (ev == null) {
-                                Text("Now ${hm(nowMs)}", color = Th.time, fontSize = 14.sp)
+                                Text("Now ${hm(nowMs)}", color = Th.sub, fontSize = 14.sp)
                                 Text("  |  ", color = Th.sub, fontSize = 15.sp)
-                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.time, fontSize = 15.sp)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.text, fontSize = 15.sp)
                                 Bar(fracOf(sp, nowMs), Modifier.padding(horizontal = 14.dp).weight(1f, fill = false).widthIn(min = 40.dp, max = 150.dp), 8.dp)
-                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Th.time, fontSize = 14.sp, maxLines = 1, softWrap = false)
+                                Text("+${((sp.stop - nowMs) / 60000).coerceAtLeast(0)} min", color = Th.sel, fontSize = 14.sp, maxLines = 1, softWrap = false)
                             } else {
-                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.time, fontSize = 15.sp)
+                                Text("${hm(sp.start)} - ${hm(sp.stop)}", color = Th.text, fontSize = 15.sp)
                                 Text("   in ${((sp.start - nowMs) / 60000).coerceAtLeast(0)} min", color = Th.sub, fontSize = 15.sp)
                             }
                             Spacer(Modifier.width(6.dp))
@@ -1802,11 +1803,22 @@ fun BottomInfo(
             }
         }
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 2.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(c.cat, color = Th.sub, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(
-                "\u2191\u2193  zap     OK  mini player",
-                color = Th.sub, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.weight(1f)
-            )
+            Box(Modifier.weight(1f)) {
+                Text(
+                    c.cat.uppercase(), color = Th.sel, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, maxLines = 1,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0x22E0B85A)).padding(horizontal = 8.dp, vertical = 2.dp)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                for (hint in listOf("\u2191\u2193  zap", "OK  mini player")) {
+                    Text(
+                        hint, color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false,
+                        modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                            .background(if (Th.light) Color(0x14000000) else Color(0x22FFFFFF))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
         }
     }
 }
