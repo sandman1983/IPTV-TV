@@ -402,7 +402,8 @@ object GuideState {
 private const val DPM = 4
 private const val TOTAL_MIN = 2160
 private val LW = 104.dp
-private val ACCENT: Color get() = Th.accent
+private val ACCENT: Color get() = Th.sel
+private val G_GOLD: Color get() = Th.sel
 private val P_DARK_TXT: Color get() = Th.focusText
 
 @Composable
@@ -429,11 +430,18 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
                     }
                 }
                 .clip(RoundedCornerShape(3.dp))
-                .background(if (f) Th.focusBg else if (selected) Color(0xFF1E6FD9) else Th.chip)
-                .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
-                .padding(horizontal = 14.dp, vertical = 3.dp)
+                .background(if (f) Th.focusBg else Color.Transparent)
+                .then(if (f) Modifier.border(1.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            Text(label, color = if (f) P_DARK_TXT else if (selected) Color.White else Th.text, fontSize = 14.sp, maxLines = 1)
+            // Onglet texte comme l'en-tête : la catégorie choisie est en doré, soulignée
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    label, color = if (f) P_DARK_TXT else if (selected) G_GOLD else Th.sub, fontSize = 14.sp, maxLines = 1,
+                    fontWeight = if (selected || f) FontWeight.Bold else FontWeight.Normal
+                )
+                Box(Modifier.padding(top = 3.dp).width(22.dp).height(2.dp).background(if (selected && !f) G_GOLD else Color.Transparent))
+            }
         }
     }
 }
@@ -454,7 +462,7 @@ private fun GBlock(
         if (f) { delay(600); marq = true }
     }
     Box(
-        Modifier.offset(x = x).width(w).fillMaxHeight().padding(5.dp)
+        Modifier.offset(x = x).width(w).fillMaxHeight().padding(horizontal = 3.dp, vertical = 4.dp)
             .zIndex(if (f) 1f else 0f)
             .graphicsLayer {
                 if (f && size.width > 0f && size.height > 0f) {
@@ -463,14 +471,17 @@ private fun GBlock(
                     scaleY = (size.height + grow) / size.height
                 }
             }
-            .clip(RoundedCornerShape(3.dp))
-            .background(if (f) Th.focusBg else if (live) Th.cellLive else Th.cell)
-            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
+            .clip(RoundedCornerShape(9.dp))
+            .background(Th.cell)
+            .then(if (live) Modifier.background(G_GOLD.copy(alpha = 0.13f)) else Modifier)
+            .then(if (f) Modifier.background(Color(0x22FFFFFF)) else Modifier)
+            .then(if (live) Modifier.drawBehind { drawRect(G_GOLD, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) } else Modifier)
+            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(9.dp)) else Modifier)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onSel() }
             .onPreviewKeyEvent { okLong(it, fired, onPlay, onLong) }
             .clickable { onPlay() }
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 10.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Column(verticalArrangement = Arrangement.Center) {
@@ -490,7 +501,7 @@ private fun GBlock(
                 }
                 Text(
                     (if (mark.isNotEmpty() && mark != "●") "$mark " else "") + (p?.title ?: "No information"),
-                    color = if (f) Th.focusText else if (past) M_GRAY else Th.text,
+                    color = if (past && !f) M_GRAY else Th.text,
                     fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false,
                     overflow = if (marq && w >= 160.dp) TextOverflow.Clip else TextOverflow.Ellipsis,
                     modifier = (if (marq && w >= 160.dp) Modifier.basicMarquee() else Modifier).weight(1f, fill = false)
@@ -499,7 +510,7 @@ private fun GBlock(
             if (p != null && w >= 110.dp) {
                 Text(
                     hm(p.start) + " - " + hm(p.stop),
-                    color = if (f) Th.focusSub else M_GRAY,
+                    color = if (live) G_GOLD else M_GRAY,
                     fontSize = 12.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip
                 )
             }
@@ -518,7 +529,7 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
     val sp = shown
         Column(
             Modifier.width(260.dp).fillMaxHeight().padding(start = 10.dp, top = 5.dp, end = 8.dp, bottom = 5.dp)
-                .clip(RoundedCornerShape(3.dp)).background(Th.cell).padding(16.dp)
+                .clip(RoundedCornerShape(14.dp)).background(Th.cell).padding(16.dp)
         ) {
             if (sp != null) {
                 val sch = sp.first
@@ -526,7 +537,7 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
                 if (pr != null && pr.icon.isNotBlank()) {
                     AsyncImage(
                         model = pr.icon, contentDescription = null,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(6.dp)),
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(10.dp)),
                         contentScale = ContentScale.Crop
                     )
                     Spacer(Modifier.height(10.dp))
@@ -538,13 +549,13 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
                 )
                 if (pr != null) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
-                        Text("${dayHm(pr.start)} - ${hm(pr.stop)}", color = Th.time, fontSize = 13.sp)
+                        Text("${dayHm(pr.start)} - ${hm(pr.stop)}", color = G_GOLD, fontSize = 13.sp)
                         if (pr.start <= nowMs && nowMs < pr.stop) {
                             Bar(fracOf(pr, nowMs), Modifier.padding(start = 10.dp).weight(1f), 8.dp)
                         }
                     }
                     if (pr.sub.isNotBlank() && pr.sub != pr.desc) {
-                        Text(pr.sub, color = Th.gold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(pr.sub, color = Th.sub, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     AutoScrollText(pr.desc, Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp), 13.sp, 18.sp, 4.5f)
                 }
@@ -636,26 +647,40 @@ fun EpgGrid(
     }
     val nowX = ((nowMs - winStart) / 60000f * DPM).dp
 
-    Column(
-        Modifier.fillMaxSize().background(Th.guideBg)
+    Box(
+        Modifier.fillMaxSize().background(if (Th.light) Color(0xFFF2F2F2) else Color.Black)
+            .background(Brush.verticalGradient(0f to Th.header, 0.25f to Th.bgMid, 1f to Th.bgMid))
     ) {
+    // Fond discret : lueur dorée en haut à droite et anneaux fins comme le logo
+    androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+        val gold = Th.sel
+        val c0 = androidx.compose.ui.geometry.Offset(size.width * 0.92f, size.height * 0.12f)
+        drawCircle(Brush.radialGradient(listOf(gold.copy(alpha = 0.13f), Color.Transparent), center = c0, radius = size.width * 0.45f), radius = size.width * 0.45f, center = c0)
+        val c1 = androidx.compose.ui.geometry.Offset(size.width * 0.96f, size.height * 1.02f)
+        for (i in 1..3) drawCircle(gold.copy(alpha = 0.07f - i * 0.015f), radius = size.height * (0.30f + i * 0.17f), center = c1, style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+    }
+    Column(Modifier.fillMaxSize()) {
+        // En-tête identique aux autres écrans : logo, onglet, catégories, heure
         Row(
-            Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 6.dp),
+            Modifier.fillMaxWidth().background(Th.header).padding(horizontal = 24.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Today - " + SimpleDateFormat("EEE, MMM dd", Locale.ENGLISH).format(Date(nowMs)),
-                color = Th.sel, fontSize = 16.sp, fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.width(24.dp))
+            EliteLogo(Modifier.padding(end = 28.dp).size(44.dp))
+            TopTab("Guide", true, icon = 1) { }
+            Spacer(Modifier.width(14.dp))
+            Box(Modifier.width(1.dp).height(22.dp).background(Th.divider))
+            Spacer(Modifier.width(6.dp))
             LazyRow(
                 state = chipState,
+                modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
-                contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp, start = 14.dp, end = 30.dp)
+                contentPadding = PaddingValues(start = 4.dp, end = 30.dp)
             ) {
                 item { GChip("All", cat.isEmpty(), null, if (cat.isEmpty()) chipReq else null) { cat = "" } }
                 items(cats) { c2 -> GChip(c2, cat == c2, { onEditCat(c2) }, if (cat == c2) chipReq else null) { cat = c2 } }
             }
+            Spacer(Modifier.width(16.dp))
+            HeaderClock()
         }
         Row(Modifier.fillMaxWidth().height(26.dp)) {
             Spacer(Modifier.width(LW))
@@ -743,15 +768,16 @@ fun EpgGrid(
                             val hiPx = (chunk + 6) * half
                             Row(Modifier.fillMaxWidth().height(rowH)) {
                                 Box(
-                                    Modifier.width(LW).fillMaxHeight().padding(5.dp)
-                                        .clip(RoundedCornerShape(3.dp))
-                                        .background(Brush.verticalGradient(listOf(Th.logoA, Th.logoB))),
+                                    Modifier.width(LW).fillMaxHeight().padding(horizontal = 3.dp, vertical = 4.dp)
+                                        .clip(RoundedCornerShape(9.dp))
+                                        // Chaîne sélectionnée : léger voile doré (lu au dessin, sans recomposer la ligne)
+                                        .drawBehind { if (sel?.first?.id == ch.id) drawRect(G_GOLD.copy(alpha = 0.13f)) },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (ch.icon.isNotBlank()) {
                                         AsyncImage(
                                             model = ch.icon, contentDescription = null, colorFilter = invFilter(ch.invert),
-                                            modifier = Modifier.fillMaxSize().padding(8.dp), contentScale = ContentScale.Fit,
+                                            modifier = Modifier.fillMaxSize().padding(10.dp), contentScale = ContentScale.Fit,
                                             alignment = Alignment.Center
                                         )
                                     } else {
@@ -834,7 +860,7 @@ fun EpgGrid(
                                             )
                                         }
                                         if (nowX > 0.dp) {
-                                            Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(Th.nowLine))
+                                            Box(Modifier.offset(x = nowX).width(2.dp).fillMaxHeight().background(G_GOLD))
                                         }
                                     }
                                 }
@@ -845,6 +871,7 @@ fun EpgGrid(
             }
             DetailPane({ sel }, nowMs)
         }
+    }
     }
     val tt = toast
     if (tt != null) {
