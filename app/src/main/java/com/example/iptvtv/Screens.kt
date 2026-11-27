@@ -300,9 +300,12 @@ fun ChannelPanel(
     val fp = epg.now(fc.epgId)
     val ups = epg.upcoming(fc.epgId, 4)
     val shownP: Prog? = if (upIdx in ups.indices) ups[upIdx] else fp
+    var shown by remember { mutableStateOf(false) }
+    val showA by androidx.compose.animation.core.animateFloatAsState(if (shown) 1f else 0f, androidx.compose.animation.core.tween(240), label = "listIn")
     LaunchedEffect(refocus) {
-        delay(150)
+        delay(120)
         try { fr.requestFocus() } catch (ex: Exception) { }
+        shown = true
     }
     LaunchedEffect(wrapTo) {
         if (wrapTo != null) {
@@ -461,7 +464,11 @@ fun ChannelPanel(
                 }
             }
         }
-        Column(Modifier.width(450.dp).fillMaxHeight().background(Th.guideBg)) {
+        Column(
+            Modifier.width(450.dp).fillMaxHeight()
+                .graphicsLayer { alpha = showA; translationX = -(1f - showA) * 60.dp.toPx() }
+                .background(Th.guideBg)
+        ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("‹", color = Th.sub, fontSize = 24.sp, lineHeight = 26.sp, modifier = Modifier.padding(horizontal = 8.dp))
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {

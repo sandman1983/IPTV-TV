@@ -84,7 +84,7 @@ private fun MiniItem(
     val fired = remember { booleanArrayOf(true) }
     val sc by animateFloatAsState(if (f) 1.06f else 1f, label = "miniItem")
     Column(
-        Modifier.width(170.dp).graphicsLayer { scaleX = sc; scaleY = sc }
+        Modifier.width(156.dp).graphicsLayer { scaleX = sc; scaleY = sc }
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused; onFocusState(it.isFocused); if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { if (onLong == null) false else okLong(it, fired, onClick, onLong) }
@@ -92,7 +92,7 @@ private fun MiniItem(
     ) {
         // The selection frame is drawn around the picture, so it never hides the progress bar.
         Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+            Modifier.size(156.dp, 90.dp)
                 .border(3.dp, if (f) Th.sel else Color.Transparent, RoundedCornerShape(12.dp)).padding(3.dp)
         ) {
             Box(Modifier.fillMaxSize().clip(RoundedCornerShape(9.dp)).background(tileBg ?: M_TILE)) {
