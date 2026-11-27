@@ -815,6 +815,26 @@ fun SettingsHub(
             }
         }
     }
+    val m3uExporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("audio/x-mpegurl")) { uri ->
+        if (uri != null) {
+            try {
+                val sb = StringBuilder("#EXTM3U\n")
+                var n = 0
+                for (c in all) {
+                    if (c.hidden || c.url.isBlank()) continue
+                    fun q(t: String) = t.replace("\"", "'").replace("\n", " ")
+                    sb.append("#EXTINF:-1 tvg-id=\"").append(q(c.epgId)).append("\" tvg-name=\"").append(q(c.name))
+                        .append("\" tvg-logo=\"").append(q(c.icon)).append("\" group-title=\"").append(q(c.cat)).append("\",")
+                        .append(q(c.name)).append('\n').append(c.url).append('\n')
+                    n++
+                }
+                ctx.contentResolver.openOutputStream(uri)?.use { it.write(sb.toString().toByteArray()) }
+                msg = "Playlist exported ($n channels)."
+            } catch (ex: Exception) {
+                msg = "Export failed : ${ex.message}"
+            }
+        }
+    }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             try {
@@ -845,7 +865,7 @@ fun SettingsHub(
             "src_form" -> page = if (editingId != null) "src_menu" else "src_type"
             "guide_menu", "guide_add" -> page = "guides"
             "guide_ren" -> page = "guide_menu"
-            "chlist", "newcat" -> page = "channels"
+            "chlist", "newcat", "delhidden" -> page = "channels"
             "city" -> page = "display"
             "recs" -> page = "dvr"
             "rec_menu" -> page = "recs"
@@ -1165,7 +1185,22 @@ fun SettingsHub(
         "channels" -> PanelShell("Channels", { back() }, actions = { PButton("Done", { back() }) }) {
             item { PSwitch("Merge sources", "Same categories from all sources shown together", cfg.merge, { onCfg(cfg.copy(merge = !cfg.merge)) }, autoFocus = true) }
             item { PItem("New category", "", { catIn = ""; page = "newcat" }) }
+            item {
+                val nh = all.count { it.hidden }
+                PItem("Delete hidden channels", if (nh == 0) "No hidden channel" else "$nh hidden · remove them from the app for good", { if (nh > 0) page = "delhidden" })
+            }
+            item { PItem("Export playlist", "Save the visible channels as a new M3U file", { m3uExporter.launch("playlist.m3u") }) }
+            if (cfg.deleted.isNotEmpty()) item { PItem("Restore deleted channels", "${cfg.deleted.size} deleted", { onCfg(cfg.copy(deleted = emptyList())); msg = "Deleted channels restored." }) }
             items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)" + if (all.none { it.cat == cat && !it.hidden }) " · hidden" else "", { selCat = cat; page = "chlist" }, onLong = { editCatName = cat }) }
+        }
+        "delhidden" -> {
+            val hid = all.filter { it.hidden }
+            PanelShell("Delete hidden channels", { back() }, actions = {
+                PButton("Delete", { onCfg(cfg.copy(deleted = (cfg.deleted + hid.map { it.id }).distinct())); msg = "${hid.size} channels deleted."; page = "channels" })
+                PButton("Cancel", { back() })
+            }) {
+                item { PInfo("${hid.size} hidden channel(s) will be removed from the app and stay out after a playlist refresh. Your original M3U file is not changed. You can bring them back with Restore deleted channels.") }
+            }
         }
         "newcat" -> PanelShell(
             "New category", { back() },

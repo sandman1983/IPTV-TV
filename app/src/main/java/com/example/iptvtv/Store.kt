@@ -49,7 +49,8 @@ data class Cfg(
     val merge: Boolean = false,
     val updateOnStart: Boolean = false,
     val epgMine: Boolean = false,
-    val epgNames: Map<String, String> = emptyMap()
+    val epgNames: Map<String, String> = emptyMap(),
+    val deleted: List<Int> = emptyList()
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -110,6 +111,7 @@ fun cfgToJson(g: Cfg): JSONObject {
     j.put("mg", g.merge)
     j.put("us", g.updateOnStart)
     j.put("em", g.epgMine)
+    j.put("del", JSONArray(g.deleted))
     return j
 }
 
@@ -131,7 +133,8 @@ fun cfgFromJson(j: JSONObject): Cfg {
         j.optBoolean("bs", true), j.optString("ct", ""), j.optInt("sh", 24), j.optBoolean("sn", true),
         j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true), j.optBoolean("mg", false),
         j.optBoolean("us", false), j.optBoolean("em", false),
-        j.optJSONObject("en")?.let { o -> o.keys().asSequence().associateWith { k -> o.optString(k) } } ?: emptyMap()
+        j.optJSONObject("en")?.let { o -> o.keys().asSequence().associateWith { k -> o.optString(k) } } ?: emptyMap(),
+        deleted = j.optJSONArray("del")?.let { d -> (0 until d.length()).map { d.getInt(it) } } ?: emptyList()
     )
 }
 
@@ -176,7 +179,8 @@ fun importConfig(text: String): Pair<List<Source>, Cfg>? {
 fun applyCfg(src: List<Channel>, g: Cfg, icons: Map<String, String>): List<Channel> {
     val pos = HashMap<Int, Int>()
     g.order.forEachIndexed { i, id -> pos[id] = i }
-    return src.mapIndexed { i, c ->
+    val del = g.deleted.toHashSet()
+    return src.filter { it.id !in del }.mapIndexed { i, c ->
         val o = g.ov[c.id]
         val eid = (o?.epg ?: "").ifBlank { c.epgId }
         val gi = icons[eid] ?: ""
