@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -209,11 +210,11 @@ fun MiniPlayer(
     // L'ordre est figé tant que le mini lecteur reste ouvert : choisir une chaîne ne la fait pas sauter en tête de rangée.
     // À la prochaine ouverture, la chaîne en cours repasse en premier.
     val recent = remember(channels) {
+        // La chaîne en cours n'apparaît plus dans la rangée : elle est déjà affichée dans le bloc d'info.
         val l = ArrayList<Channel>()
-        l.add(c)
         for (id in hist) {
             val ch = channels.firstOrNull { it.id == id }
-            if (ch != null && l.none { it.id == ch.id }) l.add(ch)
+            if (ch != null && ch.id != c.id && l.none { it.id == ch.id }) l.add(ch)
         }
         l.take(10)
     }
@@ -223,7 +224,9 @@ fun MiniPlayer(
     val gr = remember { FocusRequester() }
     val itemReqs = remember { HashMap<Int, FocusRequester>() }
     var pendId by remember { mutableStateOf<Int?>(null) }
-    var ctrl by remember { mutableStateOf(false) }
+    // ctrl = true : bloc d'info + commandes seulement ; ctrl = false : la rangée de chaînes est dépliée (touche Bas).
+    var ctrl by remember { mutableStateOf(true) }
+    val rootFr = remember { FocusRequester() }
     var sel by remember { mutableStateOf(0) }
     val st = rememberLazyListState()
     val sc = rememberCoroutineScope()
@@ -231,15 +234,14 @@ fun MiniPlayer(
         sc.launch { try { st.animateScrollToItem((idx - 1).coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
     }
     var playing by remember { mutableStateOf(isPlaying()) }
-    LaunchedEffect(Unit) {
-        delay(150)
-        try { gr.requestFocus() } catch (ex: Exception) { }
-    }
     LaunchedEffect(ctrl) {
         if (!ctrl && clearFor == null) {
-            // Commandes masquées : la sélection revient sur le carré "Program guide"
-            delay(60)
+            // Rangée dépliée : la sélection va sur le carré "Program guide"
+            delay(160)
             try { gr.requestFocus() } catch (ex: Exception) { }
+        } else if (ctrl) {
+            delay(60)
+            try { rootFr.requestFocus() } catch (ex: Exception) { }
         }
     }
     LaunchedEffect(clearFor) {
@@ -301,12 +303,12 @@ fun MiniPlayer(
             } else {
                 false
             }
-        }
+        }.focusRequester(rootFr).focusable()
     ) {
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Th.ovMid, Th.ovEnd)))
-                .padding(start = 24.dp, end = 28.dp, top = 70.dp, bottom = 22.dp)
+                .padding(start = 24.dp, end = 28.dp, top = 60.dp, bottom = 0.dp)
         ) {
             // Même bloc d'info que le bandeau de zapping : vignette, numéro, chaîne, titre, heure + barre.
             val numC = channels.indexOfFirst { it.id == c.id } + 1
@@ -344,9 +346,8 @@ fun MiniPlayer(
                             Text("Now ${hm(nowMs)}", color = M_GRAY, fontSize = 14.sp)
                             Text("  |  ", color = M_GRAY, fontSize = 15.sp)
                             Text("${hm(p.start)} - ${hm(p.stop)}", color = Th.text, fontSize = 15.sp)
-                            Bar(fracOf(p, nowMs), Modifier.padding(horizontal = 14.dp).weight(1f, fill = false).widthIn(min = 40.dp, max = 150.dp), 8.dp)
                             val left = ((p.stop - nowMs) / 60000L).coerceAtLeast(0)
-                            Text("+$left min", color = Th.sel, fontSize = 14.sp, maxLines = 1, softWrap = false)
+                            Text("   +$left min", color = Th.sel, fontSize = 14.sp, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -363,9 +364,21 @@ fun MiniPlayer(
                     Box(Modifier.padding(start = 16.dp).size(24.dp, 12.dp).upChevron(M_GRAY))
                 }
             }
+            if (p != null) {
+                // Barre de progression juste sous le bloc d'info (à la place de la ligne du bas du bandeau)
+                Bar(fracOf(p, nowMs), Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 11.dp), 8.dp)
+            } else {
+                Spacer(Modifier.height(24.dp))
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !ctrl,
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+            ) {
+            Column {
             Text(
                 "CHANNELS", color = Th.sel, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp,
-                modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
             )
             LazyRow(
                 state = st,
@@ -414,6 +427,8 @@ fun MiniPlayer(
                         }
                     }
                 }
+            }
+            }
             }
         }
         val cf = clearFor
