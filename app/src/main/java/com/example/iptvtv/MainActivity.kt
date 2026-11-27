@@ -579,6 +579,25 @@ fun App() {
         }
     }
     val shown = remember(all) { all.filter { !it.hidden } }
+    SeriesState.keys = remember(cfg.series) { cfg.series.map { seriesKey(it.chId, it.title) }.toSet() }
+    // Règles de série : programme automatiquement les futurs épisodes trouvés dans le guide.
+    LaunchedEffect(epg, cfg.series, all) {
+        if (cfg.series.isNotEmpty()) {
+            val now = System.currentTimeMillis()
+            val skip = ctx.getSharedPreferences("series_skip", 0).getStringSet("s", emptySet()) ?: emptySet()
+            val have = loadRecs(ctx).map { it.id }.toHashSet()
+            for (rule in cfg.series) {
+                val ch = all.firstOrNull { it.id == rule.chId } ?: continue
+                val k = mkey(rule.title)
+                for (p in epg.progs[ch.epgId] ?: emptyList()) {
+                    if (p.start > now && mkey(p.title) == k) {
+                        val id = "${ch.id}_${p.start}_rec"
+                        if (id !in have && id !in skip) { Dvr.schedule(ctx, ch, p, "rec"); have.add(id) }
+                    }
+                }
+            }
+        }
+    }
     // Si le guide est filtré sur mes chaînes, un ID EPG choisi à la main n'est pas dans les données chargées : on recharge le guide.
     val epgIdsKey = cfg.ov.values.map { it.epg }.filter { it.isNotBlank() }.toSortedSet().joinToString("|")
     var epgIdsSeen by remember { mutableStateOf(epgIdsKey) }
@@ -900,6 +919,8 @@ fun App() {
                                 "rem" -> Dvr.schedule(ctx, ch, p, "rem")
                                 "unrec" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rec")
                                 "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
+                                "series" -> { cfg = toggleSeries(cfg, ch, p.title, true); saveCfg(ctx, cfg) }
+                                "unseries" -> { cfg = toggleSeries(cfg, ch, p.title, false); saveCfg(ctx, cfg) }
                             }
                         }) { screen = "" }
                 }
@@ -912,6 +933,8 @@ fun App() {
                             "rem" -> Dvr.schedule(ctx, ch, p, "rem")
                             "unrec" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rec")
                             "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
+                            "series" -> { cfg = toggleSeries(cfg, ch, p.title, true); saveCfg(ctx, cfg) }
+                            "unseries" -> { cfg = toggleSeries(cfg, ch, p.title, false); saveCfg(ctx, cfg) }
                         }
                     },
                     { editCh = it.id },
@@ -928,6 +951,8 @@ fun App() {
                             "rem" -> Dvr.schedule(ctx, ch, p, "rem")
                             "unrec" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rec")
                             "unrem" -> Dvr.remove(ctx, "${ch.id}_${p.start}_rem")
+                            "series" -> { cfg = toggleSeries(cfg, ch, p.title, true); saveCfg(ctx, cfg) }
+                            "unseries" -> { cfg = toggleSeries(cfg, ch, p.title, false); saveCfg(ctx, cfg) }
                         }
                     },
                     sources,
@@ -978,12 +1003,12 @@ fun App() {
                 val parts = playErr.split("\n")
                 Column(
                     Modifier.align(Alignment.TopEnd).padding(24.dp).width(440.dp)
-                        .clip(RoundedCornerShape(12.dp)).background(Color(0xF0151A24)).padding(16.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(16.dp)
                 ) {
-                    Text("Stream problem", color = Color(0xFFFFB4A9), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    Text(parts.first(), color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
+                    Text("Stream problem", color = Th.sel, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(parts.first(), color = Th.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
                     if (parts.size > 1) {
-                        Text(parts.drop(1).joinToString(" "), color = Color(0xFFB0B8C8), fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text(parts.drop(1).joinToString(" "), color = Th.sub, fontSize = 14.sp, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }

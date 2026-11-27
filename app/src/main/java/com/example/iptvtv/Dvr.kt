@@ -141,6 +141,11 @@ object Dvr {
 
     @Synchronized
     fun remove(ctx: Context, id: String) {
+        // Un épisode annulé à la main n'est pas reprogrammé par la règle de série.
+        if (id.endsWith("_rec")) {
+            val sp = ctx.getSharedPreferences("series_skip", 0)
+            sp.edit().putStringSet("s", (sp.getStringSet("s", emptySet()) ?: emptySet()) + id).apply()
+        }
         jobs[id]?.cancel()
         try { thumbFile(ctx, id).delete() } catch (e: Exception) { }
         saveRecs(ctx, loadRecs(ctx).filter { it.id != id })

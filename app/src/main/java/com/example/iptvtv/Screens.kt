@@ -747,6 +747,14 @@ fun ChannelPanel(
                         autoFocus = true
                     )
                 }
+                item {
+                    val on = SeriesState.keys.contains(seriesKey(dch.id, dp.title))
+                    PItem(
+                        if (on) "Stop series recording" else "Record series",
+                        if (on) "" else "All future episodes of this title on this channel",
+                        { onDvr(dch, dp, if (on) "unseries" else "series"); closeDvr() }
+                    )
+                }
                 if (remOn) {
                     item {
                         PItem(
@@ -1139,6 +1147,14 @@ fun SearchScreen(
                     if (hasRec) "" else "Recorded automatically at start time",
                     { onDvr(dch, dp, if (hasRec) "unrec" else "rec"); closeDvr() },
                     autoFocus = true
+                )
+            }
+            item {
+                val on = SeriesState.keys.contains(seriesKey(dch.id, dp.title))
+                PItem(
+                    if (on) "Stop series recording" else "Record series",
+                    if (on) "" else "All future episodes of this title on this channel",
+                    { onDvr(dch, dp, if (on) "unseries" else "series"); closeDvr() }
                 )
             }
             if (remOn) {

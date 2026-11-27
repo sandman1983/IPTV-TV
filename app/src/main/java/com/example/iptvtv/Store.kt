@@ -1,6 +1,9 @@
 package com.example.iptvtv
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -32,6 +35,21 @@ data class Ov(
     val hidden: Boolean = false, val cat: String = "", val inv: Boolean = false
 )
 
+// Règle d'enregistrement de série : tous les futurs épisodes (même titre) d'une chaîne.
+data class SeriesRule(val chId: Int, val title: String, val chName: String)
+
+object SeriesState {
+    var keys by mutableStateOf(setOf<String>())
+}
+
+fun seriesKey(chId: Int, title: String): String = "$chId|${mkey(title)}"
+
+fun toggleSeries(g: Cfg, ch: Channel, title: String, on: Boolean): Cfg {
+    val k = seriesKey(ch.id, title)
+    val rest = g.series.filter { seriesKey(it.chId, it.title) != k }
+    return g.copy(series = if (on) rest + SeriesRule(ch.id, title, ch.name) else rest)
+}
+
 data class Cfg(
     val ov: Map<Int, Ov> = emptyMap(),
     val order: List<Int> = emptyList(),
@@ -50,7 +68,8 @@ data class Cfg(
     val updateOnStart: Boolean = false,
     val epgMine: Boolean = false,
     val epgNames: Map<String, String> = emptyMap(),
-    val deleted: List<Int> = emptyList()
+    val deleted: List<Int> = emptyList(),
+    val series: List<SeriesRule> = emptyList()
 )
 
 fun loadSources(c: Context): List<Source> {
@@ -112,6 +131,7 @@ fun cfgToJson(g: Cfg): JSONObject {
     j.put("us", g.updateOnStart)
     j.put("em", g.epgMine)
     j.put("del", JSONArray(g.deleted))
+    j.put("sr", JSONArray().also { a -> for (r in g.series) a.put(JSONObject().put("c", r.chId).put("t", r.title).put("n", r.chName)) })
     return j
 }
 
@@ -134,7 +154,8 @@ fun cfgFromJson(j: JSONObject): Cfg {
         j.optString("du", ""), j.optInt("rb", 0), j.optInt("ra", 0), j.optBoolean("rm", true), j.optBoolean("mg", false),
         j.optBoolean("us", false), j.optBoolean("em", false),
         j.optJSONObject("en")?.let { o -> o.keys().asSequence().associateWith { k -> o.optString(k) } } ?: emptyMap(),
-        deleted = j.optJSONArray("del")?.let { d -> (0 until d.length()).map { d.getInt(it) } } ?: emptyList()
+        deleted = j.optJSONArray("del")?.let { d -> (0 until d.length()).map { d.getInt(it) } } ?: emptyList(),
+        series = j.optJSONArray("sr")?.let { d -> (0 until d.length()).map { val o = d.getJSONObject(it); SeriesRule(o.optInt("c"), o.optString("t"), o.optString("n")) } } ?: emptyList()
     )
 }
 

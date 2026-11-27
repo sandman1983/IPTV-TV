@@ -867,7 +867,7 @@ fun SettingsHub(
             "guide_ren" -> page = "guide_menu"
             "chlist", "newcat", "delhidden" -> page = "channels"
             "city" -> page = "display"
-            "recs" -> page = "dvr"
+            "recs", "series" -> page = "dvr"
             "rec_menu" -> page = "recs"
             else -> page = ""
         }
@@ -1310,8 +1310,15 @@ fun SettingsHub(
                     }
                 )
             }
+            item { PItem("Series recordings", if (cfg.series.isEmpty()) "None yet · choose Record series on a programme" else "${cfg.series.size} series", { page = "series" }) }
             item { PItem("Recordings and reminders", "${recs.size} item(s)", { page = "recs" }) }
             if (msg.isNotBlank()) item { PInfo(msg) }
+        }
+        "series" -> PanelShell("Series recordings", { back() }, actions = { PButton("Back", { back() }) }) {
+            if (cfg.series.isEmpty()) item { PInfo("No series yet. Open a programme in the guide and choose Record series.") }
+            items(cfg.series) { r ->
+                PItem(r.title, r.chName + " · OK to stop recording this series", { onCfg(cfg.copy(series = cfg.series.filter { it != r })) })
+            }
         }
         "recs" -> PanelShell("Recordings and reminders", { back() }, actions = { PButton("Back", { back() }) }) {
             if (recs.isEmpty()) item { PInfo("Nothing scheduled yet. In the guide, select a future programme to record it or set a reminder.") }

@@ -1030,6 +1030,14 @@ fun EpgGrid(
                     autoFocus = !live
                 )
             }
+            item {
+                val on = SeriesState.keys.contains(seriesKey(dch.id, dp.title))
+                PItem(
+                    if (on) "Stop series recording" else "Record series",
+                    if (on) "" else "All future episodes of this title on this channel",
+                    { onDvr(dch, dp, if (on) "unseries" else "series"); dvrFor = null }
+                )
+            }
             if (remOn && !live) {
                 item {
                     PItem(
