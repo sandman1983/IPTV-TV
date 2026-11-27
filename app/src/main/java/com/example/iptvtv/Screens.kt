@@ -301,7 +301,6 @@ fun ChannelPanel(
     val ups = epg.upcoming(fc.epgId, 4)
     val shownP: Prog? = if (upIdx in ups.indices) ups[upIdx] else fp
     var shown by remember { mutableStateOf(false) }
-    val showA by androidx.compose.animation.core.animateFloatAsState(if (shown) 1f else 0f, androidx.compose.animation.core.tween(240), label = "listIn")
     val fidNow by rememberUpdatedState(fid)
     val listNow0 by rememberUpdatedState(list)
     // Fait défiler jusqu'à la ligne cible AVANT de lui donner le focus (sinon elle n'est pas composée).
@@ -477,7 +476,7 @@ fun ChannelPanel(
         }
         Column(
             Modifier.width(450.dp).fillMaxHeight()
-                .graphicsLayer { alpha = showA; translationX = -(1f - showA) * 60.dp.toPx() }
+                .graphicsLayer { alpha = if (shown) 1f else 0f }
                 .background(Th.guideBg)
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
