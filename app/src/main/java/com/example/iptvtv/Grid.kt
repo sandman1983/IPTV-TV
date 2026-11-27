@@ -670,7 +670,7 @@ private fun DetailPane(selProvider: () -> Pair<Channel, Prog?>?, nowMs: Long) {
 fun EpgGrid(
     chans: List<Channel>, epg: Epg, current: Channel?, showNums: Boolean,
     recs: List<Rec>, remOn: Boolean, dvrSet: Boolean,
-    onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onEdit: (Channel) -> Unit, onEditCat: (String) -> Unit, onBack: () -> Unit
+    onPlay: (Channel) -> Unit, onDvr: (Channel, Prog, String) -> Unit, onEdit: (Channel) -> Unit, onEditCat: (String) -> Unit, editing: Boolean = false, onBack: () -> Unit
 ) {
     var dvrFor by remember { mutableStateOf<Pair<Channel, Prog>?>(null) }
     var toast by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -743,6 +743,35 @@ fun EpgGrid(
     }
     var wrapId by remember { mutableStateOf<Int?>(null) }
     val req = remember { FocusRequester() }
+    // Après l'éditeur de chaîne : si la chaîne a été masquée, la sélection passe à sa voisine (suivante, sinon précédente).
+    val prevRows = remember { arrayOf(rows) }
+    if (rows.any { it.id == sel?.first?.id }) prevRows[0] = rows
+    var wasEditing by remember { mutableStateOf(false) }
+    LaunchedEffect(editing) {
+        if (editing) {
+            wasEditing = true
+        } else if (wasEditing) {
+            wasEditing = false
+            val id = sel?.first?.id
+            val now = rowsNow
+            if (id != null && now.isNotEmpty()) {
+                val tgt: Channel? = if (now.any { it.id == id }) now.first { it.id == id } else {
+                    val old = prevRows[0]
+                    val pi = old.indexOfFirst { it.id == id }
+                    val ids = now.map { it.id }.toHashSet()
+                    (if (pi >= 0) (old.drop(pi + 1).firstOrNull { it.id in ids } ?: old.take(pi).lastOrNull { it.id in ids }) else null)
+                        ?.let { n -> now.firstOrNull { it.id == n.id } } ?: now.first()
+                }
+                if (tgt != null) {
+                    sel = Pair(tgt, epg.now(tgt.epgId))
+                    val ix = now.indexOfFirst { it.id == tgt.id }
+                    try { ls.scrollToItem((ix - 3).coerceIn(0, (now.size - 7).coerceAtLeast(0))) } catch (ex: Exception) { if (ex is kotlinx.coroutines.CancellationException) throw ex }
+                    delay(150)
+                    wrapId = tgt.id
+                }
+            }
+        }
+    }
     LaunchedEffect(Unit) {
         delay(350)
         try { req.requestFocus() } catch (ex: Exception) { }

@@ -915,7 +915,8 @@ fun App() {
                         }
                     },
                     { editCh = it.id },
-                    { editCat = it }
+                    { editCat = it },
+                    editCh != null
                 ) {
                     if (fromGuide) { fromGuide = false; full = false } else miniStart = true
                     screen = ""
