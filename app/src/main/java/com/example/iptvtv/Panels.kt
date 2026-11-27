@@ -1072,6 +1072,13 @@ fun SettingsHub(
         ) {
             item { PRadio("Playlist (m3u)", "M3U / M3U8 link or local file", type == "m3u", { type = "m3u" }, autoFocus = true) }
             item { PRadio("Xtream Codes", "Server, username and password", type == "xtream", { type = "xtream" }) }
+            item {
+                PItem(
+                    "Restore configuration", "Use a file exported from another device (iptv-config.json)",
+                    { try { importer.launch(arrayOf("*/*")) } catch (ex: Exception) { msg = "No file browser on this TV." } }
+                )
+            }
+            if (msg.isNotBlank()) item { PInfo(msg) }
         }
         "src_form" -> PanelShell(
             if (type == "m3u") "Playlist (m3u)" else "Xtream Codes", { back() },
