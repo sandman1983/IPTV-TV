@@ -385,7 +385,7 @@ fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
         delay(100)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(16.dp)) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Th.selLine, RoundedCornerShape(12.dp)).padding(16.dp)) {
         Text("Exit the app?", color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -403,7 +403,7 @@ fun ReminderBox(r: Rec, modifier: Modifier, onWatch: () -> Unit, onClose: () -> 
         delay(100)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
-    Column(modifier.width(360.dp).clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(16.dp)) {
+    Column(modifier.width(360.dp).clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Th.selLine, RoundedCornerShape(12.dp)).padding(16.dp)) {
         Text("Reminder", color = Th.sel, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         Text(r.title, color = Th.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(r.chName + " · " + hm(r.start), color = MUTED, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
@@ -988,7 +988,7 @@ fun App() {
                 }
                 Column(
                     Modifier.align(Alignment.Center).width(760.dp).clip(RoundedCornerShape(12.dp))
-                        .background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(18.dp)
+                        .background(Th.guideBg).border(1.dp, Th.selLine, RoundedCornerShape(12.dp)).padding(18.dp)
                 ) {
                     Text("The app closed unexpectedly last time", color = Color(0xFFFFB4A9), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text("Please take a photo of this and send it to Claude:", color = MUTED, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
@@ -1003,7 +1003,7 @@ fun App() {
                 val parts = playErr.split("\n")
                 Column(
                     Modifier.align(Alignment.TopEnd).padding(24.dp).width(440.dp)
-                        .clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(16.dp)
+                        .clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Th.selLine, RoundedCornerShape(12.dp)).padding(16.dp)
                 ) {
                     Text("Stream problem", color = Th.sel, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Text(parts.first(), color = Th.text, fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 2.dp))
@@ -1106,7 +1106,7 @@ fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: 
         Modifier.padding(horizontal = 4.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .clip(RoundedCornerShape(9.dp))
-            .background(if (f) Color(0x33E0B85A) else Color.Transparent)
+            .background(if (f) Th.selTint else Color.Transparent)
             .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(9.dp)) else Modifier)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
@@ -1138,7 +1138,7 @@ fun HeaderIcon(kind: Int, req: FocusRequester? = null, onClick: () -> Unit) {
         Modifier.size(38.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(if (f) Color(0x33E0B85A) else Th.iconBg)
+            .background(if (f) Th.selTint else Th.iconBg)
             .then(if (f) Modifier.border(2.dp, Th.sel, androidx.compose.foundation.shape.CircleShape) else Modifier)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }

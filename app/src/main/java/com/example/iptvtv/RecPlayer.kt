@@ -57,7 +57,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private val RP_GOLD = Color(0xFFE0B85A)
+private val RP_GOLD: Color get() = Th.sel
 
 private fun clockTxt(ms: Long): String {
     val s = (ms / 1000L).coerceAtLeast(0L)

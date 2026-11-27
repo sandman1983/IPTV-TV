@@ -71,7 +71,7 @@ object Watch {
     fun clear(c: android.content.Context, id: String) { sp(c).edit().remove(id).apply() }
 }
 
-private val X_GOLD = Color(0xFFE0B85A)
+private val X_GOLD: Color get() = Th.sel
 private val X_RED = Color(0xFFE5484D)
 
 private fun durTxt(ms: Long): String {

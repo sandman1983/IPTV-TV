@@ -71,7 +71,7 @@ private val GRAY = Color(0xFFB0B8C8)
 private val CYAN = Color(0xFF1EB6E8)
 private val BLUE = Color(0xFF8AB4F8)
 private val TITLE = Color(0xFFFFD166)
-private val GOLD = Color(0xFFE0B85A)
+private val GOLD: Color get() = Th.sel
 
 val LocalRowFocused = compositionLocalOf { false }
 val LocalRowSel = compositionLocalOf { false }
@@ -546,7 +546,7 @@ fun ChannelPanel(
                                         if (c.id == current.id) {
                                             Spacer(Modifier.width(8.dp))
                                             Row(
-                                                Modifier.height(15.dp).clip(RoundedCornerShape(8.dp)).background(Color(0x33E0B85A))
+                                                Modifier.height(15.dp).clip(RoundedCornerShape(8.dp)).background(Th.selTint)
                                                     .padding(horizontal = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
@@ -613,7 +613,7 @@ fun ChannelPanel(
                             Column(Modifier.weight(1f)) {
                                 Row(
                                     Modifier.clip(RoundedCornerShape(4.dp))
-                                        .background(if (upIdx < 0) Color(0xFFE5484D) else Color(0x33E0B85A))
+                                        .background(if (upIdx < 0) Color(0xFFE5484D) else Th.selTint)
                                         .padding(horizontal = 8.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {

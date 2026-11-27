@@ -533,7 +533,7 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
                     }
                 }
                 .clip(RoundedCornerShape(9.dp))
-                .background(if (f) Color(0x33E0B85A) else Color.Transparent)
+                .background(if (f) Th.selTint else Color.Transparent)
                 .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(9.dp)) else Modifier)
                 .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
