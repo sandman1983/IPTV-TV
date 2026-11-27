@@ -688,8 +688,9 @@ private fun MvCell(
         modifier
             .focusRequester(req)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
-            .border(if (f) 3.dp else 1.dp, if (f) Th.sel else Th.divider)
+            .clip(RoundedCornerShape(12.dp))
             .background(Th.mvCell)
+            .border(if (f) 3.dp else 1.dp, if (f) Th.sel else Th.divider, RoundedCornerShape(12.dp))
             .clickable { onClick() }
     ) {
         if (ch != null) {
@@ -705,14 +706,14 @@ private fun MvCell(
                 modifier = Modifier.fillMaxSize().padding(2.dp)
             )
             Row(
-                Modifier.align(Alignment.BottomStart).padding(10.dp).background(Th.ovMid)
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                Modifier.align(Alignment.BottomStart).padding(12.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xB3000000))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(ch.name, color = Th.text, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                 if (selected) {
                     Spacer(Modifier.width(8.dp))
-                    Text("AUDIO", color = Th.time, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("AUDIO", color = Th.sel, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         } else {

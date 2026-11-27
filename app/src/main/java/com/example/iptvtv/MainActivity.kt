@@ -963,13 +963,13 @@ fun App() {
                 }
                 Column(
                     Modifier.align(Alignment.Center).width(760.dp).clip(RoundedCornerShape(12.dp))
-                        .background(Th.popup).padding(18.dp)
+                        .background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(18.dp)
                 ) {
                     Text("The app closed unexpectedly last time", color = Color(0xFFFFB4A9), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text("Please take a photo of this and send it to Claude:", color = MUTED, fontSize = 13.sp, modifier = Modifier.padding(vertical = 6.dp))
                     Text(cr.take(1400), color = Th.text, fontSize = 10.sp, lineHeight = 12.sp, maxLines = 28, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(10.dp))
-                    FocusRow({ crash = null }, Modifier.width(160.dp).focusRequester(fr2)) {
+                    FocusRow({ crash = null }, Modifier.width(160.dp).focusRequester(fr2), tile = true, tileColor = Th.cell, tileCorner = 9.dp, tileVPad = 3.dp, soft = true) {
                         Text("Close", color = fcolor(Color.White), fontSize = 16.sp)
                     }
                 }
