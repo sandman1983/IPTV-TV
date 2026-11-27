@@ -507,7 +507,7 @@ private const val TOTAL_MIN = 2160
 private val LW = 104.dp
 private val ACCENT: Color get() = Th.sel
 private val G_GOLD: Color get() = Th.sel
-private val P_DARK_TXT: Color get() = Th.focusText
+private val P_DARK_TXT: Color get() = Th.sel
 
 @Composable
 private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null, req: FocusRequester? = null, onClick: () -> Unit) {
@@ -532,9 +532,9 @@ private fun GChip(label: String, selected: Boolean, onLong: (() -> Unit)? = null
                         scaleY = (size.height + 2 * g) / size.height
                     }
                 }
-                .clip(RoundedCornerShape(3.dp))
-                .background(if (f) Th.focusBg else Color.Transparent)
-                .then(if (f) Modifier.border(1.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
+                .clip(RoundedCornerShape(9.dp))
+                .background(if (f) Color(0x33E0B85A) else Color.Transparent)
+                .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(9.dp)) else Modifier)
                 .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             // Onglet texte comme l'en-tête : la catégorie choisie est en doré, soulignée
