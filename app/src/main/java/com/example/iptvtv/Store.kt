@@ -230,6 +230,8 @@ fun autoMatch(all: List<Channel>, g: Cfg, guide: List<GuideCh>): Pair<Cfg, Int> 
     var ov = g.ov
     for (c in all) {
         if (c.epgId.isNotBlank() && c.epgId in ids) continue
+        // Un ID choisi à la main n'est jamais remplacé par le rapprochement automatique.
+        if (!(ov[c.id]?.epg).isNullOrBlank()) continue
         val tail = c.name.substringAfterLast('|').substringAfterLast(':')
         val key = listOf(mkey(c.name), mkey(tail)).firstOrNull { it.isNotEmpty() && idx.containsKey(it) }
         val hit = if (key == null) null else idx[key]
