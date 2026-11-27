@@ -275,8 +275,9 @@ fun ChannelPanel(
         selSrc = pairs.first().first
         selCat = pairs.first().second
     }
-    val srcCats = all.filter { it.src == selSrc }.map { it.cat }.distinct()
-    val list = all.filter { it.src == selSrc && it.cat == selCat }
+    val srcCats = remember(all, selSrc) { all.filter { it.src == selSrc }.map { it.cat }.distinct() }
+    val list = remember(all, selSrc, selCat) { all.filter { it.src == selSrc && it.cat == selCat } }
+    val numOf = remember(all) { all.withIndex().associate { it.value.id to it.index + 1 } }
     var focused by remember { mutableStateOf(current) }
     var wrapTo by remember { mutableStateOf<Int?>(null) }
     val wrapReq = remember { FocusRequester() }
@@ -521,7 +522,7 @@ fun ChannelPanel(
                             ) {
                                 if (showNums) {
                                     Text(
-                                        "${all.indexOf(c) + 1}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 18.sp,
+                                        "${numOf[c.id] ?: 0}", color = fcolor(GRAY, Color(0xFF45557A)), fontSize = 18.sp,
                                         fontWeight = FontWeight.Medium, maxLines = 1,
                                         modifier = Modifier.width(40.dp)
                                     )

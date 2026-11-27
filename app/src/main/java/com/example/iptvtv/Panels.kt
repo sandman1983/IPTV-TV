@@ -536,14 +536,10 @@ fun ChannelEditor(
                     scrollTo = list.indexOfFirst { it.id == e.id }.coerceAtLeast(0),
                     actions = {
                         PButton("Show all", {
-                            var ov = cfg.ov
-                            for (c in list) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = false))
-                            onCfg(cfg.copy(ov = ov))
+                            onCfg(cfg.copy(ov = setOvMany(cfg.ov, list) { it.copy(hidden = false) }))
                         })
                         PButton("Hide all", {
-                            var ov = cfg.ov
-                            for (c in list) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = true))
-                            onCfg(cfg.copy(ov = ov))
+                            onCfg(cfg.copy(ov = setOvMany(cfg.ov, list) { it.copy(hidden = true) }))
                         })
                         PButton("Done", { page = "menu" })
                     }
@@ -635,24 +631,21 @@ fun CategoryEditor(
     var text by remember { mutableStateOf("") }
     var cur by remember { mutableStateOf(cat) }
     val picked = remember { mutableStateListOf<String>() }
-    val cats = all.map { it.cat }.distinct()
-    val visCats = all.filter { !it.hidden }.map { it.cat }.distinct()
+    val cats = remember(all) { all.map { it.cat }.distinct() }
+    val visCats = remember(all) { all.filter { !it.hidden }.map { it.cat }.distinct() }
+    val catShown = remember(all) { all.groupBy { it.cat }.mapValues { e -> e.value.any { !it.hidden } } }
 
     fun back() { if (page == "menu") onClose() else page = "menu" }
     fun setHidden(names: Collection<String>, hide: Boolean) {
-        var ov = cfg.ov
-        for (c in all) if (c.cat in names) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = hide))
-        onCfg(cfg.copy(ov = ov))
+        val ns = names.toHashSet()
+        onCfg(cfg.copy(ov = setOvMany(cfg.ov, all.filter { it.cat in ns }) { it.copy(hidden = hide) }))
     }
     fun rename(from: String, to: String) {
-        var ov = cfg.ov
-        for (c in all) if (c.cat == from) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(cat = to))
+        val ov = setOvMany(cfg.ov, all.filter { it.cat == from }) { it.copy(cat = to) }
         onCfg(cfg.copy(ov = ov, cats = cfg.cats.map { if (it == from) to else it }.distinct()))
     }
     fun restore(name: String) {
-        var ov = cfg.ov
-        for (c in all) if (c.cat == name && ov[c.id]?.cat?.isNotBlank() == true) ov = ov + (c.id to ov[c.id]!!.copy(cat = ""))
-        onCfg(cfg.copy(ov = ov))
+        onCfg(cfg.copy(ov = setOvMany(cfg.ov, all.filter { it.cat == name && cfg.ov[it.id]?.cat?.isNotBlank() == true }) { it.copy(cat = "") }))
     }
 
     PanelDialogHost({ back() }) {
@@ -668,8 +661,7 @@ fun CategoryEditor(
                 item { PInfo("The category and its channels disappear from your lists. You can bring it back later with Show / Hide.") }
                 item {
                     PItem("Yes, delete", "", {
-                        var ov = cfg.ov
-                        for (c in all) if (c.cat == cur) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = true))
+                        val ov = setOvMany(cfg.ov, all.filter { it.cat == cur }) { it.copy(hidden = true) }
                         onCfg(cfg.copy(ov = ov, cats = cfg.cats.filter { it != cur }))
                         onClose()
                     }, autoFocus = true)
@@ -726,11 +718,11 @@ fun CategoryEditor(
                 }
             }
             "vis" -> {
-                val allHidden = all.all { it.hidden }
+                val allHidden = catShown.values.none { it }
                 PanelShell("Category visibility", { back() }, false, actions = { PButton("Done", { onClose() }) }, scrollTo = 1 + cats.indexOf(cur).coerceAtLeast(0)) {
                     item { PSwitch("Hide all", "", allHidden, { setHidden(cats, !allHidden) }) }
                     items(cats, key = { it }) { c ->
-                        val shown = all.any { it.cat == c && !it.hidden }
+                        val shown = catShown[c] == true
                         PSwitch(c, "", shown, { setHidden(listOf(c), shown) }, autoFocus = c == cur)
                     }
                 }
@@ -926,7 +918,8 @@ fun SettingsHub(
         }
     }
 
-    val cats = (all.map { it.cat } + cfg.cats).distinct()
+    val cats = remember(all, cfg.cats) { (all.map { it.cat } + cfg.cats).distinct() }
+    val byCat = remember(all) { all.groupBy { it.cat } }
     val pmem = remember { PMem { page } }
 
     CompositionLocalProvider(LocalPMem provides pmem) {
@@ -1044,14 +1037,14 @@ fun SettingsHub(
         "src_cats" -> {
             val s = selSrc
             if (s != null) {
-                val mine = all.filter { it.src == s.id || it.src == s.name }
-                val scats = mine.map { it.cat }.distinct()
+                val mine = remember(all, s) { all.filter { it.src == s.id || it.src == s.name } }
+                val scats = remember(mine) { mine.map { it.cat }.distinct() }
+                val mineBy = remember(mine) { mine.groupBy { it.cat } }
                 fun setHid(names: Collection<String>, hide: Boolean) {
-                    var ov = cfg.ov
-                    for (c in mine) if (c.cat in names) ov = ov + (c.id to (ov[c.id] ?: Ov()).copy(hidden = hide))
-                    onCfg(cfg.copy(ov = ov))
+                    val ns = names.toHashSet()
+                    onCfg(cfg.copy(ov = setOvMany(cfg.ov, mine.filter { it.cat in ns }) { it.copy(hidden = hide) }))
                 }
-                val keptCount = scats.count { c -> mine.any { it.cat == c && !it.hidden } }
+                val keptCount = scats.count { c -> mineBy[c]?.any { !it.hidden } == true }
                 PanelShell(
                     s.name + " : categories", { back() },
                     scrollTo = 0,
@@ -1063,8 +1056,8 @@ fun SettingsHub(
                 ) {
                     item { PInfo("$keptCount of ${scats.size} categories selected. OK = select / unselect.") }
                     items(scats, key = { it }) { c ->
-                        val n = mine.count { it.cat == c }
-                        val on = mine.any { it.cat == c && !it.hidden }
+                        val n = mineBy[c]?.size ?: 0
+                        val on = mineBy[c]?.any { !it.hidden } == true
                         PSwitch(c, "$n channel(s)", on, { setHid(listOf(c), on) }, autoFocus = c == scats.first())
                     }
                 }
@@ -1191,7 +1184,7 @@ fun SettingsHub(
             }
             item { PItem("Export playlist", "Save the visible channels as a new M3U file", { m3uExporter.launch("playlist.m3u") }) }
             if (cfg.deleted.isNotEmpty()) item { PItem("Restore deleted channels", "${cfg.deleted.size} deleted", { onCfg(cfg.copy(deleted = emptyList())); msg = "Deleted channels restored." }) }
-            items(cats) { cat -> PItem(cat, "${all.count { it.cat == cat }} channel(s)" + if (all.none { it.cat == cat && !it.hidden }) " · hidden" else "", { selCat = cat; page = "chlist" }, onLong = { editCatName = cat }) }
+            items(cats) { cat -> PItem(cat, "${byCat[cat]?.size ?: 0} channel(s)" + if (byCat[cat]?.any { !it.hidden } != true) " · hidden" else "", { selCat = cat; page = "chlist" }, onLong = { editCatName = cat }) }
         }
         "delhidden" -> {
             val hid = all.filter { it.hidden }

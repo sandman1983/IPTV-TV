@@ -286,13 +286,15 @@ fun pushHist(h: List<Int>, id: Int): List<Int> = (listOf(id) + h.filter { it != 
 // les catégories masquées gardent leur place.
 private fun rebuildOrder(g: Cfg, all: List<Channel>, names: List<String>, newVis: List<String>): Cfg {
     val vis = newVis.iterator()
-    val final = names.map { n -> if (all.any { it.cat == n && !it.hidden }) vis.next() else n }
-    return g.copy(order = final.flatMap { n -> all.filter { it.cat == n }.map { it.id } })
+    val by = all.groupBy { it.cat }
+    val final = names.map { n -> if (by[n]?.any { !it.hidden } == true) vis.next() else n }
+    return g.copy(order = final.flatMap { n -> by[n]?.map { it.id } ?: emptyList() })
 }
 
 fun moveCats(g: Cfg, all: List<Channel>, cats: Set<String>, dir: Int): Cfg {
     val names = all.map { it.cat }.distinct()
-    val v = names.filter { n -> all.any { it.cat == n && !it.hidden } }.toMutableList()
+    val by = all.groupBy { it.cat }
+    val v = names.filter { n -> by[n]?.any { !it.hidden } == true }.toMutableList()
     val seq = if (dir < 0) v.indices else v.indices.reversed()
     for (i in seq) {
         if (v[i] !in cats) continue
@@ -305,8 +307,16 @@ fun moveCats(g: Cfg, all: List<Channel>, cats: Set<String>, dir: Int): Cfg {
 
 fun moveCatsEdge(g: Cfg, all: List<Channel>, cats: Set<String>, top: Boolean): Cfg {
     val names = all.map { it.cat }.distinct()
-    val v = names.filter { n -> all.any { it.cat == n && !it.hidden } }
+    val by = all.groupBy { it.cat }
+    val v = names.filter { n -> by[n]?.any { !it.hidden } == true }
     val moved = v.filter { it in cats }
     val rest = v.filter { it !in cats }
     return rebuildOrder(g, all, names, if (top) moved + rest else rest + moved)
+}
+
+// Applique une modification à plusieurs chaînes en une seule copie de la table (rapide même avec des milliers de chaînes).
+fun setOvMany(ov: Map<Int, Ov>, chs: Iterable<Channel>, f: (Ov) -> Ov): Map<Int, Ov> {
+    val m = HashMap(ov)
+    for (c in chs) m[c.id] = f(m[c.id] ?: Ov())
+    return m
 }
