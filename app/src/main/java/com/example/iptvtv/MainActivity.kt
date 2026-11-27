@@ -579,6 +579,17 @@ fun App() {
         }
     }
     val shown = remember(all) { all.filter { !it.hidden } }
+    // Si le guide est filtré sur mes chaînes, un ID EPG choisi à la main n'est pas dans les données chargées : on recharge le guide.
+    val epgIdsKey = cfg.ov.values.map { it.epg }.filter { it.isNotBlank() }.toSortedSet().joinToString("|")
+    var epgIdsSeen by remember { mutableStateOf(epgIdsKey) }
+    LaunchedEffect(epgIdsKey) {
+        if (epgIdsKey != epgIdsSeen) {
+            epgIdsSeen = epgIdsKey
+            delay(1500)
+            val missing = epgIdsKey.split("|").any { it.isNotBlank() && !epg.progs.containsKey(it) }
+            if (cfg.epgMine && missing && !SyncState.busy) reload++
+        }
+    }
     val cur = bg?.let { b -> all.firstOrNull { it.id == b.id } ?: b }
 
     var recPlayId by remember { mutableStateOf("") }
