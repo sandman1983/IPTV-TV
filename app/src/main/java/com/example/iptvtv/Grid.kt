@@ -226,7 +226,7 @@ fun MiniPlayer(
     }
     var removed by remember { mutableStateOf(setOf<Int>()) }
     var removedAll by remember { mutableStateOf(false) }
-    val shownRecent = if (removedAll) emptyList() else recent.filter { it.id !in removed }
+    val shownRecent = if (removedAll) emptyList() else recent.filter { it.id !in removed && it.id != c.id }
     val gr = remember { FocusRequester() }
     val itemReqs = remember { HashMap<Int, FocusRequester>() }
     var pendId by remember { mutableStateOf<Int?>(null) }
@@ -254,6 +254,27 @@ fun MiniPlayer(
         } else if (ctrl) {
             delay(60)
             try { rootFr.requestFocus() } catch (ex: Exception) { }
+        }
+    }
+    // Une carte choisie quitte la rangée (elle est maintenant dans le bloc d'info) : la sélection passe à la carte voisine.
+    var lastC by remember { mutableStateOf(c.id) }
+    LaunchedEffect(c.id) {
+        if (c.id != lastC) {
+            lastC = c.id
+            if (!ctrl && clearFor == null) {
+                if (shownRecent.isEmpty()) {
+                    lastIdx = 0
+                    delay(120)
+                    try { gr.requestFocus() } catch (ex: Exception) { }
+                } else {
+                    val t = lastIdx.coerceIn(1, shownRecent.size)
+                    lastIdx = t
+                    try { st.scrollToItem((t - 1).coerceAtLeast(0)) } catch (ex: Exception) { if (ex is kotlinx.coroutines.CancellationException) throw ex }
+                    delay(120)
+                    val rq = shownRecent.getOrNull(t - 1)?.let { itemReqs[it.id] }
+                    try { (rq ?: gr).requestFocus() } catch (ex: Exception) { try { gr.requestFocus() } catch (e2: Exception) { } }
+                }
+            }
         }
     }
     LaunchedEffect(clearFor) {
