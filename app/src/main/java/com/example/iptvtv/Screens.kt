@@ -302,9 +302,20 @@ fun ChannelPanel(
     val shownP: Prog? = if (upIdx in ups.indices) ups[upIdx] else fp
     var shown by remember { mutableStateOf(false) }
     val showA by androidx.compose.animation.core.animateFloatAsState(if (shown) 1f else 0f, androidx.compose.animation.core.tween(240), label = "listIn")
+    val fidNow by rememberUpdatedState(fid)
+    val listNow0 by rememberUpdatedState(list)
+    // Fait défiler jusqu'à la ligne cible AVANT de lui donner le focus (sinon elle n'est pas composée).
+    suspend fun focusTarget() {
+        val l = listNow0
+        val i = l.indexOfFirst { it.id == fidNow }.coerceAtLeast(0)
+        val t = (i - 3).coerceIn(0, (l.size - 8).coerceAtLeast(0))
+        try { ls.scrollToItem(t) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e }
+        delay(50)
+        try { fr.requestFocus() } catch (ex: Exception) { }
+    }
     LaunchedEffect(refocus) {
         delay(120)
-        try { fr.requestFocus() } catch (ex: Exception) { }
+        focusTarget()
         shown = true
     }
     LaunchedEffect(wrapTo) {
@@ -317,7 +328,7 @@ fun ChannelPanel(
     LaunchedEffect(goList) {
         if (goList > 0) {
             delay(150)
-            try { fr.requestFocus() } catch (ex: Exception) { }
+            focusTarget()
         }
     }
     // La barre de sélection reste vers le milieu (5e ligne) et c'est la liste qui défile ;
