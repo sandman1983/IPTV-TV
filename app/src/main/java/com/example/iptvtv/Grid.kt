@@ -306,37 +306,61 @@ fun MiniPlayer(
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Th.ovMid, Th.ovEnd)))
-                .padding(start = 40.dp, end = 40.dp, top = 90.dp, bottom = 22.dp)
+                .padding(start = 24.dp, end = 28.dp, top = 70.dp, bottom = 22.dp)
         ) {
-            Text(c.name.uppercase(), color = Th.sel, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp, maxLines = 1)
-            Text(
-                p?.title ?: "", color = Th.text, fontSize = 30.sp, fontWeight = FontWeight.Bold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            if (p != null) Text("${hm(p.start)} - ${hm(p.stop)}", color = M_GRAY, fontSize = 14.sp, maxLines = 1)
-            if (ctrl) {
-                // Play/pause au centre, audio + sous-titres à droite
-                Row(Modifier.padding(top = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.weight(1f))
-                    CtrlCircle(if (playing) 0 else 1, sel == 0) { onToggle(); playing = isPlaying() }
-                    Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
+            // Même bloc d'info que le bandeau de zapping : vignette, numéro, chaîne, titre, heure + barre.
+            val numC = channels.indexOfFirst { it.id == c.id } + 1
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(150.dp).height(84.dp).clip(RoundedCornerShape(9.dp)).background(Th.cardBg)) {
+                    val pic = p?.icon.orEmpty()
+                    if (pic.isNotBlank()) {
+                        AsyncImage(model = pic, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    } else if (c.icon.isNotBlank()) {
+                        AsyncImage(
+                            model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
+                            modifier = Modifier.fillMaxSize().padding(12.dp), contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+                Column(Modifier.width(96.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$numC", color = Th.sel, fontSize = 32.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                }
+                Column(Modifier.weight(1f).height(88.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (c.icon.isNotBlank()) {
+                            AsyncImage(
+                                model = c.icon, contentDescription = null, colorFilter = invFilter(c.invert),
+                                modifier = Modifier.height(20.dp).widthIn(max = 48.dp).padding(end = 8.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                        }
+                        Text(c.name, color = M_GRAY, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (p == null) {
+                        Text("No guide information", color = M_GRAY, fontSize = 20.sp, modifier = Modifier.padding(top = 4.dp))
+                    } else {
+                        Text(p.title, color = Th.text, fontSize = 21.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                            Text("Now ${hm(nowMs)}", color = M_GRAY, fontSize = 14.sp)
+                            Text("  |  ", color = M_GRAY, fontSize = 15.sp)
+                            Text("${hm(p.start)} - ${hm(p.stop)}", color = Th.text, fontSize = 15.sp)
+                            Bar(fracOf(p, nowMs), Modifier.padding(horizontal = 14.dp).weight(1f, fill = false).widthIn(min = 40.dp, max = 150.dp), 8.dp)
+                            val left = ((p.stop - nowMs) / 60000L).coerceAtLeast(0)
+                            Text("+$left min", color = Th.sel, fontSize = 14.sp, maxLines = 1, softWrap = false)
+                        }
+                    }
+                }
+                if (ctrl) {
+                    Row(Modifier.padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CtrlCircle(if (playing) 0 else 1, sel == 0) { onToggle(); playing = isPlaying() }
+                        Spacer(Modifier.width(10.dp))
                         CtrlCircle(2, sel == 1, onTracks)
                         Spacer(Modifier.width(10.dp))
                         CtrlCircle(3, sel == 2, onTracks)
                     }
-                }
-            } else {
-                // Petite flèche : "Haut" affiche les commandes
-                Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(24.dp, 12.dp).upChevron(M_GRAY))
-                }
-            }
-            if (p != null) {
-                Row(Modifier.padding(top = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(hm(p.start), color = M_GRAY, fontSize = 13.sp)
-                    Bar(fracOf(p, nowMs), Modifier.weight(1f).padding(horizontal = 12.dp), 8.dp)
-                    val left = ((p.stop - nowMs) / 60000L).coerceAtLeast(0)
-                    Text("+$left min", color = Th.sel, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                } else {
+                    // Petite flèche : "Haut" affiche les commandes
+                    Box(Modifier.padding(start = 16.dp).size(24.dp, 12.dp).upChevron(M_GRAY))
                 }
             }
             Text(
