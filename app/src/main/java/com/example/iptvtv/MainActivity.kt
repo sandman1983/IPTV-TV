@@ -385,12 +385,12 @@ fun ExitBox(modifier: Modifier, onYes: () -> Unit, onNo: () -> Unit) {
         delay(100)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
-    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Th.popup).padding(16.dp)) {
+    Column(modifier.clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(16.dp)) {
         Text("Exit the app?", color = Th.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr)) { Text("Yes", color = fcolor(Color.White), fontSize = 16.sp) }
-            FocusRow(onNo, Modifier.width(110.dp)) { Text("No", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onYes, Modifier.width(110.dp).focusRequester(fr), tile = true, tileColor = Th.cell, tileCorner = 9.dp, tileVPad = 3.dp, soft = true) { Text("Yes", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onNo, Modifier.width(110.dp), tile = true, tileColor = Th.cell, tileCorner = 9.dp, tileVPad = 3.dp, soft = true) { Text("No", color = fcolor(Color.White), fontSize = 16.sp) }
         }
     }
 }
@@ -403,13 +403,13 @@ fun ReminderBox(r: Rec, modifier: Modifier, onWatch: () -> Unit, onClose: () -> 
         delay(100)
         try { fr.requestFocus() } catch (ex: Exception) { }
     }
-    Column(modifier.width(360.dp).clip(RoundedCornerShape(12.dp)).background(Th.popup).padding(16.dp)) {
-        Text("Reminder", color = Th.time, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    Column(modifier.width(360.dp).clip(RoundedCornerShape(12.dp)).background(Th.guideBg).border(1.dp, Color(0x55E0B85A), RoundedCornerShape(12.dp)).padding(16.dp)) {
+        Text("Reminder", color = Th.sel, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         Text(r.title, color = Th.text, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text(r.chName + " · " + hm(r.start), color = MUTED, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            FocusRow(onWatch, Modifier.width(140.dp).focusRequester(fr)) { Text("Watch", color = fcolor(Color.White), fontSize = 16.sp) }
-            FocusRow(onClose, Modifier.width(140.dp)) { Text("Dismiss", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onWatch, Modifier.width(140.dp).focusRequester(fr), tile = true, tileColor = Th.cell, tileCorner = 9.dp, tileVPad = 3.dp, soft = true) { Text("Watch", color = fcolor(Color.White), fontSize = 16.sp) }
+            FocusRow(onClose, Modifier.width(140.dp), tile = true, tileColor = Th.cell, tileCorner = 9.dp, tileVPad = 3.dp, soft = true) { Text("Dismiss", color = fcolor(Color.White), fontSize = 16.sp) }
         }
     }
 }
@@ -1079,16 +1079,16 @@ fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: 
     Box(
         Modifier.padding(horizontal = 4.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
-            .clip(RoundedCornerShape(3.dp))
-            .background(if (f) Th.focusBg else Color.Transparent)
-            .then(if (f) Modifier.border(1.dp, Th.sel, RoundedCornerShape(3.dp)) else Modifier)
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (f) Color(0x33E0B85A) else Color.Transparent)
+            .then(if (f) Modifier.border(2.dp, Th.sel, RoundedCornerShape(9.dp)) else Modifier)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
             .clickable { onClick() }
             .padding(horizontal = hPad, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        val tc = if (f) Th.focusText else if (selected) Th.text else Th.sub
+        val tc = if (f) Th.sel else if (selected) Th.text else Th.sub
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (icon >= 0) {
                 TabGlyph(icon, tc)
@@ -1107,12 +1107,12 @@ fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: 
 fun HeaderIcon(kind: Int, req: FocusRequester? = null, onClick: () -> Unit) {
     var f by remember { mutableStateOf(false) }
     val sc by animateFloatAsState(if (f) 1.15f else 1f, label = "hicon")
-    val col = if (f) Th.focusText else Th.text
+    val col = if (f) Th.sel else Th.text
     Box(
         Modifier.size(38.dp).zIndex(if (f) 1f else 0f)
             .graphicsLayer { scaleX = sc; scaleY = sc }
             .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(if (f) Th.focusBg else Th.iconBg)
+            .background(if (f) Color(0x33E0B85A) else Th.iconBg)
             .then(if (f) Modifier.border(2.dp, Th.sel, androidx.compose.foundation.shape.CircleShape) else Modifier)
             .then(if (req != null) Modifier.focusRequester(req) else Modifier)
             .onFocusChanged { f = it.isFocused }
@@ -1294,10 +1294,10 @@ fun Home(
                 itemsIndexed(rows) { ri, r ->
                     if (r.header) {
                         Text(
-                            r.title.uppercase(), color = Th.accent, fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                            r.title.uppercase(), color = Th.sel, fontSize = 22.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 12.dp, bottom = 2.dp)
                         )
-                        Box(Modifier.fillMaxWidth().height(2.dp).background(Th.accent))
+                        Box(Modifier.fillMaxWidth().height(2.dp).background(Th.sel))
                     } else {
                         Column(Modifier.heightIn(min = rowH)) {
                             Text(
@@ -1421,11 +1421,13 @@ fun ChannelCard(
             modifier = Modifier.padding(top = 6.dp, start = 3.dp, end = 6.dp)
                 .then(if (f) Modifier.basicMarquee() else Modifier)
         )
-        Text(
-            if (p != null) "${hm(p.start)} - ${hm(p.stop)}" else "",
-            color = Th.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 3.dp)
-        )
+        Row(Modifier.padding(start = 3.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (p != null) {
+                Text("${hm(p.start)} - ${hm(p.stop)}", color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                Text("  ·  ", color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                Text(c.name, color = Th.sel, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            }
+        }
     }
 }
 
@@ -1686,7 +1688,7 @@ fun TopInfo(c: Channel, num: Int, weather: String, codec: String, quality: Strin
             .padding(horizontal = 24.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("$num", color = Th.lime, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("$num", color = Th.sel, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.width(20.dp))
         Text(c.name, color = Th.text, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
         Text(
