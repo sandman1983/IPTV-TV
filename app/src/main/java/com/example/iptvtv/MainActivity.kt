@@ -1514,7 +1514,7 @@ fun PlayerScreen(
     LaunchedEffect(mini, panel) { if (mini || panel) { show = false; evIdx = -1 } }
     LaunchedEffect(mini, miniTick) {
         if (mini) {
-            delay(12000)
+            delay(8000)
             mini = false
         }
     }
@@ -1523,7 +1523,7 @@ fun PlayerScreen(
         if (!panel && !tracksOpen && editId == null && editCatP == null && !exitAsk && !mini) { try { fr.requestFocus() } catch (ex: Exception) { } }
     }
     LaunchedEffect(Unit) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
-    LaunchedEffect(tick) { delay(if (evIdx >= 0) 12000L else 7000L); show = false; evIdx = -1 }
+    LaunchedEffect(tick) { delay(8000L); show = false; evIdx = -1 }
     DisposableEffect(exo) {
         val l = object : Player.Listener {
             override fun onTracksChanged(t: Tracks) {
