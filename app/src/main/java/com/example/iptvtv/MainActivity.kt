@@ -1088,7 +1088,7 @@ fun TopTab(label: String, selected: Boolean, req: FocusRequester? = null, icon: 
             .padding(horizontal = hPad, vertical = 7.dp),
         contentAlignment = Alignment.Center
     ) {
-        val tc = if (f) Th.sel else if (selected) Th.text else Th.sub
+        val tc = if (f || selected) Th.sel else Th.sub
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (icon >= 0) {
                 TabGlyph(icon, tc)
@@ -1423,9 +1423,9 @@ fun ChannelCard(
         )
         Row(Modifier.padding(start = 3.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (p != null) {
-                Text("${hm(p.start)} - ${hm(p.stop)}", color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false)
-                Text("  ·  ", color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false)
                 Text(c.name, color = Th.sel, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text("  ·  ", color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false)
+                Text("${hm(p.start)} - ${hm(p.stop)}", color = Th.sub, fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
         }
     }

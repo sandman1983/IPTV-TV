@@ -294,7 +294,18 @@ fun ChannelPanel(
     }
     val fr = remember { FocusRequester() }
     val idx = list.indexOfFirst { it.id == current.id }.coerceAtLeast(0)
-    val fid = if (list.any { it.id == focusId }) focusId else (list.firstOrNull()?.id ?: -1)
+    // Si la chaîne visée a disparu (masquée), on prend sa voisine (la suivante, sinon la précédente), pas la première.
+    val prevList = remember { arrayOf(list) }
+    val fid = if (list.any { it.id == focusId }) {
+        prevList[0] = list
+        focusId
+    } else {
+        val old = prevList[0]
+        val pi = old.indexOfFirst { it.id == focusId }
+        val ids = list.map { it.id }.toHashSet()
+        val nb = if (pi >= 0) (old.drop(pi + 1).firstOrNull { it.id in ids } ?: old.take(pi).lastOrNull { it.id in ids }) else null
+        nb?.id ?: (list.firstOrNull()?.id ?: -1)
+    }
     val ls = rememberLazyListState(initialFirstVisibleItemIndex = (idx - 3).coerceAtLeast(0))
     val fc = list.firstOrNull { it.id == focused.id } ?: focused
     val fp = epg.now(fc.epgId)
