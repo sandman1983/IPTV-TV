@@ -133,6 +133,12 @@ private fun MiniItem(
     }
 }
 
+private fun Modifier.downChevron(col: Color): Modifier = this.drawBehind {
+    val st = 2.5.dp.toPx()
+    drawLine(col, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width / 2f, size.height), st, androidx.compose.ui.graphics.StrokeCap.Round)
+    drawLine(col, androidx.compose.ui.geometry.Offset(size.width / 2f, size.height), androidx.compose.ui.geometry.Offset(size.width, 0f), st, androidx.compose.ui.graphics.StrokeCap.Round)
+}
+
 private fun Modifier.upChevron(col: Color): Modifier = this.drawBehind {
     val st = 2.5.dp.toPx()
     drawLine(col, androidx.compose.ui.geometry.Offset(0f, size.height), androidx.compose.ui.geometry.Offset(size.width / 2f, 0f), st, androidx.compose.ui.graphics.StrokeCap.Round)
@@ -230,15 +236,21 @@ fun MiniPlayer(
     var sel by remember { mutableStateOf(0) }
     val st = rememberLazyListState()
     val sc = rememberCoroutineScope()
+    var lastIdx by remember { mutableStateOf(0) }
     fun focusItem(idx: Int) {
+        lastIdx = idx
         sc.launch { try { st.animateScrollToItem((idx - 1).coerceAtLeast(0)) } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e } }
     }
     var playing by remember { mutableStateOf(isPlaying()) }
     LaunchedEffect(ctrl) {
         if (!ctrl && clearFor == null) {
             // Rangée dépliée : la sélection va sur le carré "Program guide"
+            // On revient sur la dernière carte sélectionnée (la rangée garde son défilement, la carte doit être affichée avant le focus)
+            val target = lastIdx.coerceIn(0, shownRecent.size)
+            try { st.scrollToItem((target - 1).coerceAtLeast(0)) } catch (ex: Exception) { if (ex is kotlinx.coroutines.CancellationException) throw ex }
             delay(160)
-            try { gr.requestFocus() } catch (ex: Exception) { }
+            val rq = if (target == 0) gr else shownRecent.getOrNull(target - 1)?.let { itemReqs[it.id] }
+            try { (rq ?: gr).requestFocus() } catch (ex: Exception) { try { gr.requestFocus() } catch (e2: Exception) { } }
         } else if (ctrl) {
             delay(60)
             try { rootFr.requestFocus() } catch (ex: Exception) { }
@@ -358,6 +370,9 @@ fun MiniPlayer(
                         CtrlCircle(2, sel == 1, onTracks)
                         Spacer(Modifier.width(10.dp))
                         CtrlCircle(3, sel == 2, onTracks)
+                        // Flèche vers le bas : la rangée de chaînes se déplie avec la touche Bas
+                        Spacer(Modifier.width(18.dp))
+                        Box(Modifier.size(24.dp, 12.dp).downChevron(Th.sel))
                     }
                 } else {
                     // Petite flèche : "Haut" affiche les commandes
@@ -366,9 +381,9 @@ fun MiniPlayer(
             }
             if (p != null) {
                 // Barre de progression juste sous le bloc d'info (à la place de la ligne du bas du bandeau)
-                Bar(fracOf(p, nowMs), Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 11.dp), 8.dp)
+                Bar(fracOf(p, nowMs), Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 19.dp), 8.dp)
             } else {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(32.dp))
             }
             androidx.compose.animation.AnimatedVisibility(
                 visible = !ctrl,
