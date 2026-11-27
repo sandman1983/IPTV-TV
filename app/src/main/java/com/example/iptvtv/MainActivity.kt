@@ -467,6 +467,7 @@ fun App() {
     val recs = remember(Dvr.tick) { loadRecs(ctx) }
     val cfgNow by rememberUpdatedState(cfg)
 
+    val mainHdr = remember { HdrHolder() }
     val exo = remember {
         val http = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
@@ -504,7 +505,7 @@ fun App() {
         ExoPlayer.Builder(ctx, renderers)
             .setLoadControl(load)
             .setMediaSourceFactory(
-                DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, http), extractors)
+                DefaultMediaSourceFactory(StreamHdr.factory(ctx, mainHdr), extractors)
             )
             .build()
     }
@@ -726,7 +727,9 @@ fun App() {
             retries[0] = 0
             playErr = ""
             try {
-                exo.setMediaItem(MediaItem.fromUri(c.url))
+                val su = StreamHdr.split(c.url)
+                mainHdr.cur = su.second
+                exo.setMediaItem(MediaItem.fromUri(su.first))
                 exo.prepare()
                 exo.playWhenReady = true
             } catch (e: IllegalStateException) {

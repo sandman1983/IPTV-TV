@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import org.json.JSONArray
@@ -178,7 +179,8 @@ object Dvr {
                 val endAt = r.stop + cfg.recStop * 60000L
                 val (os, p) = openOut(app, cfg, r)
                 path = p
-                os.use { out -> recordStream(r.url, out, endAt) }
+                val su = StreamHdr.split(r.url)
+                os.use { out -> kotlinx.coroutines.withContext(recHdr.asContextElement(su.second)) { recordStream(su.first, out, endAt) } }
                 update(app, r.id) { it.copy(state = "done", path = path) }
             } catch (ce: CancellationException) {
                 update(app, r.id) { it.copy(state = "done", path = path) }
@@ -211,6 +213,8 @@ object Dvr {
         return Pair(FileOutputStream(f), Uri.fromFile(f).toString())
     }
 
+    private val recHdr = ThreadLocal<Map<String, String>>()
+
     private fun open(url: String): HttpURLConnection {
         var u = url
         for (i in 0 until 6) {
@@ -219,6 +223,7 @@ object Dvr {
             c.readTimeout = 20000
             c.instanceFollowRedirects = false
             c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android TV) IPTV-TV")
+            recHdr.get()?.forEach { (k, v) -> c.setRequestProperty(k, v) }
             val code = c.responseCode
             if (code in 300..399) {
                 val loc = c.getHeaderField("Location") ?: throw IOException("Bad redirect")

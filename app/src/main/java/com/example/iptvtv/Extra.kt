@@ -589,15 +589,16 @@ fun MultiviewScreen(main: ExoPlayer, channels: List<Channel>, epg: Epg, start: C
     var sel by remember { mutableStateOf(0) }
     var picking by remember { mutableStateOf(-1) }
     val reqs = remember { List(4) { FocusRequester() } }
+    val mvHdr = remember { List(4) { HdrHolder() } }
     val players = remember {
         val http = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent("VLC/3.0.18 LibVLC/3.0.18")
             .setConnectTimeoutMs(15000)
             .setReadTimeoutMs(15000)
-        List(4) {
+        List(4) { pi ->
             ExoPlayer.Builder(ctx)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(ctx, http)))
+                .setMediaSourceFactory(DefaultMediaSourceFactory(StreamHdr.factory(ctx, mvHdr[pi])))
                 .build()
         }
     }
@@ -620,7 +621,9 @@ fun MultiviewScreen(main: ExoPlayer, channels: List<Channel>, epg: Epg, start: C
                     p.stop()
                     p.clearMediaItems()
                 } else {
-                    p.setMediaItem(MediaItem.fromUri(ch.url))
+                    val su = StreamHdr.split(ch.url)
+                    mvHdr[i].cur = su.second
+                    p.setMediaItem(MediaItem.fromUri(su.first))
                     p.prepare()
                     p.playWhenReady = true
                 }
@@ -733,7 +736,7 @@ object SyncState {
     var busy by mutableStateOf(false)
 }
 
-class CardPreview(val player: ExoPlayer) {
+class CardPreview(val player: ExoPlayer, val hdr: HdrHolder = HdrHolder()) {
     var focusId by mutableStateOf<Int?>(null)
     var pvId by mutableStateOf<Int?>(null)
     var ready by mutableStateOf(false)
@@ -746,6 +749,7 @@ class CardPreview(val player: ExoPlayer) {
 fun rememberCardPreview(ch: List<Channel>, curId: Int?): CardPreview {
     val ctx = LocalContext.current
     val cp = remember {
+        val hdrH = HdrHolder()
         val http = androidx.media3.datasource.DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
             .setUserAgent("VLC/3.0.18 LibVLC/3.0.18")
@@ -754,13 +758,13 @@ fun rememberCardPreview(ch: List<Channel>, curId: Int?): CardPreview {
         val p = ExoPlayer.Builder(ctx)
             .setMediaSourceFactory(
                 androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-                    androidx.media3.datasource.DefaultDataSource.Factory(ctx, http)
+                    StreamHdr.factory(ctx, hdrH)
                 )
             ).build()
         p.volume = 0f
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true).build()
-        val c = CardPreview(p)
+        val c = CardPreview(p, hdrH)
         p.addListener(object : androidx.media3.common.Player.Listener {
             override fun onRenderedFirstFrame() { c.ready = true }
         })
@@ -778,7 +782,9 @@ fun rememberCardPreview(ch: List<Channel>, curId: Int?): CardPreview {
         if (c != null && on && c.id != curId) {
             delay(250) // petit délai anti-rebond quand on défile vite
             try {
-                cp.player.setMediaItem(MediaItem.fromUri(c.url))
+                val su = StreamHdr.split(c.url)
+                cp.hdr.cur = su.second
+                cp.player.setMediaItem(MediaItem.fromUri(su.first))
                 cp.player.prepare()
                 cp.player.playWhenReady = true
                 cp.pvId = c.id

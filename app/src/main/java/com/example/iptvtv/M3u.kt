@@ -42,6 +42,7 @@ fun loadM3u(
     var pendingName = ""
     var pendingAttrs: Map<String, String> = emptyMap()
     var group = ""
+    val hdr = LinkedHashMap<String, String>()
     stream.bufferedReader().useLines { seq ->
         for (raw in seq) {
             val line = raw.removePrefix("\uFEFF").trim()
@@ -59,6 +60,24 @@ fun loadM3u(
                 group = line.substring(8).trim()
             } else if (line.startsWith("#EXT-X-STREAM-INF") || line.startsWith("#EXT-X-TARGETDURATION")) {
                 hls = true
+            } else if (line.startsWith("#EXTVLCOPT:")) {
+                val kv = line.substring(11)
+                val e = kv.indexOf('=')
+                if (e > 0) {
+                    val k = kv.substring(0, e).trim().lowercase()
+                    val v = kv.substring(e + 1).trim()
+                    if (v.isNotEmpty()) when (k) {
+                        "http-user-agent" -> hdr["User-Agent"] = v
+                        "http-referrer", "http-referer" -> hdr["Referer"] = v
+                        "http-origin" -> hdr["Origin"] = v
+                        "http-cookie" -> hdr["Cookie"] = v
+                    }
+                }
+            } else if (line.startsWith("#EXTHTTP:")) {
+                try {
+                    val o = org.json.JSONObject(line.substring(9))
+                    for (k in o.keys()) hdr[k] = o.optString(k)
+                } catch (ex: Exception) { }
             } else if (line.startsWith("#")) {
                 // autres balises ignorées
             } else if (pending) {
@@ -66,7 +85,8 @@ fun loadM3u(
                 val name = pendingName.ifBlank { a["tvg-name"] ?: line }
                 val cat = (a["group-title"] ?: "").ifBlank { group }.ifBlank { "No category" }
                 val epgId = (a["tvg-id"] ?: "").ifBlank { a["tvg-name"] ?: "" }
-                out.add(Channel("$sid|$line".hashCode(), name, a["tvg-logo"] ?: "", epgId, cat, false, line, sid))
+                out.add(Channel("$sid|$line".hashCode(), name, a["tvg-logo"] ?: "", epgId, cat, false, StreamHdr.join(line, hdr), sid))
+                hdr.clear()
                 pending = false
             }
         }

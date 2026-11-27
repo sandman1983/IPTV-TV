@@ -815,9 +815,13 @@ fun SettingsHub(
                 for (c in all) {
                     if (c.hidden || c.url.isBlank()) continue
                     fun q(t: String) = t.replace("\"", "'").replace("\n", " ")
+                    val su = StreamHdr.split(c.url)
                     sb.append("#EXTINF:-1 tvg-id=\"").append(q(c.epgId)).append("\" tvg-name=\"").append(q(c.name))
                         .append("\" tvg-logo=\"").append(q(c.icon)).append("\" group-title=\"").append(q(c.cat)).append("\",")
-                        .append(q(c.name)).append('\n').append(c.url).append('\n')
+                        .append(q(c.name)).append('\n')
+                    su.second["User-Agent"]?.let { sb.append("#EXTVLCOPT:http-user-agent=").append(q(it)).append('\n') }
+                    su.second["Referer"]?.let { sb.append("#EXTVLCOPT:http-referrer=").append(q(it)).append('\n') }
+                    sb.append(su.first).append('\n')
                     n++
                 }
                 ctx.contentResolver.openOutputStream(uri)?.use { it.write(sb.toString().toByteArray()) }
