@@ -1367,9 +1367,9 @@ fun SettingsHub(
             }
         }
         "theme" -> PanelShell("Theme", { back() }, actions = { PButton("Back", { back() }) }) {
-            item { PRadio("Dark", "Dark blue-grey panels, white text", Th.mode == 0, { Th.set(ctx, 0); page = "display" }, autoFocus = Th.mode == 0) }
+            item { PRadio("Dark", "Dark charcoal panels, white text, mint-green accent", Th.mode == 0, { Th.set(ctx, 0); page = "display" }, autoFocus = Th.mode == 0) }
             item { PRadio("Sky", "Deep navy-black, white text, Sky-blue accent", Th.mode == 4, { Th.set(ctx, 4); page = "display" }, autoFocus = Th.mode == 4) }
-            item { PRadio("Midnight Slate", "Cool blue-grey, soft white text, gold accent", Th.mode == 3, { Th.set(ctx, 3); page = "display" }, autoFocus = Th.mode == 3) }
+            item { PRadio("Midnight Slate", "Cool blue-grey, soft white text, violet accent", Th.mode == 3, { Th.set(ctx, 3); page = "display" }, autoFocus = Th.mode == 3) }
             item { PRadio("Black", "Pure black background (OLED)", Th.mode == 2, { Th.set(ctx, 2); page = "display" }, autoFocus = Th.mode == 2) }
         }
         "city" -> PanelShell(
